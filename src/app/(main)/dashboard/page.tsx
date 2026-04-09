@@ -310,7 +310,7 @@ export default function DashboardPage() {
       {activeTab === 'mensual' && (
         <>
           {/* KPI Cards */}
-          <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${datos.promedios2026?.meses > 0 ? 'xl:grid-cols-5' : 'xl:grid-cols-4'} mb-6`}>
+          <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${(datos.promedios2026?.meses ?? 0) > 0 ? 'xl:grid-cols-5' : 'xl:grid-cols-4'} mb-6`}>
             <div className="card p-5 md:p-6">
               <div className="flex items-end justify-between">
                 <div>
@@ -507,7 +507,7 @@ export default function DashboardPage() {
         datosFindes ? (
           <>
             {/* Summary cards */}
-            <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${datosFindes.resumen2026?.cantidad_findes > 0 ? 'lg:grid-cols-3' : ''} mb-6`}>
+            <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${(datosFindes.resumen2026?.cantidad_findes ?? 0) > 0 ? 'lg:grid-cols-3' : ''} mb-6`}>
               <div className="card p-5 md:p-6">
                 <span className="text-sm text-text-secondary">Promedio OH 2024</span>
                 <h4 className="mt-2 text-2xl font-bold text-text-primary">

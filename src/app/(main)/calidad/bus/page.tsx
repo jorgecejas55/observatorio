@@ -63,8 +63,8 @@ async function generarFingerprint(): Promise<string> {
       res: `${screen.width}x${screen.height}`,
       tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       tzOff: new Date().getTimezoneOffset(),
-      mem: (navigator as Record<string, unknown>).deviceMemory ?? 0,
-      cpu: (navigator as Record<string, unknown>).hardwareConcurrency ?? 0,
+      mem: (navigator as any).deviceMemory ?? 0,
+      cpu: (navigator as any).hardwareConcurrency ?? 0,
     })
     if (crypto?.subtle) {
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))

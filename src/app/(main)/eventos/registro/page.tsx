@@ -30,7 +30,7 @@ function toCamel(obj: Record<string, unknown>): Evento {
   for (const [k, v] of Object.entries(obj)) {
     result[map[k] ?? k] = v
   }
-  return result as Evento
+  return result as unknown as Evento
 }
 
 function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
