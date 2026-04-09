@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans text-text-primary bg-gray-50;
+  }
+}
+
+@layer components {
+  /* Título de sección con línea decorativa */
+  .section-title {
+    @apply text-3xl font-extrabold relative pb-4 mb-10;
+  }
+  .section-title::after {
+    content: '';
+    @apply absolute bottom-0 left-0 h-1 bg-primary rounded-sm;
+    width: 60px;
+  }
+
+  /* Botones */
+  .btn {
+    @apply py-2.5 px-6 rounded-full font-semibold transition-all duration-300
+           inline-flex items-center justify-center gap-2 text-sm;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-white hover:bg-primary-hover hover:-translate-y-0.5 hover:shadow-lg;
+  }
+  .btn-outline {
+    @apply btn border-2 border-primary text-primary hover:bg-primary hover:text-white hover:-translate-y-0.5;
+  }
+  .btn-secondary {
+    @apply btn bg-secondary text-white hover:-translate-y-0.5 hover:shadow-lg;
+  }
+  .btn-ghost {
+    @apply btn text-text-secondary hover:text-primary hover:bg-gray-100;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden;
+  }
+  .card-hover {
+    @apply transition-all duration-300 ease-in-out hover:-translate-y-1.5 hover:shadow-xl;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full rounded-xl px-4 py-2.5 border border-gray-300 text-sm
+           focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
+           transition-colors duration-200;
+  }
+  .label {
+    @apply block text-sm font-medium text-text-primary mb-1.5;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center rounded-full px-3 py-0.5 text-xs font-bold uppercase tracking-wider;
+  }
+
+  /* Animaciones */
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out;
+  }
+}
