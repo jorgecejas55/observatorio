@@ -78,7 +78,7 @@ function LoginScreen() {
         <div className="bg-white rounded-lg shadow-xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Administración de Alojamientos</h1>
-            <p className="text-gray-600 text-sm">Observatorio Municipal de Turismo</p>
+            <p className="text-gray-600 text-sm">Observatorio De Turismo Municipal</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -324,28 +324,28 @@ function AdminPanel({ user }: { user: User }) {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {alojamientosFiltrados.map((aloj) => (
-                  <tr key={aloj.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{aloj.nombre}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{aloj.tipo}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{aloj.direccion}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{aloj.habitaciones || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{aloj.plazas || '-'}</td>
-                    <td className="px-6 py-4 text-sm space-x-2">
-                      <button
-                        onClick={() => handleEditar(aloj)}
-                        className="text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleEliminar(aloj.id, aloj.nombre)}
-                        className="text-red-600 hover:text-red-800 font-medium"
-                      >
-                        Eliminar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      <tr key={aloj.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{aloj.nombre}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{aloj.tipo}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{aloj.direccion}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{aloj.habitaciones || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{aloj.plazas || '-'}</td>
+                        <td className="px-6 py-4 text-sm space-x-2">
+                          <button
+                            onClick={() => handleEditar(aloj)}
+                            className="text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleEliminar(aloj.id, aloj.nombre)}
+                            className="text-red-600 hover:text-red-800 font-medium"
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
 
@@ -476,11 +476,15 @@ function FormularioAlojamiento({
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               >
                 <option value="">Seleccionar...</option>
-                <option value="Casa">Casa</option>
+                <option value="Apart">Apart</option>
+                <option value="Cabaña">Cabaña</option>
+                <option value="Casa">Casa completa</option>
+                <option value="Casa">Casa compartida</option>
                 <option value="Departamento">Departamento</option>
-                <option value="Hostel">Hostel</option>
-                <option value="Apart Hotel">Apart Hotel</option>
+                <option value="Dúplex">Dúplex</option>
                 <option value="Habitación">Habitación</option>
+                <option value="Hostel">Hostel</option>
+                <option value="Posada">Posada</option>
                 <option value="Otro">Otro</option>
               </select>
             </div>
