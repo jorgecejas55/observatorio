@@ -226,7 +226,7 @@ export default function AlojamientosNoRegistradosPage() {
           </h3>
           <p className="text-blue-800 text-sm mb-2">
             Este mapa muestra alojamientos turísticos no registrados oficialmente que fueron identificados mediante
-            relevamientos del Observatorio Municipal de Turismo.
+            relevamientos del Observatorio de Turismo Municipal.
           </p>
           <p className="text-blue-800 text-sm">
             Los datos incluyen: nombre, tipo de alojamiento, dirección, capacidad (habitaciones y plazas), y
@@ -238,7 +238,7 @@ export default function AlojamientosNoRegistradosPage() {
       {/* Footer */}
       <footer className="bg-white border-t mt-12">
         <div className="container mx-auto px-4 py-6 text-center text-gray-600 text-sm">
-          <p>Observatorio Municipal de Turismo — Secretaría de Turismo y Desarrollo Económico</p>
+          <p>Observatorio de Turismo Municipal — Secretaría de Turismo y Desarrollo Económico</p>
           <p className="mt-1">Municipalidad de San Fernando del Valle de Catamarca</p>
         </div>
       </footer>
