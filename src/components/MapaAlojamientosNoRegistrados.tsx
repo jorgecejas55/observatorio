@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import type { AlojamientoMapData } from '@/services/alojamientosService'
+import 'leaflet/dist/leaflet.css'
 
 interface MapaAlojamientosProps {
   alojamientos: AlojamientoMapData[]
@@ -35,8 +36,6 @@ export default function MapaAlojamientosNoRegistrados({
         setTileLayer(rl.TileLayer)
         setMarker(rl.Marker)
         setPopup(rl.Popup)
-
-        await import('leaflet/dist/leaflet.css')
 
         // Cargar leaflet.heat
         await import('leaflet.heat')
