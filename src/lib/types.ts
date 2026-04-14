@@ -19,7 +19,7 @@ export type AtractivoId =
   | 'casa-turismo'
   | 'museo-adan-quiroga'
   | 'museo-virgen-valle'
-  | 'casa-caravati'
+  | 'museo-casa-caravati'
 
 export const ATRACTIVOS: Record<AtractivoId, string> = {
   'pueblo-perdido': 'Pueblo Perdido de la Quebrada',
@@ -28,7 +28,7 @@ export const ATRACTIVOS: Record<AtractivoId, string> = {
   'casa-turismo': 'Casa de Turismo',
   'museo-adan-quiroga': 'Museo Arqueológico Adán Quiroga',
   'museo-virgen-valle': 'Museo de la Virgen del Valle',
-  'casa-caravati': 'Casa Caravati',
+  'museo-casa-caravati': 'Museo de la Ciudad - Casa Caravati',
 }
 
 // ─── Ocio / Demanda ───────────────────────────────────────────────────────────
