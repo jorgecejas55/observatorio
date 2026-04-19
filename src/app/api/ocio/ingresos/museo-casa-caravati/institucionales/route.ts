@@ -42,8 +42,8 @@ export async function GET() {
 
     const url = new URL(GAS)
     url.searchParams.set('action', 'getInstitucionales')
-    // Cachear por 60 segundos para mejorar rendimiento
-    const res = await fetch(url.toString(), { next: { revalidate: 60 } })
+    // No usar caché de Next.js para evitar desincronización con el backend (GAS maneja su propio caché)
+    const res = await fetch(url.toString(), { cache: 'no-store' })
     const response = await res.json()
 
     // Ordenar por fecha descendente (más recientes primero)

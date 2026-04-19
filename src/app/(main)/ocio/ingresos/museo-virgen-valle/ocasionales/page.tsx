@@ -9,7 +9,7 @@ import FormVisitaOcasional from '@/components/museos/FormVisitaOcasional'
 import TablaVisitas from '@/components/museos/TablaVisitas'
 import Toast from '@/components/shared/Toast'
 
-// ── Componente SelectAno ──────────────────────────────────────────────────
+// ── Componente SelectAno ───────────────────────────────────
 function SelectAno({ value, onChange, anos }: {
   value: string
   onChange: (v: string) => void
@@ -87,7 +87,7 @@ function VisitasOcasionalesContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // ── Extraer años disponibles (useMemo) ────────────────────────────────────
+  // ── Extraer años disponibles (useMemo) ──────────────────────
   const anosDisponibles = useMemo(() => {
     const anos = new Set<number>()
     visitas.forEach(v => {
@@ -99,7 +99,7 @@ function VisitasOcasionalesContent() {
     return Array.from(anos).sort((a, b) => b - a)
   }, [visitas])
 
-  // ── Filtrar visitas (useMemo) ─────────────────────────────────────────────
+  // ── Filtrar visitas (useMemo) ──────────────────────────────
   const visitasFiltradas = useMemo(() => {
     return visitas.filter(v => {
       if (!v.Fecha) return false
@@ -118,14 +118,14 @@ function VisitasOcasionalesContent() {
     })
   }, [visitas, anoSeleccionado, fechaDesde, fechaHasta])
 
-  // ── Limpiar filtros (useCallback) ─────────────────────────────────────────
+  // ── Limpiar filtros (useCallback) ──────────────────────────
   const limpiarFiltros = useCallback(() => {
     setAnoSeleccionado('todos')
     setFechaDesde('')
     setFechaHasta('')
   }, [])
 
-  // ── Hay filtros activos (useMemo) ─────────────────────────────────────────
+  // ── Hay filtros activos (useMemo) ──────────────────────────
   const hayFiltrosActivos = useMemo(() => {
     return anoSeleccionado !== 'todos' || fechaDesde !== '' || fechaHasta !== ''
   }, [anoSeleccionado, fechaDesde, fechaHasta])
@@ -204,6 +204,54 @@ function VisitasOcasionalesContent() {
         type: 'error',
       })
       console.error(err)
+    }
+  }, [cargarVisitas])
+
+  const handleDeleteMultiple = useCallback(async (ids: string[]) => {
+    setLoading(true)
+    let exitos = 0
+    let errores = 0
+
+    try {
+      // Usamos Promise.allSettled para que si uno falla los demás sigan
+      const promesas = ids.map(id =>
+        fetch(`/api/ocio/ingresos/museo-virgen-valle/ocasionales/${id}`, {
+          method: 'DELETE',
+        }).then(res => res.json())
+      )
+
+      const resultados = await Promise.allSettled(promesas)
+
+      resultados.forEach(resultado => {
+        if (resultado.status === 'fulfilled' && (resultado.value as any).success) {
+          exitos++
+        } else {
+          errores++
+        }
+      })
+
+      await cargarVisitas()
+
+      if (errores === 0) {
+        setToast({
+          message: `${exitos} visitas eliminadas correctamente`,
+          type: 'success',
+        })
+      } else {
+        setToast({
+          message: `${exitos} eliminadas, ${errores} fallaron`,
+          type: exitos > 0 ? 'info' : 'error',
+        })
+      }
+    } catch (err) {
+      setToast({
+        message: 'Error al procesar la eliminación masiva',
+        type: 'error',
+      })
+      console.error(err)
+      await cargarVisitas()
+    } finally {
+      setLoading(false)
     }
   }, [cargarVisitas])
 
@@ -494,6 +542,7 @@ function VisitasOcasionalesContent() {
           loading={loading}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onDeleteMultiple={handleDeleteMultiple}
           tipo="ocasional"
           currentPage={currentPage}
           totalPages={totalPages}

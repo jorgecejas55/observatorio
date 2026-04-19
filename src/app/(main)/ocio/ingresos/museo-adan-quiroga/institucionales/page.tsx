@@ -207,6 +207,53 @@ function VisitasInstitucionalesContent() {
     }
   }, [cargarVisitas])
 
+  const handleDeleteMultiple = useCallback(async (ids: string[]) => {
+    setLoading(true)
+    let exitos = 0
+    let errores = 0
+
+    try {
+      const promesas = ids.map(id =>
+        fetch(`/api/ocio/ingresos/museo-adan-quiroga/institucionales/${id}`, {
+          method: 'DELETE',
+        }).then(res => res.json())
+      )
+
+      const resultados = await Promise.allSettled(promesas)
+
+      resultados.forEach(resultado => {
+        if (resultado.status === 'fulfilled' && (resultado.value as any).success) {
+          exitos++
+        } else {
+          errores++
+        }
+      })
+
+      await cargarVisitas()
+
+      if (errores === 0) {
+        setToast({
+          message: `${exitos} visitas eliminadas correctamente`,
+          type: 'success',
+        })
+      } else {
+        setToast({
+          message: `${exitos} eliminadas, ${errores} fallaron`,
+          type: exitos > 0 ? 'info' : 'error',
+        })
+      }
+    } catch (err) {
+      setToast({
+        message: 'Error al procesar la eliminación masiva',
+        type: 'error',
+      })
+      console.error(err)
+      await cargarVisitas()
+    } finally {
+      setLoading(false)
+    }
+  }, [cargarVisitas])
+
   const handleEdit = useCallback((visita: any) => {
     setEditando(visita)
     setFormOpen(true)
@@ -494,6 +541,7 @@ function VisitasInstitucionalesContent() {
           loading={loading}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onDeleteMultiple={handleDeleteMultiple}
           tipo="institucional"
           currentPage={currentPage}
           totalPages={totalPages}

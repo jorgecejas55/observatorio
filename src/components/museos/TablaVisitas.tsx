@@ -1,12 +1,13 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 
 interface TablaVisitasProps {
   visitas: any[]
   loading: boolean
   onEdit: (visita: any) => void
   onDelete: (id: string) => void
+  onDeleteMultiple?: (ids: string[]) => void
   tipo: 'ocasional' | 'institucional'
   // Paginación
   currentPage?: number
@@ -27,7 +28,15 @@ export default function TablaVisitas({
   totalItems = 0,
   itemsPerPage = 20,
   onPageChange,
+  onDeleteMultiple,
 }: TablaVisitasProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  // Limpiar selección cuando cambia la página o los datos
+  useEffect(() => {
+    setSelectedIds([])
+  }, [currentPage, visitas])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -62,11 +71,69 @@ export default function TablaVisitas({
     }
   }
 
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIds = visitas.map((v) => v.id).filter(Boolean)
+      setSelectedIds(allIds)
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    )
+  }
+
+  const handleDeleteMultipleClick = () => {
+    if (!onDeleteMultiple || selectedIds.length === 0) return
+
+    const confirmacion = window.confirm(
+      `¿Estás seguro de que querés eliminar las ${selectedIds.length} visitas seleccionadas?`
+    )
+    if (confirmacion) {
+      onDeleteMultiple(selectedIds)
+    }
+  }
+
   return (
     <div className="overflow-x-auto">
+      {/* Barra de acciones de selección */}
+      {selectedIds.length > 0 && (
+        <div className="bg-blue-50 px-4 py-3 border-b border-blue-100 flex items-center justify-between sticky left-0">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-blue-700">
+              {selectedIds.length} seleccionado{selectedIds.length !== 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Desmarcar todos
+            </button>
+          </div>
+          <button
+            onClick={handleDeleteMultipleClick}
+            className="btn-danger !py-1.5 !px-3 text-sm flex items-center gap-2"
+          >
+            <i className="fa-solid fa-trash-can" />
+            Eliminar seleccionados
+          </button>
+        </div>
+      )}
+
       <table className="w-full">
         <thead>
           <tr className="border-b border-gray-200">
+            <th className="py-3 px-4 text-left w-10">
+              <input
+                type="checkbox"
+                className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                checked={visitas.length > 0 && selectedIds.length === visitas.length}
+                onChange={handleSelectAll}
+              />
+            </th>
             <th className="text-left py-3 px-4 text-sm font-semibold text-text-primary">Fecha</th>
             {tipo === 'ocasional' ? (
               <>
@@ -106,6 +173,7 @@ export default function TablaVisitas({
         </thead>
         <tbody>
           {visitas.map((visita, index) => {
+            const isSelected = selectedIds.includes(visita.id)
             const fecha =
               tipo === 'ocasional'
                 ? visita.Fecha || visita.fecha_visita
@@ -121,8 +189,18 @@ export default function TablaVisitas({
             return (
               <tr
                 key={visita.id || index}
-                className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                  isSelected ? 'bg-blue-50/30' : ''
+                }`}
               >
+                <td className="py-3 px-4">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                    checked={isSelected}
+                    onChange={() => handleSelectOne(visita.id)}
+                  />
+                </td>
                 <td className="py-3 px-4 text-sm text-text-primary">{fechaFormateada}</td>
 
                 {tipo === 'ocasional' ? (
