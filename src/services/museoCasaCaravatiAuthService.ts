@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'museo_casa_caravati_session'
+const SESSION_TTL = 8 * 60 * 60 * 1000
 
 interface User {
   id: string
@@ -28,7 +29,7 @@ const MuseoCasaCaravatiAuthService = {
       const result = await response.json()
 
       if (result.success) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(result.user))
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ user: result.user, createdAt: Date.now() }))
         return { success: true, user: result.user }
       } else {
         return { success: false, message: result.message || 'Credenciales inválidas' }
@@ -45,8 +46,14 @@ const MuseoCasaCaravatiAuthService = {
 
   getCurrentUser(): User | null {
     if (typeof window === 'undefined') return null
-    const session = localStorage.getItem(STORAGE_KEY)
-    return session ? JSON.parse(session) : null
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const { user, createdAt } = JSON.parse(raw)
+    if (Date.now() - createdAt > SESSION_TTL) {
+      localStorage.removeItem(STORAGE_KEY)
+      return null
+    }
+    return user
   },
 
   isAuthenticated(): boolean {

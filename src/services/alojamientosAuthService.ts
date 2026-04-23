@@ -1,5 +1,7 @@
 import type { User, LoginResponse } from './appsScriptAuthService'
 
+const SESSION_TTL = 8 * 60 * 60 * 1000
+
 type AuthEvent = 'SIGNED_IN' | 'SIGNED_OUT'
 type AuthCallback = (event: AuthEvent, session: { user: User | null }, user: User | null) => void
 
@@ -15,8 +17,15 @@ class AlojamientosAuthService {
   }
 
   private loadUserFromStorage(): void {
-    const session = localStorage.getItem(this.STORAGE_KEY)
-    this.currentUser = session ? JSON.parse(session) : null
+    const raw = localStorage.getItem(this.STORAGE_KEY)
+    if (!raw) { this.currentUser = null; return }
+    const { user, createdAt } = JSON.parse(raw)
+    if (Date.now() - createdAt > SESSION_TTL) {
+      localStorage.removeItem(this.STORAGE_KEY)
+      this.currentUser = null
+    } else {
+      this.currentUser = user
+    }
   }
 
   async initialize(): Promise<User | null> {
@@ -36,7 +45,7 @@ class AlojamientosAuthService {
 
       if (result.success && result.user) {
         this.currentUser = result.user
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(result.user))
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify({ user: result.user, createdAt: Date.now() }))
         this.notifyListeners('SIGNED_IN', result.user)
         return { success: true, user: result.user }
       } else {

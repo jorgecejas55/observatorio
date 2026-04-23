@@ -1,3 +1,5 @@
+const SESSION_TTL = 8 * 60 * 60 * 1000
+
 interface User {
   id: string
   email: string
@@ -26,7 +28,7 @@ const AppsScriptAuthService = {
       const result = await response.json()
 
       if (result.success) {
-        localStorage.setItem('eventos_user_session', JSON.stringify(result.user))
+        localStorage.setItem('eventos_user_session', JSON.stringify({ user: result.user, createdAt: Date.now() }))
         return { success: true, user: result.user }
       } else {
         return { success: false, message: result.message || 'Credenciales inválidas' }
@@ -43,8 +45,14 @@ const AppsScriptAuthService = {
 
   getCurrentUser(): User | null {
     if (typeof window === 'undefined') return null
-    const session = localStorage.getItem('eventos_user_session')
-    return session ? JSON.parse(session) : null
+    const raw = localStorage.getItem('eventos_user_session')
+    if (!raw) return null
+    const { user, createdAt } = JSON.parse(raw)
+    if (Date.now() - createdAt > SESSION_TTL) {
+      localStorage.removeItem('eventos_user_session')
+      return null
+    }
+    return user
   },
 
   isAuthenticated(): boolean {

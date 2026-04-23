@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
 import { MuseoAuthSchema } from '@/lib/schemas'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 const GAS = process.env.MUSEO_VIRGEN_VALLE_SCRIPT_URL ?? ''
 
 // POST /api/museos/virgen-valle/auth - Login
 export async function POST(req: Request) {
   try {
+    if (!checkRateLimit(getClientIp(req), 5, 15 * 60 * 1000)) {
+      return NextResponse.json({ success: false, error: 'Demasiados intentos. Esperá 15 minutos.' }, { status: 429 })
+    }
+
     const body = await req.json()
     const parsed = MuseoAuthSchema.safeParse(body)
     if (!parsed.success) {

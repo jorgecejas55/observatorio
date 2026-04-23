@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
 import { MuseoAuthSchema } from '@/lib/schemas'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 const GAS = process.env.MUSEO_ADAN_QUIROGA_SCRIPT_URL ?? ''
 
 // POST /api/ocio/ingresos/museo-adan-quiroga/auth - Login
 export async function POST(req: Request) {
   try {
+    if (!checkRateLimit(getClientIp(req), 5, 15 * 60 * 1000)) {
+      return NextResponse.json({ success: false, error: 'Demasiados intentos. Esperá 15 minutos.' }, { status: 429 })
+    }
+
     if (!GAS) {
       return NextResponse.json({
         success: false,
