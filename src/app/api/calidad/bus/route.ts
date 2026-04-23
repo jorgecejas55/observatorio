@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { esObjectoValido } from '@/lib/schemas'
 
 const GAS = process.env.ENCUESTA_BUS_SCRIPT_URL ?? ''
 
@@ -17,6 +18,9 @@ export async function POST(req: Request) {
     }
 
     const data = await req.json()
+    if (!esObjectoValido(data)) {
+      return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+    }
 
     const res = await fetch(GAS, {
       method: 'POST',

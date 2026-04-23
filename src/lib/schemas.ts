@@ -1,5 +1,14 @@
 import { z } from 'zod'
 
+export function esObjectoValido(data: unknown): boolean {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    !Array.isArray(data) &&
+    Object.keys(data as object).length > 0
+  )
+}
+
 // ─── Auth museos ──────────────────────────────────────────────────────────────
 
 export const MuseoAuthSchema = z.object({
