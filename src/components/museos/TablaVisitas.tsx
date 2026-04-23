@@ -173,7 +173,11 @@ export default function TablaVisitas({
         </thead>
         <tbody>
           {visitas.map((visita, index) => {
-            const isSelected = selectedIds.includes(visita.id)
+            // Generar una clave única para React
+            const rowKey = visita.id || `row-${index}`
+            // Solo considerar seleccionado si tiene ID y está en la lista
+            const isSelected = visita.id && selectedIds.includes(visita.id)
+            
             const fecha =
               tipo === 'ocasional'
                 ? visita.Fecha || visita.fecha_visita

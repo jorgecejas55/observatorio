@@ -17,16 +17,16 @@ export async function POST(req: Request) {
     })
 
     const text = await res.text()
-    console.log('[indicadores/carga] GAS status:', res.status)
-    console.log('[indicadores/carga] GAS response:', text.slice(0, 300))
 
     try {
       const result = JSON.parse(text)
       return NextResponse.json(result)
     } catch {
-      return NextResponse.json({ error: 'Respuesta no válida del script', raw: text.slice(0, 300) }, { status: 502 })
+      console.error('[indicadores/carga] respuesta no válida del script')
+      return NextResponse.json({ error: 'Respuesta no válida del servidor' }, { status: 502 })
     }
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('[indicadores/carga]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

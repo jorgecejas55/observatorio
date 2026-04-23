@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { VisitaInstitucionalSchema } from '@/lib/schemas'
 
 const GAS = process.env.MUSEO_ADAN_QUIROGA_SCRIPT_URL ?? ''
 
@@ -60,7 +61,8 @@ export async function GET(
 
     return NextResponse.json({ success: false, message: 'Error al obtener datos' }, { status: 500 })
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-adan-quiroga/institucionales/id GET]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }
 
@@ -71,11 +73,16 @@ export async function PUT(
 ) {
   try {
     const params = await context.params
-    const data = await req.json()
-    const result = await gasPost({ action: 'updateInstitucional', id: params.id, data })
+    const body = await req.json()
+    const parsed = VisitaInstitucionalSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
+    }
+    const result = await gasPost({ action: 'updateInstitucional', id: params.id, data: parsed.data })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-adan-quiroga/institucionales/id PUT]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }
 
@@ -89,6 +96,7 @@ export async function DELETE(
     const result = await gasPost({ action: 'deleteInstitucional', id: params.id })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-adan-quiroga/institucionales/id DELETE]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }

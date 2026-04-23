@@ -52,9 +52,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json(data)
   } catch (err) {
-    console.error('Error en /api/eventos/dashboard:', err)
+    console.error('[eventos/dashboard]', err)
     return NextResponse.json(
-      { error: String(err) },
+      { error: 'Error interno del servidor' },
       { status: 500 }
     )
   }

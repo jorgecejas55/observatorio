@@ -2,8 +2,6 @@
 
 import { useState, useCallback } from 'react'
 
-// URL del Apps Script ya desplegado — los datos siguen yendo al mismo Google Sheet
-const SCRIPT_URL = process.env.NEXT_PUBLIC_PERCEPCION_SCRIPT_URL ?? ''
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -235,22 +233,26 @@ export default function PercepcionSocialForm() {
     setEstado('enviando')
 
     try {
-      const fd = new FormData()
-      fd.append('sector', form.sector)
-      fd.append('edad', form.edad)
-      fd.append('ciudad_turistica', form.ciudad_turistica)
-      fd.append('frecuencia_interaccion', form.frecuencia_interaccion)
-      fd.append('definicion', form.definicion.trim())
-      fd.append('representacion_turistica', form.representacion_turistica)
-      fd.append('conocimiento_actividades', form.conocimiento_actividades)
-      // canales_info: misma consolidación que el script original
-      fd.append('canales_info', form.canales_info.join(', '))
-      fd.append('beneficio_principal', form.beneficio_principal)
-      fd.append('atractivo_impulsar', form.atractivo_impulsar)
-      fd.append('propuesta', form.propuesta)
-      fd.append('timestamp', new Date().toISOString())
+      const payload = {
+        sector: form.sector,
+        edad: form.edad,
+        ciudad_turistica: form.ciudad_turistica,
+        frecuencia_interaccion: form.frecuencia_interaccion,
+        definicion: form.definicion.trim(),
+        representacion_turistica: form.representacion_turistica,
+        conocimiento_actividades: form.conocimiento_actividades,
+        canales_info: form.canales_info.join(', '),
+        beneficio_principal: form.beneficio_principal,
+        atractivo_impulsar: form.atractivo_impulsar,
+        propuesta: form.propuesta,
+        timestamp: new Date().toISOString(),
+      }
 
-      const res = await fetch(SCRIPT_URL, { method: 'POST', body: fd })
+      const res = await fetch('/api/calidad/percepcion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
       const data = await res.json()
 
       if (data.status === 'success') {

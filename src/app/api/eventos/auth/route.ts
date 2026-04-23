@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server'
 import { MuseoAuthSchema } from '@/lib/schemas'
 
-const GAS = process.env.MUSEO_CASA_CARAVATI_SCRIPT_URL ?? ''
+const GAS = process.env.EVENTOS_SCRIPT_URL ?? ''
 
-// POST /api/ocio/ingresos/museo-casa-caravati/auth - Login
 export async function POST(req: Request) {
   try {
     if (!GAS) {
-      return NextResponse.json({
-        success: false,
-        error: 'MUSEO_CASA_CARAVATI_SCRIPT_URL no está configurada. Verificá el archivo .env.local'
-      }, { status: 500 })
+      return NextResponse.json({ success: false, error: 'EVENTOS_SCRIPT_URL no configurada' }, { status: 500 })
     }
 
     const body = await req.json()
@@ -18,8 +14,8 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
     }
-    const { email, password } = parsed.data
 
+    const { email, password } = parsed.data
     const url = new URL(GAS)
     url.searchParams.set('action', 'login')
     url.searchParams.set('email', email)
@@ -33,7 +29,7 @@ export async function POST(req: Request) {
     const result = await res.json()
     return NextResponse.json(result)
   } catch (err) {
-    console.error('[museo-casa-caravati/auth POST]', err)
+    console.error('[eventos/auth POST]', err)
     return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }

@@ -15,14 +15,14 @@ export async function GET(req: Request) {
     const res  = await fetch(gasUrl.toString(), { redirect: 'follow' })
     const text = await res.text()
 
-    console.log('[dashboard-perfil] status:', res.status, '| bytes:', text.length)
-
     try {
       return NextResponse.json(JSON.parse(text))
     } catch {
-      return NextResponse.json({ error: 'Respuesta inválida del script', raw: text.slice(0, 300) }, { status: 502 })
+      console.error('[dashboard-perfil] respuesta inválida del script')
+      return NextResponse.json({ error: 'Respuesta no válida del servidor' }, { status: 502 })
     }
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('[dashboard-perfil]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

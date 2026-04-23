@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { EventoSchema } from '@/lib/schemas'
 
 const GAS = process.env.EVENTOS_SCRIPT_URL ?? ''
 
@@ -36,20 +37,25 @@ export async function GET() {
 
     return NextResponse.json(response)
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('[eventos GET]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }
 
 // POST /api/eventos — crea un evento con campos de auditoría
 export async function POST(req: Request) {
   try {
-    const data = await req.json()
+    const body = await req.json()
+    const parsed = EventoSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+    }
 
     // Extraer email del usuario
-    const userEmail = extractUserEmail(data)
+    const userEmail = extractUserEmail(parsed.data)
 
     // Eliminar campo temporal _userEmail
-    const { _userEmail, ...cleanData } = data
+    const { _userEmail, ...cleanData } = parsed.data
 
     // Agregar campos de auditoría al crear
     const now = new Date().toISOString()
@@ -65,6 +71,7 @@ export async function POST(req: Request) {
     const result = await gasPost({ action: 'createEvento', data: dataWithAudit })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('[eventos POST]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

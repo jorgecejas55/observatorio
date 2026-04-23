@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 const GAS = process.env.ENCUESTA_BUS_SCRIPT_URL ?? ''
 
 export async function POST(req: Request) {
   try {
+    if (!checkRateLimit(getClientIp(req))) {
+      return NextResponse.json({ error: 'Demasiadas solicitudes. Intentá más tarde.' }, { status: 429 })
+    }
+
     if (!GAS) {
       return NextResponse.json(
         { error: 'ENCUESTA_BUS_SCRIPT_URL no configurada' },
@@ -22,19 +27,18 @@ export async function POST(req: Request) {
 
     const text = await res.text()
 
-    console.log('[calidad-bus] GAS status:', res.status)
-    console.log('[calidad-bus] GAS response:', text.slice(0, 300))
-
     try {
       const result = JSON.parse(text)
       return NextResponse.json(result)
     } catch {
+      console.error('[calidad-bus] respuesta no válida del script')
       return NextResponse.json(
-        { error: 'Respuesta no válida del script', raw: text.slice(0, 300) },
+        { error: 'Respuesta no válida del servidor' },
         { status: 502 },
       )
     }
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('[calidad-bus]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

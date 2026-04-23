@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { VisitaInstitucionalSchema } from '@/lib/schemas'
 
 const GAS = process.env.MUSEO_VIRGEN_VALLE_SCRIPT_URL ?? ''
 
@@ -32,18 +33,23 @@ export async function GET() {
 
     return NextResponse.json(response)
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-virgen-valle/institucionales GET]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }
 
 // POST /api/ocio/ingresos/museo-virgen-valle/institucionales - Crear nueva visita institucional
 export async function POST(req: Request) {
   try {
-    const data = await req.json()
-
-    const result = await gasPost({ action: 'createInstitucional', data })
+    const body = await req.json()
+    const parsed = VisitaInstitucionalSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
+    }
+    const result = await gasPost({ action: 'createInstitucional', data: parsed.data })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-virgen-valle/institucionales POST]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { VisitaOcasionalSchema } from '@/lib/schemas'
 
 const GAS = process.env.MUSEO_ADAN_QUIROGA_SCRIPT_URL ?? ''
 
@@ -57,14 +58,20 @@ export async function GET() {
 
     return NextResponse.json(response)
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-adan-quiroga/ocasionales GET]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }
 
 // POST /api/ocio/ingresos/museo-adan-quiroga/ocasionales - Crear nueva visita ocasional
 export async function POST(req: Request) {
   try {
-    const data = await req.json()
+    const body = await req.json()
+    const parsed = VisitaOcasionalSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
+    }
+    const data = parsed.data
 
     // Agregar timestamp
     const now = new Date().toISOString()
@@ -77,6 +84,7 @@ export async function POST(req: Request) {
     const result = await gasPost({ action: 'createOcasional', data: dataWithTimestamp })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-adan-quiroga/ocasionales POST]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }

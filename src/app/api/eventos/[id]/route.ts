@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { EventoSchema } from '@/lib/schemas'
 
 const GAS = process.env.EVENTOS_SCRIPT_URL ?? ''
 
@@ -20,13 +21,17 @@ function extractUserEmail(data: any): string {
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const data = await req.json()
+    const body = await req.json()
+    const parsed = EventoSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+    }
 
     // Extraer email del usuario
-    const userEmail = extractUserEmail(data)
+    const userEmail = extractUserEmail(parsed.data)
 
     // Eliminar campo temporal _userEmail
-    const { _userEmail, ...cleanData } = data
+    const { _userEmail, ...cleanData } = parsed.data
 
     // Agregar campos de auditoría al actualizar
     const now = new Date().toISOString()
@@ -42,7 +47,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const result = await gasPost({ action: 'updateEvento', id, data: dataWithAudit })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('[eventos PUT]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }
 
@@ -53,6 +59,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const result = await gasPost({ action: 'deleteEvento', id })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('[eventos DELETE]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

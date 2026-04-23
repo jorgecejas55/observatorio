@@ -1,6 +1,4 @@
-// Servicio de autenticación para el módulo de alojamientos no registrados
-// Reutiliza la hoja "usuarios" del sistema de eventos
-import AppsScriptAuthService, { type User, type LoginResponse } from './appsScriptAuthService'
+import type { User, LoginResponse } from './appsScriptAuthService'
 
 type AuthEvent = 'SIGNED_IN' | 'SIGNED_OUT'
 type AuthCallback = (event: AuthEvent, session: { user: User | null }, user: User | null) => void
@@ -16,44 +14,22 @@ class AlojamientosAuthService {
     }
   }
 
-  /**
-   * Cargar usuario desde localStorage
-   */
   private loadUserFromStorage(): void {
     const session = localStorage.getItem(this.STORAGE_KEY)
     this.currentUser = session ? JSON.parse(session) : null
   }
 
-  /**
-   * Inicializar el servicio de autenticación
-   */
   async initialize(): Promise<User | null> {
     this.loadUserFromStorage()
     return this.currentUser
   }
 
-  /**
-   * Login con email y password
-   */
   async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      // Usar el URL de alojamientos
-      const ALOJAMIENTOS_URL = process.env.NEXT_PUBLIC_ALOJAMIENTOS_SCRIPT_URL || ''
-
-      if (!ALOJAMIENTOS_URL) {
-        return { success: false, message: 'URL del script no configurada' }
-      }
-
-      const url = new URL(ALOJAMIENTOS_URL)
-      url.searchParams.set('action', 'login')
-      url.searchParams.set('email', email)
-      url.searchParams.set('password', password)
-
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
+      const response = await fetch('/api/alojamientos/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       })
 
       const result = await response.json()
@@ -72,9 +48,6 @@ class AlojamientosAuthService {
     }
   }
 
-  /**
-   * Logout
-   */
   async logout(): Promise<{ success: boolean }> {
     localStorage.removeItem(this.STORAGE_KEY)
     this.currentUser = null
@@ -82,37 +55,22 @@ class AlojamientosAuthService {
     return { success: true }
   }
 
-  /**
-   * Obtener usuario actual
-   */
   getCurrentUser(): User | null {
     return this.currentUser
   }
 
-  /**
-   * Obtener info del usuario
-   */
   getUserInfo(): User | null {
     return this.currentUser
   }
 
-  /**
-   * Verificar si es admin
-   */
   isAdmin(): boolean {
     return this.currentUser?.rol === 'admin'
   }
 
-  /**
-   * Verificar si está autenticado
-   */
   isAuthenticated(): boolean {
     return !!this.currentUser
   }
 
-  /**
-   * Suscribirse a cambios de estado de autenticación
-   */
   onAuthStateChange(callback: AuthCallback): { unsubscribe: () => void } {
     this.sessionListeners.push(callback)
     return {
@@ -122,14 +80,10 @@ class AlojamientosAuthService {
     }
   }
 
-  /**
-   * Notificar a todos los listeners
-   */
   private notifyListeners(event: AuthEvent, user: User | null): void {
     this.sessionListeners.forEach((cb) => cb(event, { user }, user))
   }
 }
 
-// Exportar instancia única (singleton)
 export const alojamientosAuthService = new AlojamientosAuthService()
 export default alojamientosAuthService

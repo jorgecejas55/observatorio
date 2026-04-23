@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server'
+import { MuseoAuthSchema } from '@/lib/schemas'
 
 const GAS = process.env.MUSEO_VIRGEN_VALLE_SCRIPT_URL ?? ''
 
 // POST /api/museos/virgen-valle/auth - Login
 export async function POST(req: Request) {
   try {
-    const { email, password } = await req.json()
+    const body = await req.json()
+    const parsed = MuseoAuthSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
+    }
+    const { email, password } = parsed.data
 
     const url = new URL(GAS)
     url.searchParams.set('action', 'login')
@@ -20,6 +26,7 @@ export async function POST(req: Request) {
     const result = await res.json()
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-virgen-valle/auth POST]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }

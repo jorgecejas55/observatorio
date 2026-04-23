@@ -1,5 +1,11 @@
 // Componente de skeleton loader reutilizable
 
+export default function SkeletonLoader({ className = '' }: { className?: string }) {
+  return (
+    <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
+  )
+}
+
 export function SkeletonCard() {
   return (
     <div className="card p-5 animate-pulse">

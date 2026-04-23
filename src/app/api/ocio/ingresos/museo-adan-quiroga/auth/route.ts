@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MuseoAuthSchema } from '@/lib/schemas'
 
 const GAS = process.env.MUSEO_ADAN_QUIROGA_SCRIPT_URL ?? ''
 
@@ -12,7 +13,12 @@ export async function POST(req: Request) {
       }, { status: 500 })
     }
 
-    const { email, password } = await req.json()
+    const body = await req.json()
+    const parsed = MuseoAuthSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
+    }
+    const { email, password } = parsed.data
 
     const url = new URL(GAS)
     url.searchParams.set('action', 'login')
@@ -27,6 +33,7 @@ export async function POST(req: Request) {
     const result = await res.json()
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ success: false, error: String(err) }, { status: 500 })
+    console.error('[museo-adan-quiroga/auth POST]', err)
+    return NextResponse.json({ success: false, error: 'Error interno del servidor' }, { status: 500 })
   }
 }

@@ -42,7 +42,8 @@ const NAV: NavGroup[] = [
     icon: 'fa-hotel',
     color: 'text-accent',
     items: [
-      { href: '/oferta/alojamientos', label: 'Alojamientos temporarios', icon: 'fa-house-chimney' },
+      { href: '/oferta', label: 'Estructura de la Oferta', icon: 'fa-database' },
+      { href: '/oferta/alojamientos', label: 'Alojamientos (No Reg.)', icon: 'fa-house-chimney' },
     ],
   },
   {
