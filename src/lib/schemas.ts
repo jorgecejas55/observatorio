@@ -93,3 +93,39 @@ export const EventoSchema = z.object({
   recaudacion: campo,
   observaciones: campoLargo,
 })
+
+// ─── Métricas Digitales ────────────────────────────────────────────────────────
+
+const MesAnioSchema = z.string().regex(/^\d{2}\/\d{4}$/, 'Formato debe ser MM/YYYY')
+
+export const MetricaWebSchema = z.object({
+  mes_anio: MesAnioSchema,
+  visitantes: z.number().int().nonnegative(),
+  regiones: z.array(z.object({
+    region: z.string().min(1),
+    visitas: z.number().int().nonnegative()
+  })).max(10).optional(),
+  fuentes: z.array(z.object({
+    fuente: z.string().min(1),
+    visitas: z.number().int().nonnegative()
+  })).max(5).optional(),
+  usuario_registro: z.string().optional()
+})
+
+export const MetricaSocialSchema = z.object({
+  mes_anio: MesAnioSchema,
+  seguidores: z.number().int().nonnegative(),
+  interacciones: z.number().int().nonnegative(),
+  publicaciones: z.number().int().nonnegative(),
+  usuario_registro: z.string().optional()
+})
+
+export const MetricaCatuSchema = z.object({
+  mes_anio: MesAnioSchema,
+  conversaciones: z.number().int().nonnegative(),
+  mensajes: z.number().int().nonnegative(),
+  puntuacion_promedio: z.number().min(0).max(5),
+  tasa_resolucion: z.number().min(0).max(100),
+  usuario_registro: z.string().optional()
+})
+

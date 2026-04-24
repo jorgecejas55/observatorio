@@ -5,7 +5,7 @@ import type { Rol } from '@/lib/types'
 // Lista de emails autorizados y sus roles.
 // Reemplazar con un lookup en Google Sheets (OBS_Admin) cuando el sistema esté en producción.
 const ROLES_ESTATICOS: Record<string, Rol> = {
-  // 'email@municipalidadcapital.gob.ar': 'admin',
+  'jorgecejas55@gmail.com': 'admin',
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({

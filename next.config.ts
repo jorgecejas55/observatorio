@@ -3,8 +3,8 @@ import type { NextConfig } from 'next'
 const ContentSecurityPolicy = `
   default-src 'self';
   script-src 'self' 'unsafe-inline' 'unsafe-eval';
-  style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
-  font-src 'self' https://cdnjs.cloudflare.com;
+  style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com;
+  font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;
   img-src 'self' data: blob: https://turismo.apps.cc.gob.ar https://via.placeholder.com https://*.tile.openstreetmap.org;
   connect-src 'self';
   worker-src blob:;

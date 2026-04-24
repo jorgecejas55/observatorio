@@ -65,6 +65,7 @@ const NAV: NavGroup[] = [
       { href: '/estadisticas/indicadores', label: 'Indicadores mensuales', icon: 'fa-table-list' },
       { href: '/estadisticas/perfil-visitante', label: 'Perfil del visitante', icon: 'fa-chart-bar' },
       { href: '/estadisticas/eventos', label: 'Dashboard de eventos', icon: 'fa-calendar-check' },
+      { href: '/estadisticas/digital', label: 'Dashboard digital', icon: 'fa-chart-line' },
     ],
   },
 ]
@@ -143,6 +144,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <div className="my-2 border-t border-gray-100" />
 
           {/* Admin */}
+          <NavLink href="/admin/metricas" label="Métricas" icon="fa-chart-simple" onNavigate={onClose} />
           <NavLink href="/admin/usuarios" label="Usuarios" icon="fa-users-gear" onNavigate={onClose} />
           <NavLink href="/admin/config" label="Configuración" icon="fa-gear" onNavigate={onClose} />
         </nav>
