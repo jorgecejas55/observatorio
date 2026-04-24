@@ -86,13 +86,18 @@ export interface ServicioGeneralDirectus {
   id: number
   status: string
   nombre: string
-  categoria: 'agencia' | 'transporte' | 'alquiler_autos' | 'otros'
+  categoria: string
   direccion?: string
   telefono?: string
   email?: string
   web?: string
   descripcion?: string
-  foto_principal?: DirectusFile
+  foto_principal?: DirectusFile | string
+  ubicacion?: DirectusLocation | string
+  coordenadas_de_ubicacion?: string // Específico de agencias
+  estado?: string                   // Específico de agencias
+  servicios_ofrecidos?: string      // Específico de agencias
+  tipos_vehiculos?: string          // Específico de alquiler_autos
 }
 
 export interface DirectusResponse<T> {

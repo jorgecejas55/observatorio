@@ -10,23 +10,23 @@ const COLLECTIONS: Record<string, { endpoint: string; params: Record<string, str
   },
   gastronomia: {
     endpoint: '/items/gastronomia',
-    params: { fields: '*.*' },
+    params: { fields: '*,foto_principal.*' },
   },
   atractivos: {
     endpoint: '/items/atractivos_turisticos',
-    params: { fields: '*.*' },
+    params: { fields: '*,foto_principal.*' },
   },
   actividades: {
     endpoint: '/items/actividades',
     params: { fields: '*,lugar_realizacion.nombre,foto_principal.*' },
   },
   agencias: {
-    endpoint: '/items/servicios_generales',
-    params: { fields: '*.*', 'filter[catagoria][_eq]': 'Agencias de Viajes' },
+    endpoint: '/items/agencias_turisticas',
+    params: { fields: '*,foto_principal.*' },
   },
   'alquiler-autos': {
-    endpoint: '/items/servicios_generales',
-    params: { fields: '*.*', 'filter[catagoria][_eq]': 'Alquiler de Vehículos' },
+    endpoint: '/items/alquiler_autos',
+    params: { fields: '*,foto_principal.*' },
   },
 }
 
@@ -52,15 +52,25 @@ export async function GET(
         'Authorization': `Bearer ${DIRECTUS_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 3600 },
+      next: { revalidate: 60 }, // Se refresca cada 1 minuto
     })
 
     if (!res.ok) {
-      console.error(`[oferta/${collection}] Directus error ${res.status}`)
-      return NextResponse.json({ error: 'Error al obtener datos' }, { status: res.status })
+      const errorBody = await res.text().catch(() => '')
+      console.error(`[oferta/${collection}] Directus ${res.status}:`, errorBody)
+      return NextResponse.json({ error: `Error de Directus: ${res.status}`, details: errorBody }, { status: res.status })
     }
 
     const data = await res.json()
+    
+    // Normalizar catagoria -> categoria si existe el typo en la base de datos
+    if (Array.isArray(data.data)) {
+      data.data = data.data.map((item: any) => ({
+        ...item,
+        categoria: item.categoria || item.catagoria
+      }))
+    }
+
     return NextResponse.json(data)
   } catch (err) {
     console.error('[oferta API]', err)

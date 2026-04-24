@@ -5,18 +5,14 @@ import dynamic from 'next/dynamic'
 import DirectusService from '@/services/directusService'
 import SkeletonLoader from '@/components/shared/SkeletonLoader'
 import TablaOferta from '@/components/oferta/TablaOferta'
-import { 
-  AlojamientoDirectus, 
-  GastronomiaDirectus, 
-  AtractivoDirectus, 
-  ActividadDirectus, 
-  ServicioGeneralDirectus 
-} from '@/lib/types/directus'
 
-// Importar el mapa dinámicamente para evitar problemas de SSR
+// Importar el mapa dinámicamente con una protección adicional
 const MapaOfertaTuristica = dynamic(
   () => import('@/components/MapaOfertaTuristica'),
-  { ssr: false }
+  { 
+    ssr: false,
+    loading: () => <SkeletonLoader className="h-[700px] w-full rounded-xl" />
+  }
 )
 
 type CollectionType = 'alojamientos' | 'gastronomia' | 'atractivos' | 'actividades' | 'agencias' | 'alquiler-autos'
@@ -39,7 +35,6 @@ const COLLECTIONS: CollectionConfig[] = [
   { id: 'alquiler-autos', label: 'Alquiler de Autos', icon: 'fa-car', color: 'bg-red-600', hexColor: '#dc2626' },
 ]
 
-// Componente para celdas de imagen con fallback (versión para cards)
 function CardImage({ src, alt }: { src: string, alt: string }) {
   const [error, setError] = useState(false)
   const fallback = 'https://via.placeholder.com/400x300?text=Sin+Imagen'
@@ -62,17 +57,13 @@ export default function OfertaTuristicaPage() {
   const [error, setError] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
   
-  // Filtros dinámicos
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [filtroCategoria, setFiltroCategoria] = useState('todos')
   const [filtroEspecialidad, setFiltroEspecialidad] = useState('todos')
-  
-  // Filtros de menú especial
   const [filtroCeliacos, setFiltroCeliacos] = useState('todos')
   const [filtroVegetariano, setFiltroVegetariano] = useState('todos')
   const [filtroVegano, setFiltroVegano] = useState('todos')
 
-  // Estados del mapa
   const [mostrarHeatmap, setMostrarHeatmap] = useState(false)
   const [mostrarMarcadores, setMostrarMarcadores] = useState(true)
 
@@ -80,43 +71,27 @@ export default function OfertaTuristicaPage() {
     try {
       setLoading(true)
       setError(null)
-      // Reset filtros al cambiar colección
-      setFiltroTipo('todos') 
+      setBusqueda('')
+      setFiltroTipo('todos')
       setFiltroCategoria('todos')
       setFiltroEspecialidad('todos')
-      setFiltroCeliacos('todos')
-      setFiltroVegetariano('todos')
-      setFiltroVegano('todos')
-      setBusqueda('')
 
       let result: any[] = []
-
       switch (collection) {
-        case 'alojamientos':
-          result = await DirectusService.getAlojamientos()
-          break
-        case 'gastronomia':
-          result = await DirectusService.getGastronomia()
-          break
-        case 'atractivos':
-          result = await DirectusService.getAtractivos()
-          break
-        case 'actividades':
-          result = await DirectusService.getActividades()
-          break
-        case 'agencias':
-          result = await DirectusService.getServiciosGenerales('Agencias de Viajes')
-          break
-        case 'alquiler-autos':
-          result = await DirectusService.getServiciosGenerales('Alquiler de Vehículos')
-          break
+        case 'alojamientos': result = await DirectusService.getAlojamientos(); break
+        case 'gastronomia': result = await DirectusService.getGastronomia(); break
+        case 'atractivos': result = await DirectusService.getAtractivos(); break
+        case 'actividades': result = await DirectusService.getActividades(); break
+        case 'agencias': result = await DirectusService.getServiciosGenerales('Agencias de Viajes'); break
+        case 'alquiler-autos': result = await DirectusService.getServiciosGenerales('Alquiler de Vehículos'); break
       }
 
-      // Asegurar que los datos sean serializables y no contengan objetos extraños
-      setData(JSON.parse(JSON.stringify(result)))
-    } catch (err: any) {
-      console.error('Error cargando datos de Directus:', err)
-      setError('No se pudieron cargar los datos de la oferta turística.')
+      // Limpieza profunda para evitar objetos de evento u otros no serializables
+      const cleanData = JSON.parse(JSON.stringify(result || []))
+      setData(cleanData)
+    } catch (err) {
+      console.error('Error:', err)
+      setError('Error al cargar datos')
     } finally {
       setLoading(false)
     }
@@ -126,9 +101,8 @@ export default function OfertaTuristicaPage() {
     cargarDatos(activeCollection)
   }, [activeCollection, cargarDatos])
 
-  // Cálculo de opciones para filtros
   const tiposUnicos = useMemo(() => 
-    ['todos', ...Array.from(new Set(data.map(item => item.tipo_de_alojamiento || item.tipo).filter(Boolean)))].sort()
+    ['todos', ...Array.from(new Set(data.map(item => item.tipo_de_alojamiento || item.tipo || item.tematicas || item.tematica_atractivos).filter(Boolean)))].sort()
   , [data])
 
   const categoriasUnicas = useMemo(() => 
@@ -139,27 +113,22 @@ export default function OfertaTuristicaPage() {
     ['todos', ...Array.from(new Set(data.map(item => item.especialidad).filter(Boolean)))].sort()
   , [data])
 
-  // Lógica de filtrado unificada
   const datosFiltrados = useMemo(() => {
     return data.filter(item => {
-      const nombreItem = (item.nombre || item.denominacion || '').toLowerCase()
-      const direccionItem = (item.direccion || '').toLowerCase()
-      const tipoItem = (item.tipo_de_alojamiento || item.tipo || '').toLowerCase()
+      const nom = (item.nombre_de_la_actividad || item.nombre || item.denominacion || '').toLowerCase()
+      const dir = (item.direccion || '').toLowerCase()
+      const bus = busqueda.toLowerCase()
+      const cumpleBusqueda = nom.includes(bus) || dir.includes(bus)
 
-      const cumpleBusqueda = 
-        nombreItem.includes(busqueda.toLowerCase()) ||
-        direccionItem.includes(busqueda.toLowerCase()) ||
-        tipoItem.includes(busqueda.toLowerCase())
-
-      const cumpleTipo = filtroTipo === 'todos' || (item.tipo_de_alojamiento || item.tipo) === filtroTipo
+      const tipoActual = item.tipo_de_alojamiento || item.tipo || item.tematicas || item.tematica_atractivos
+      const cumpleTipo = filtroTipo === 'todos' || tipoActual === filtroTipo
       const cumpleCategoria = filtroCategoria === 'todos' || item.categoria === filtroCategoria
       const cumpleEspecialidad = filtroEspecialidad === 'todos' || item.especialidad === filtroEspecialidad
 
-      // Lógica de menús especiales corregida
-      const opciones = (item.opciones_de_menu || []) as string[]
-      const cumpleCeliaco = filtroCeliacos === 'todos' || opciones.some(o => o.toLowerCase().includes('celíaco'))
-      const cumpleVegetariano = filtroVegetariano === 'todos' || opciones.some(o => o.toLowerCase().includes('vegetariano'))
-      const cumpleVegano = filtroVegano === 'todos' || opciones.some(o => o.toLowerCase().includes('vegano'))
+      const opciones = (item.opciones_de_menu || [])
+      const cumpleCeliaco = filtroCeliacos === 'todos' || opciones.some((o: any) => String(o).toLowerCase().includes('celíaco'))
+      const cumpleVegetariano = filtroVegetariano === 'todos' || opciones.some((o: any) => String(o).toLowerCase().includes('vegetariano'))
+      const cumpleVegano = filtroVegano === 'todos' || opciones.some((o: any) => String(o).toLowerCase().includes('vegano'))
 
       return cumpleBusqueda && cumpleTipo && cumpleCategoria && cumpleEspecialidad && cumpleCeliaco && cumpleVegetariano && cumpleVegano
     })
@@ -167,43 +136,37 @@ export default function OfertaTuristicaPage() {
 
   const activeConfig = COLLECTIONS.find(c => c.id === activeCollection)
 
-  // Estadísticas dinámicas (Alojamientos)
-  const totalHabitaciones = useMemo(() => 
-    datosFiltrados.reduce((sum, item) => sum + (item.capacidad_de_habitaciones || 0), 0)
-  , [datosFiltrados])
+  const totalHabitaciones = useMemo(() => datosFiltrados.reduce((sum, item) => sum + (Number(item.capacidad_de_habitaciones) || 0), 0), [datosFiltrados])
+  const totalPlazas = useMemo(() => datosFiltrados.reduce((sum, item) => sum + (Number(item.capacidad_plazas) || 0), 0), [datosFiltrados])
+  const totalCubiertos = useMemo(() => datosFiltrados.reduce((sum, item) => sum + (Number(item.capacidad) || 0), 0), [datosFiltrados])
 
-  const totalPlazas = useMemo(() => 
-    datosFiltrados.reduce((sum, item) => sum + (item.capacidad_plazas || 0), 0)
-  , [datosFiltrados])
-
-  // Estadísticas dinámicas (Gastronomía)
-  const totalCubiertos = useMemo(() => 
-    datosFiltrados.reduce((sum, item) => sum + (item.capacidad || 0), 0)
-  , [datosFiltrados])
+  const totalSinUbicacion = useMemo(() => {
+    if (activeCollection !== 'agencias') return 0
+    return datosFiltrados.filter(item => {
+      const coord1 = String(item.coordenadas_de_ubicacion || '').trim()
+      const coord2 = String(item.ubicacion || '').trim()
+      return !coord1 && !coord2
+    }).length
+  }, [datosFiltrados, activeCollection])
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-6">
           <h1 className="text-3xl font-bold text-gray-900">Estructura de la Oferta Turística</h1>
-          <p className="text-gray-600 mt-1">
-            Información oficial sincronizada desde Directus — San Fernando del Valle de Catamarca
-          </p>
+          <p className="text-gray-600 mt-1">Información oficial sincronizada — San Fernando del Valle de Catamarca</p>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Selector de Colecciones */}
+        {/* Colecciones */}
         <div className="flex flex-wrap gap-3 mb-8">
           {COLLECTIONS.map((col) => (
             <button
               key={col.id}
               onClick={() => setActiveCollection(col.id)}
-              className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all shadow-sm ${
-                activeCollection === col.id
-                  ? `${col.color} text-white shadow-md scale-105`
-                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+              className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all ${
+                activeCollection === col.id ? `${col.color} text-white shadow-md scale-105` : 'bg-white text-gray-600 hover:bg-gray-100 border'
               }`}
             >
               <i className={`fa-solid ${col.icon}`}></i>
@@ -212,369 +175,254 @@ export default function OfertaTuristicaPage() {
           ))}
         </div>
 
-        {/* Controles Superiores: Búsqueda y Vista */}
+        {/* Controles */}
         <div className="flex flex-col lg:flex-row gap-4 mb-6">
-          {/* Buscador */}
           <div className="flex-grow bg-white rounded-xl shadow-sm border p-2 flex items-center">
             <div className="relative w-full">
               <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
               <input
                 type="text"
-                placeholder={`Buscar en ${activeConfig?.label.toLowerCase()}...`}
+                placeholder={`Buscar...`}
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-transparent focus:outline-none text-gray-700 font-medium"
+                className="w-full pl-12 pr-4 py-3 bg-transparent focus:outline-none text-gray-700"
               />
             </div>
-            {busqueda && (
-              <button onClick={() => setBusqueda('')} className="px-4 text-gray-400 hover:text-gray-600">
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            )}
           </div>
 
-          {/* Selector de Vista */}
-          <div className="bg-white rounded-xl shadow-sm border p-1 flex items-center shrink-0">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold transition-all ${
-                viewMode === 'table' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <i className="fa-solid fa-table-list"></i>
-              Tabla
-            </button>
-            <button
-              onClick={() => setViewMode('cards')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold transition-all ${
-                viewMode === 'cards' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <i className="fa-solid fa-grip"></i>
-              Cards
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-bold transition-all ${
-                viewMode === 'map' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <i className="fa-solid fa-map"></i>
-              Mapa
-            </button>
+          <div className="bg-white rounded-xl shadow-sm border p-1 flex items-center">
+            {(['table', 'cards', 'map'] as ViewType[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-6 py-3 rounded-lg text-sm font-bold transition-all ${
+                  viewMode === mode ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <i className={`fa-solid fa-${mode === 'table' ? 'table-list' : mode === 'cards' ? 'grip' : 'map'} mr-2`}></i>
+                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Filtros Avanzados (Sobre las estadísticas y cards) */}
-        {(activeCollection === 'alojamientos' || activeCollection === 'gastronomia') && !loading && !error && (
-          <div className="flex flex-wrap gap-4 mb-8 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-            {/* Filtro Tipo (Común) */}
-            <div className="flex flex-col gap-1.5 min-w-[200px]">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Filtrar por Tipo</label>
-              <select
-                value={filtroTipo}
-                onChange={(e) => setFiltroTipo(e.target.value)}
-                className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-gray-900 bg-gray-50 text-gray-700 cursor-pointer"
+        {/* Filtros */}
+        {(activeCollection === 'alojamientos' || activeCollection === 'gastronomia') && !loading && (
+          <div className="flex flex-wrap gap-4 mb-8 bg-white p-5 rounded-2xl shadow-sm border">
+            {/* Filtro Tipo */}
+            <div className="flex flex-col gap-1.5 min-w-[180px]">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tipo</label>
+              <select 
+                value={filtroTipo} 
+                onChange={(e) => setFiltroTipo(e.target.value)} 
+                className="border rounded-xl px-4 py-2.5 text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               >
-                {tiposUnicos.map(tipo => (
-                  <option key={tipo} value={tipo}>{tipo === 'todos' ? 'Todos los tipos' : tipo}</option>
-                ))}
+                {tiposUnicos.map(t => <option key={t} value={t}>{t === 'todos' ? 'Todos los tipos' : t}</option>)}
               </select>
             </div>
 
-            {/* Filtro Categoría (Alojamientos) */}
+            {/* Filtro Categoría (Solo Alojamientos) */}
             {activeCollection === 'alojamientos' && (
-              <div className="flex flex-col gap-1.5 min-w-[200px]">
+              <div className="flex flex-col gap-1.5 min-w-[180px]">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Categoría</label>
-                <select
-                  value={filtroCategoria}
-                  onChange={(e) => setFiltroCategoria(e.target.value)}
-                  className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-gray-900 bg-gray-50 text-gray-700 cursor-pointer"
+                <select 
+                  value={filtroCategoria} 
+                  onChange={(e) => setFiltroCategoria(e.target.value)} 
+                  className="border rounded-xl px-4 py-2.5 text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 >
-                  {categoriasUnicas.map(cat => (
-                    <option key={cat} value={cat}>{cat === 'todos' ? 'Todas las categorías' : cat}</option>
-                  ))}
+                  {categoriasUnicas.map(c => <option key={c} value={c}>{c === 'todos' ? 'Todas las categorías' : c}</option>)}
                 </select>
               </div>
             )}
 
-            {/* Filtro Especialidad (Gastronomía) */}
+            {/* Filtro Especialidad (Solo Gastronomía) */}
             {activeCollection === 'gastronomia' && (
-              <>
-                <div className="flex flex-col gap-1.5 min-w-[200px]">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Especialidad</label>
-                  <select
-                    value={filtroEspecialidad}
-                    onChange={(e) => setFiltroEspecialidad(e.target.value)}
-                    className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-gray-900 bg-gray-50 text-gray-700 cursor-pointer"
-                  >
-                    {especialidadesUnicas.map(esp => (
-                      <option key={esp} value={esp}>{esp === 'todos' ? 'Todas las especialidades' : esp}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Filtros de Menú Especial */}
-                <div className="flex flex-col gap-1.5 min-w-[150px]">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Menú Celíaco</label>
-                  <select
-                    value={filtroCeliacos}
-                    onChange={(e) => setFiltroCeliacos(e.target.value)}
-                    className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 text-gray-700 cursor-pointer"
-                  >
-                    <option value="todos">Todos</option>
-                    <option value="si">Solo con menú celíaco</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1.5 min-w-[150px]">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Vegetariano</label>
-                  <select
-                    value={filtroVegetariano}
-                    onChange={(e) => setFiltroVegetariano(e.target.value)}
-                    className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50 text-gray-700 cursor-pointer"
-                  >
-                    <option value="todos">Todos</option>
-                    <option value="si">Solo vegetariano</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1.5 min-w-[150px]">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Vegano</label>
-                  <select
-                    value={filtroVegano}
-                    onChange={(e) => setFiltroVegano(e.target.value)}
-                    className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50 text-gray-700 cursor-pointer"
-                  >
-                    <option value="todos">Todos</option>
-                    <option value="si">Solo vegano</option>
-                  </select>
-                </div>
-              </>
+              <div className="flex flex-col gap-1.5 min-w-[180px]">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Especialidad</label>
+                <select 
+                  value={filtroEspecialidad} 
+                  onChange={(e) => setFiltroEspecialidad(e.target.value)} 
+                  className="border rounded-xl px-4 py-2.5 text-sm bg-gray-50 focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+                >
+                  {especialidadesUnicas.map(e => <option key={e} value={e}>{e === 'todos' ? 'Todas las especialidades' : e}</option>)}
+                </select>
+              </div>
             )}
 
-            <div className="flex items-end pb-1 ml-auto">
-              <button 
-                onClick={() => { setFiltroTipo('todos'); setFiltroCategoria('todos'); setFiltroEspecialidad('todos'); setBusqueda(''); }}
-                className="text-xs text-gray-400 hover:text-red-600 font-bold px-3 py-2 transition-colors flex items-center gap-2"
-              >
-                <i className="fa-solid fa-trash-can"></i>
-                Limpiar Filtros
-              </button>
-            </div>
+            {/* Filtros de Dieta (Solo Gastronomía) */}
+            {activeCollection === 'gastronomia' && (
+              <div className="flex gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 text-center">Celíacos</label>
+                  <select 
+                    value={filtroCeliacos} 
+                    onChange={(e) => setFiltroCeliacos(e.target.value)} 
+                    className={`border rounded-xl px-3 py-2.5 text-xs font-bold outline-none transition-all ${filtroCeliacos !== 'todos' ? 'bg-orange-100 border-orange-200 text-orange-700' : 'bg-gray-50'}`}
+                  >
+                    <option value="todos">Cualquiera</option>
+                    <option value="si">Apto Celíacos</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 text-center">Vegetariano</label>
+                  <select 
+                    value={filtroVegetariano} 
+                    onChange={(e) => setFiltroVegetariano(e.target.value)} 
+                    className={`border rounded-xl px-3 py-2.5 text-xs font-bold outline-none transition-all ${filtroVegetariano !== 'todos' ? 'bg-green-100 border-green-200 text-green-700' : 'bg-gray-50'}`}
+                  >
+                    <option value="todos">Cualquiera</option>
+                    <option value="si">Apto Vegetariano</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 text-center">Vegano</label>
+                  <select 
+                    value={filtroVegano} 
+                    onChange={(e) => setFiltroVegano(e.target.value)} 
+                    className={`border rounded-xl px-3 py-2.5 text-xs font-bold outline-none transition-all ${filtroVegano !== 'todos' ? 'bg-teal-100 border-teal-200 text-teal-700' : 'bg-gray-50'}`}
+                  >
+                    <option value="todos">Cualquiera</option>
+                    <option value="si">Apto Vegano</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <button 
+              onClick={() => { 
+                setFiltroTipo('todos'); 
+                setFiltroCategoria('todos'); 
+                setFiltroEspecialidad('todos');
+                setFiltroCeliacos('todos');
+                setFiltroVegetariano('todos');
+                setFiltroVegano('todos');
+                setBusqueda(''); 
+              }} 
+              className="ml-auto self-end mb-2.5 text-[10px] font-black text-gray-400 hover:text-red-600 uppercase tracking-widest transition-colors"
+            >
+              <i className="fa-solid fa-trash-can mr-1.5"></i>
+              Limpiar Filtros
+            </button>
           </div>
         )}
 
-        {/* Tarjetas de Estadísticas Dinámicas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Total {activeConfig?.label}</p>
-              <p className="text-2xl font-bold text-gray-900">{datosFiltrados.length}</p>
-              {datosFiltrados.length !== data.length && (
-                <p className="text-xs text-gray-400">filtrados de {data.length}</p>
-              )}
-            </div>
-            <div className={`w-12 h-12 rounded-lg ${activeConfig?.color} bg-opacity-10 flex items-center justify-center`}>
-              <i className={`fa-solid ${activeConfig?.icon} text-xl ${activeConfig?.color.replace('bg-', 'text-')}`}></i>
-            </div>
-          </div>
-
-          {activeCollection === 'alojamientos' && (
-            <>
-              <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 font-medium">Habitaciones</p>
-                  <p className="text-2xl font-bold text-purple-600">{totalHabitaciones}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
-                  <i className="fa-solid fa-door-open text-xl"></i>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 font-medium">Plazas Totales</p>
-                  <p className="text-2xl font-bold text-orange-600">{totalPlazas}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600">
-                  <i className="fa-solid fa-bed text-xl"></i>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500 font-medium">Promedio Plazas/Hab.</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {totalHabitaciones > 0 ? (totalPlazas / totalHabitaciones).toFixed(1) : 0}
-                  </p>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
-                  <i className="fa-solid fa-calculator text-xl"></i>
-                </div>
-              </div>
-            </>
-          )}
-
-          {activeCollection === 'gastronomia' && (
+        {/* Estadísticas */}
+        {!loading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 font-medium">Total Cubiertos</p>
-                <p className="text-2xl font-bold text-orange-600">{totalCubiertos}</p>
+                <p className="text-sm text-gray-500 font-medium">Total {activeConfig?.label}</p>
+                <p className="text-2xl font-bold text-gray-900">{datosFiltrados.length}</p>
               </div>
-              <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600">
-                <i className="fa-solid fa-chair text-xl"></i>
+              <div className={`w-12 h-12 rounded-lg ${activeConfig?.color} bg-opacity-10 flex items-center justify-center text-xl ${activeConfig?.color.replace('bg-', 'text-')}`}>
+                <i className={`fa-solid ${activeConfig?.icon}`}></i>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Contenido Principal */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="bg-white rounded-xl border p-4 shadow-sm">
-                <SkeletonLoader className="h-48 w-full rounded-lg mb-4" />
-                <SkeletonLoader className="h-6 w-3/4 mb-2" />
-                <SkeletonLoader className="h-4 w-1/2" />
+            {/* Bloque estadístico de alojamientos */}
+            {activeCollection === 'alojamientos' && (
+              <>
+                <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between text-purple-600">
+                  <div><p className="text-sm text-gray-500">Habitaciones</p><p className="text-2xl font-bold">{totalHabitaciones}</p></div>
+                  <i className="fa-solid fa-door-open text-xl opacity-20"></i>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between text-orange-600">
+                  <div><p className="text-sm text-gray-500">Plazas</p><p className="text-2xl font-bold">{totalPlazas}</p></div>
+                  <i className="fa-solid fa-bed text-xl opacity-20"></i>
+                </div>
+              </>
+            )}
+            {/* Bloque estadístico de agencias */}
+            {activeCollection === 'agencias' && (
+              <div className="bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between text-amber-600">
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">Sin ubicación física</p>
+                  <p className="text-2xl font-bold">{totalSinUbicacion}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center text-xl">
+                  <i className="fa-solid fa-map-pin-slash opacity-40"></i>
+                </div>
               </div>
-            ))}
+            )}
+          </div>
+        )}
+
+        {/* Contenido */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[1, 2, 3].map(i => <SkeletonLoader key={i} className="h-64 w-full rounded-xl" />)}
           </div>
         ) : error ? (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-            <i className="fa-solid fa-circle-exclamation text-red-500 text-4xl mb-4"></i>
-            <p className="text-red-800 font-bold text-lg">{error}</p>
-            <button 
-              onClick={() => cargarDatos(activeCollection)}
-              className="mt-4 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition"
-            >
-              Reintentar
-            </button>
+          <div className="bg-red-50 p-8 text-center rounded-xl border border-red-200">
+            <p className="text-red-800 font-bold">{error}</p>
+            <button onClick={() => cargarDatos(activeCollection)} className="mt-4 bg-red-600 text-white px-6 py-2 rounded-lg">Reintentar</button>
           </div>
         ) : datosFiltrados.length === 0 ? (
-          <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
-            <i className="fa-solid fa-folder-open text-gray-300 text-5xl mb-4"></i>
-            <p className="text-gray-500 text-lg">No se encontraron resultados</p>
+          <div className="bg-white p-12 text-center rounded-xl border border-dashed">
+            <p className="text-gray-500">No se encontraron resultados</p>
           </div>
         ) : viewMode === 'map' ? (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-6 bg-white p-4 rounded-xl shadow-sm border mb-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="toggleMarcadores"
-                  checked={mostrarMarcadores}
-                  onChange={(e) => setMostrarMarcadores(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
-                />
-                <label htmlFor="toggleMarcadores" className="text-sm font-bold text-gray-700 cursor-pointer select-none">
-                  Mostrar Marcadores
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="toggleHeatmap"
-                  checked={mostrarHeatmap}
-                  onChange={(e) => setMostrarHeatmap(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900 cursor-pointer"
-                />
-                <label htmlFor="toggleHeatmap" className="text-sm font-bold text-gray-700 cursor-pointer select-none">
-                  Mapa de Calor
-                </label>
-              </div>
+            <div className="flex gap-6 bg-white p-4 rounded-xl border mb-4">
+              <label className="flex items-center gap-2 text-sm font-bold cursor-pointer">
+                <input type="checkbox" checked={mostrarMarcadores} onChange={(e) => setMostrarMarcadores(e.target.checked)} className="w-4 h-4" /> Marcadores
+              </label>
+              <label className="flex items-center gap-2 text-sm font-bold cursor-pointer">
+                <input type="checkbox" checked={mostrarHeatmap} onChange={(e) => setMostrarHeatmap(e.target.checked)} className="w-4 h-4" /> Calor
+              </label>
             </div>
-            <MapaOfertaTuristica 
-              items={datosFiltrados} 
-              altura="700px" 
-              color={activeConfig?.hexColor}
-              mostrarHeatmap={mostrarHeatmap}
-              mostrarMarcadores={mostrarMarcadores}
-            />
+            <MapaOfertaTuristica items={datosFiltrados} color={activeConfig?.hexColor} mostrarHeatmap={mostrarHeatmap} mostrarMarcadores={mostrarMarcadores} />
           </div>
         ) : viewMode === 'table' ? (
           <TablaOferta items={datosFiltrados} collection={activeCollection} color={activeConfig?.hexColor} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {datosFiltrados.map((item) => (
-              <div key={item.id} className="bg-white rounded-xl shadow-sm border hover:shadow-md transition-all overflow-hidden flex flex-col group">
+              <div key={item.id} className="bg-white rounded-xl shadow-sm border overflow-hidden flex flex-col group">
                 <div className="h-48 bg-gray-200 relative overflow-hidden">
-                  <CardImage 
-                    src={DirectusService.getImageUrl(item.foto_principal?.id || item.foto_principal)} 
-                    alt={item.nombre || item.denominacion}
-                  />
-                  {/* Badge de Tipo */}
-                  {(item.tipo_de_alojamiento || item.tipo) && (
-                    <span className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-black text-gray-700 shadow-sm border border-gray-100 uppercase tracking-tighter">
-                      {item.tipo_de_alojamiento || item.tipo}
-                    </span>
-                  )}
-                  {/* Badge de Categoría o Especialidad */}
-                  {(item.categoria || item.especialidad) && (
-                    <span className="absolute top-3 left-3 bg-gray-900/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-black shadow-sm uppercase tracking-tighter">
-                      {item.categoria || item.especialidad}
-                    </span>
-                  )}
+                  <CardImage src={DirectusService.getImageUrl(item.foto_principal?.id || item.foto_principal)} alt={item.nombre || item.nombre_de_la_actividad || ''} />
                 </div>
-                
-                <div className="p-5 flex-grow">
-                  <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                    {item.nombre || item.denominacion}
-                  </h3>
+                <div className="p-5 flex-grow flex flex-col">
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <h3 className="text-lg font-bold text-gray-900 line-clamp-2 leading-tight">
+                      {item.nombre_de_la_actividad || item.nombre || item.denominacion}
+                    </h3>
+                    <span className="text-[10px] font-black px-2 py-1 rounded bg-gray-100 text-gray-500 uppercase whitespace-nowrap">
+                      {item.tipo_de_alojamiento || item.tipo || item.categoria || item.tematica_atractivos || item.tematicas || '—'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 flex items-start gap-2 mb-4">
+                    <i className="fa-solid fa-location-dot mt-1 text-gray-400"></i>
+                    {item.direccion || 'Sin dirección'}
+                  </p>
                   
-                  <div className="space-y-2 text-sm text-gray-600">
-                    {item.direccion && (
-                      <p className="flex items-start gap-2">
-                        <i className="fa-solid fa-location-dot mt-1 text-gray-400"></i>
-                        <span className="line-clamp-2">{item.direccion}</span>
-                      </p>
-                    )}
+                  {/* Detalles adicionales según colección */}
+                  <div className="mt-auto pt-4 border-t border-gray-50 grid grid-cols-2 gap-y-2 gap-x-4 text-[11px]">
                     {item.telefono && (
-                      <p className="flex items-center gap-2">
-                        <i className="fa-solid fa-phone text-gray-400"></i>
-                        <span>{item.telefono}</span>
+                      <p className="text-gray-500 flex items-center gap-1.5 truncate">
+                        <i className="fa-solid fa-phone text-gray-300"></i> {item.telefono}
+                      </p>
+                    )}
+                    {item.capacidad_plazas && (
+                      <p className="text-gray-500 flex items-center gap-1.5">
+                        <i className="fa-solid fa-bed text-gray-300"></i> {item.capacidad_plazas} plazas
+                      </p>
+                    )}
+                    {item.capacidad && activeCollection === 'gastronomia' && (
+                      <p className="text-gray-500 flex items-center gap-1.5">
+                        <i className="fa-solid fa-utensils text-gray-300"></i> {item.capacidad} cubiertos
+                      </p>
+                    )}
+                    {item.estado && (
+                      <p className="text-gray-500 flex items-center gap-1.5">
+                        <i className="fa-solid fa-circle-info text-gray-300"></i> {item.estado}
+                      </p>
+                    )}
+                    {item.tipos_vehiculos && (
+                      <p className="text-gray-500 flex items-center gap-1.5 col-span-2">
+                        <i className="fa-solid fa-car text-gray-300"></i> {item.tipos_vehiculos}
                       </p>
                     )}
                   </div>
-
-                  {/* Datos técnicos dinámicos */}
-                  <div className="mt-4 pt-4 border-t flex flex-wrap gap-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                    {activeCollection === 'alojamientos' && (
-                      <>
-                        {item.capacidad_de_habitaciones > 0 && (
-                          <span className="flex items-center gap-1.5">
-                            <i className="fa-solid fa-door-open text-gray-400"></i> {item.capacidad_de_habitaciones} Hab.
-                          </span>
-                        )}
-                        {item.capacidad_plazas > 0 && (
-                          <span className="flex items-center gap-1.5">
-                            <i className="fa-solid fa-bed text-gray-400"></i> {item.capacidad_plazas} Plazas
-                          </span>
-                        )}
-                      </>
-                    )}
-
-                    {activeCollection === 'gastronomia' && item.capacidad > 0 && (
-                      <span className="flex items-center gap-1.5">
-                        <i className="fa-solid fa-chair text-gray-400"></i> {item.capacidad} Cubiertos
-                      </span>
-                    )}
-
-                    {activeCollection === 'actividades' && item.lugar_realizacion && (
-                      <span className="flex items-center gap-1.5 text-purple-600">
-                        <i className="fa-solid fa-map-pin"></i> {item.lugar_realizacion.nombre}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="px-5 py-3 bg-gray-50 border-t flex justify-between items-center group-hover:bg-gray-100 transition-colors">
-                  <button className="text-[10px] font-black text-blue-600 hover:text-blue-800 transition uppercase tracking-widest">
-                    Ver ficha completa
-                  </button>
-                  {item.ubicacion && (
-                    <div className="text-gray-300 group-hover:text-green-600 transition-colors" title="Ubicación disponible">
-                      <i className="fa-solid fa-map-location-dot text-lg"></i>
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
@@ -582,12 +430,8 @@ export default function OfertaTuristicaPage() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t mt-12">
-        <div className="container mx-auto px-4 py-6 text-center text-gray-400 text-xs font-bold uppercase tracking-[0.2em]">
-          <p>Observatorio de Turismo Municipal — Secretaría de Turismo y Desarrollo Económico</p>
-          <p className="mt-1">San Fernando del Valle de Catamarca</p>
-        </div>
+      <footer className="bg-white border-t mt-12 py-6 text-center text-gray-400 text-[10px] font-bold uppercase tracking-widest">
+        <p>Observatorio de Turismo Municipal — San Fernando del Valle de Catamarca</p>
       </footer>
     </div>
   )

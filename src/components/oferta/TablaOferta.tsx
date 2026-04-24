@@ -34,11 +34,11 @@ export default function TablaOferta({ items, collection, color }: TablaOfertaPro
 
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => {
-      const va = String(a[sort.key] || a['denominacion'] || '')
-      const vb = String(b[sort.key] || b['denominacion'] || '')
+      const va = String(a[sort.key] || a['nombre_de_la_actividad'] || a['denominacion'] || a['nombre'] || '')
+      const vb = String(b[sort.key] || b['nombre_de_la_actividad'] || b['denominacion'] || b['nombre'] || '')
       return sort.dir === 'asc' ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es')
     })
-  }, [items, sort])
+  }, [items, sort, collection])
 
   function toggleSort(key: SortKey) {
     setSort(prev => prev.key === key
@@ -83,9 +83,18 @@ export default function TablaOferta({ items, collection, color }: TablaOfertaPro
         commonHeaders[1] = { key: 'tematica_atractivos', label: 'Temática' }
         break
       case 'actividades':
+        // Para actividades, ajustamos ambos encabezados comunes
+        commonHeaders[0] = { key: 'nombre_de_la_actividad', label: 'Nombre de la Actividad' }
+        commonHeaders[1] = { key: 'tematicas', label: 'Temáticas' }
         specificHeaders = [
           { key: 'lugar_realizacion', label: 'Lugar' },
         ]
+        break
+      case 'agencias':
+        commonHeaders[1] = { key: 'servicios_ofrecidos', label: 'Servicios' }
+        break;
+      case 'alquiler-autos':
+        commonHeaders[1] = { key: 'tipos_vehiculos', label: 'Flota' }
         break
     }
 
@@ -130,14 +139,16 @@ export default function TablaOferta({ items, collection, color }: TablaOfertaPro
                   <ImageCell src={DirectusService.getImageUrl(item.foto_principal?.id || item.foto_principal)} />
                 </td>
                 <td className="px-4 py-3">
-                  <p className="font-bold text-gray-900 line-clamp-1">{item.nombre || item.denominacion}</p>
+                  <p className="font-bold text-gray-900 line-clamp-1">
+                    {item.nombre_de_la_actividad || item.nombre || item.denominacion}
+                  </p>
                   {collection === 'alojamientos' && item.categoria && (
                     <p className="text-[10px] font-black text-blue-600 uppercase">{item.categoria}</p>
                   )}
                 </td>
                 <td className="px-4 py-3">
                   <span className="inline-block px-2 py-1 rounded bg-gray-100 text-gray-600 text-[10px] font-black uppercase tracking-tighter">
-                    {item.tipo_de_alojamiento || item.tematica_atractivos || item.tipo || '—'}
+                    {item.tipo_de_alojamiento || item.tematica_atractivos || item.tematicas || item.servicios_ofrecidos || item.tipos_vehiculos || item.categoria || item.tipo || '—'}
                   </span>
                 </td>
 
@@ -195,7 +206,7 @@ export default function TablaOferta({ items, collection, color }: TablaOfertaPro
                     <button className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors" title="Ver ficha">
                       <i className="fa-solid fa-eye text-xs"></i>
                     </button>
-                    {item.ubicacion && (
+                    {(item.ubicacion || item.coordenadas_de_ubicacion || item.location || item.coordenadas) && (
                       <button className="p-2 hover:bg-green-50 text-green-600 rounded-lg transition-colors" title="Ver en mapa">
                         <i className="fa-solid fa-map-location-dot text-xs"></i>
                       </button>

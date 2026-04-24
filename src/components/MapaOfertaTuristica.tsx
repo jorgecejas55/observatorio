@@ -73,16 +73,29 @@ function HeatmapLayer({ mostrarHeatmap, items }: { mostrarHeatmap: boolean, item
   return null
 }
 
-// Función auxiliar de coordenadas
+// Función auxiliar de coordenadas optimizada para Directus
 const getCoords = (item: any): [number, number] | null => {
-  if (!item.ubicacion) return null
+  // Priorizamos los campos de ubicación detectados en las distintas colecciones
+  const loc = item.coordenadas_de_ubicacion || item.ubicacion || item.location || item.coordenadas
 
-  if (typeof item.ubicacion === 'object' && item.ubicacion.coordinates) {
-    return [item.ubicacion.coordinates[1], item.ubicacion.coordinates[0]]
+  if (!loc) return null
+
+  // Caso 1: Objeto GeoJSON estándar de Directus { type: "Point", coordinates: [lng, lat] }
+  if (typeof loc === 'object' && loc.coordinates && Array.isArray(loc.coordinates)) {
+    return [loc.coordinates[1], loc.coordinates[0]]
   }
 
-  if (typeof item.ubicacion === 'string') {
-    const parts = item.ubicacion.split(',').map((p: string) => parseFloat(p.trim()))
+  // Caso 2: Objeto con propiedades lat/lng directas (algunas configuraciones de Directus)
+  if (typeof loc === 'object' && loc.lat !== undefined && loc.lng !== undefined) {
+    return [parseFloat(loc.lat), parseFloat(loc.lng)]
+  }
+
+  // Caso 3: Cadena de texto "lat, lng" o formatos especiales como "Lat/long (-28.4, -65.7)"
+  if (typeof loc === 'string') {
+    // Limpiar la cadena de caracteres no numéricos excepto comas, puntos y signos menos
+    const cleaned = loc.replace(/[a-zA-Z/()\s]/g, '')
+    const parts = cleaned.split(',').filter(Boolean).map((p: string) => parseFloat(p.trim()))
+    
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       return [parts[0], parts[1]]
     }
@@ -169,14 +182,16 @@ export default function MapaOfertaTuristica({
                     <div className="h-32 -mx-3 -mt-3 mb-1 overflow-hidden">
                       <PopupImage 
                         src={fotoUrl} 
-                        alt={item.nombre || 'Imagen'}
+                        alt={item.nombre || item.nombre_de_la_actividad || 'Imagen'}
                       />
                     </div>
                   )}
-                  <h3 className="font-bold text-gray-900 leading-tight">{item.nombre}</h3>
+                  <h3 className="font-bold text-gray-900 leading-tight">
+                    {item.nombre || item.nombre_de_la_actividad || item.denominacion}
+                  </h3>
                   <div className="text-xs text-gray-600 space-y-1">
                     <p className="flex items-center gap-1.5 font-medium text-blue-600">
-                      <i className="fa-solid fa-tag"></i> {item.tipo_de_alojamiento || item.tipo}
+                      <i className="fa-solid fa-tag"></i> {item.tipo_de_alojamiento || item.tipo || item.categoria || item.tematica_atractivos || item.tematicas}
                     </p>
                     {item.direccion && (
                       <p className="flex items-start gap-1.5">
@@ -188,6 +203,18 @@ export default function MapaOfertaTuristica({
                       <p className="flex items-center gap-1.5">
                         <i className="fa-solid fa-bed text-gray-400"></i>
                         <span>{item.capacidad_plazas} plazas</span>
+                      </p>
+                    )}
+                    {item.estado && (
+                      <p className="flex items-center gap-1.5">
+                        <i className="fa-solid fa-circle-info text-gray-400"></i>
+                        <span>Estado: {item.estado}</span>
+                      </p>
+                    )}
+                    {item.tipos_vehiculos && (
+                      <p className="flex items-center gap-1.5">
+                        <i className="fa-solid fa-car text-gray-400"></i>
+                        <span>Flota: {item.tipos_vehiculos}</span>
                       </p>
                     )}
                   </div>
