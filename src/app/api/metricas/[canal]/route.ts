@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { auth } from '@/auth'
-import { 
-  MetricaWebSchema, 
-  MetricaSocialSchema, 
-  MetricaCatuSchema 
+import {
+  MetricaWebSchema,
+  MetricaSocialSchema,
+  MetricaCatuSchema
 } from '@/lib/schemas'
 
 const GAS_URL = process.env.METRICAS_DIGITALES_SCRIPT_URL
@@ -24,7 +25,7 @@ export async function GET(
     if (!GAS_URL) return NextResponse.json({ success: false, data: [], error: 'URL no configurada' })
 
     const url = `${GAS_URL}?action=getMetricas&canal=${canal}`
-    const res = await fetch(url, { method: 'GET', next: { revalidate: 60 } })
+    const res = await fetch(url, { method: 'GET', cache: 'no-store' })
 
     if (!res.ok) throw new Error(`Status ${res.status}`)
     const text = await res.text()
@@ -68,7 +69,9 @@ export async function POST(
 
     const text = await res.text()
     try {
-      return NextResponse.json(JSON.parse(text))
+      const resultado = JSON.parse(text)
+      revalidatePath('/admin/metricas')
+      return NextResponse.json(resultado)
     } catch {
       return NextResponse.json({ error: 'Error en respuesta de Google' }, { status: 500 })
     }
@@ -98,8 +101,55 @@ export async function DELETE(
     })
 
     const text = await res.text()
-    return NextResponse.json(JSON.parse(text))
+    const resultado = JSON.parse(text)
+    revalidatePath('/admin/metricas')
+    return NextResponse.json(resultado)
   } catch (error) {
     return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ canal: string }> }
+) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  try {
+    const { canal } = await params
+    const schema = getSchema(canal)
+    if (!schema) return NextResponse.json({ error: 'Canal inválido' }, { status: 400 })
+
+    const body = await request.json()
+    const { id, ...rest } = body
+    if (!id || typeof id !== 'string') {
+      return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+    }
+
+    const validacion = schema.safeParse(rest)
+    if (!validacion.success) {
+      return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+    }
+
+    if (!GAS_URL) return NextResponse.json({ error: 'Servidor no configurado' }, { status: 500 })
+
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'update', canal, id, data: validacion.data })
+    })
+
+    const text = await res.text()
+    try {
+      const resultado = JSON.parse(text)
+      revalidatePath('/admin/metricas')
+      return NextResponse.json(resultado)
+    } catch {
+      return NextResponse.json({ error: 'Error en respuesta de Google' }, { status: 500 })
+    }
+  } catch (error) {
+    console.error('[API PUT]', error)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

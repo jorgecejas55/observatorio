@@ -328,7 +328,11 @@ function saveRow(sheetName, dataObj) {
   }
 
   var headers = ws.getRange(1, 1, 1, lastCol).getValues()[0];
-  var row = headers.map(function(h) { return dataObj[h] !== undefined ? dataObj[h] : ''; });
+  var row = headers.map(function(h) {
+    var val = dataObj[h] !== undefined ? dataObj[h] : '';
+    if (h === 'mes_anio' && val) val = "'" + String(val);
+    return val;
+  });
 
   Logger.log('saveRow - ' + sheetName + ' | headers: ' + JSON.stringify(headers) + ' | row: ' + JSON.stringify(row));
   ws.appendRow(row);
@@ -432,6 +436,10 @@ function setup() {
         .setBackground(conf.color)
         .setFontColor('#ffffff');
       ws.setFrozenRows(1);
+      var mesAnioCol = conf.headers.indexOf('mes_anio');
+      if (mesAnioCol !== -1) {
+        ws.getRange(2, mesAnioCol + 1, ws.getMaxRows() - 1, 1).setNumberFormat('@');
+      }
       Logger.log('Hoja creada: ' + conf.name);
     } else {
       Logger.log('Hoja ya existía: ' + conf.name);

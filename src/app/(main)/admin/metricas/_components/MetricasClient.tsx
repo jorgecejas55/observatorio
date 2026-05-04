@@ -2,45 +2,56 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { InputField, RatingField } from '@/components/forms/FormField'
+import { useRouter } from 'next/navigation'
+import { InputField } from '@/components/forms/FormField'
 import MetricasService, { CanalDigital } from '@/services/metricasService'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import Toast from '@/components/shared/Toast'
+import MesAnioPicker from '@/components/forms/MesAnioPicker'
+import MetricaRow from './MetricaRow'
+import { formatearMesAnio, mesAnioOrdenable, normalizarMesAnio, esMesAnioValido } from '@/lib/formato-fechas'
+
+const FORM_INICIAL = {
+  mes_anio: '',
+  visitantes: 0,
+  regiones: [{ region: '', visitas: 0 }],
+  fuentes: [{ fuente: '', visitas: 0 }],
+  seguidores: 0,
+  interacciones: 0,
+  publicaciones: 0,
+  conversaciones: 0,
+  mensajes: 0,
+  puntuacion_promedio: 0,
+  tasa_resolucion: 0
+}
 
 export default function MetricasClient() {
   const { data: session } = useSession()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<CanalDigital>('web')
-  const [loading, setLoading] = useState(false)
+  const [cargandoLista, setCargandoLista] = useState(false)
+  const [enviando, setEnviando] = useState(false)
   const [records, setRecords] = useState<any[]>([])
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [errorFormulario, setErrorFormulario] = useState<string | null>(null)
+  const [modoEdicion, setModoEdicion] = useState<{ id: string } | null>(null)
+  const [formData, setFormData] = useState<any>(FORM_INICIAL)
 
-  const [formData, setFormData] = useState<any>({
-    mes_anio: '',
-    visitantes: 0,
-    regiones: [{ region: '', visitas: 0 }],
-    fuentes: [{ fuente: '', visitas: 0 }],
-    seguidores: 0,
-    interacciones: 0,
-    publicaciones: 0,
-    conversaciones: 0,
-    mensajes: 0,
-    puntuacion_promedio: 0,
-    tasa_resolucion: 0
-  })
+  const resetFormData = () => setFormData(FORM_INICIAL)
 
   useEffect(() => {
     cargarRegistros()
   }, [activeTab])
 
   const cargarRegistros = async () => {
-    setLoading(true)
+    setCargandoLista(true)
     const data = await MetricasService.getMetricas(activeTab)
-    setRecords(data.sort((a, b) => {
-      const [ma, ya] = a.mes_anio.split('/').map(Number)
-      const [mb, yb] = b.mes_anio.split('/').map(Number)
-      return ya !== yb ? yb - ya : mb - ma
-    }))
-    setLoading(false)
+    setRecords(
+      data
+        .map((r: any) => ({ ...r, mes_anio: normalizarMesAnio(r.mes_anio) }))
+        .sort((a: any, b: any) => mesAnioOrdenable(b.mes_anio) - mesAnioOrdenable(a.mes_anio))
+    )
+    setCargandoLista(false)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,11 +65,10 @@ export default function MetricasClient() {
   const handleDynamicChange = (type: 'regiones' | 'fuentes', index: number, field: string, value: string | number) => {
     setFormData((prev: any) => {
       const newList = [...prev[type]]
-      let finalValue = value
-      if (field === 'visitas') {
-        finalValue = value === '' ? '' : parseInt(value as string)
+      newList[index] = {
+        ...newList[index],
+        [field]: field === 'visitas' ? (value === '' ? '' : parseInt(value as string)) : value
       }
-      newList[index] = { ...newList[index], [field]: finalValue }
       return { ...prev, [type]: newList }
     })
   }
@@ -73,12 +83,54 @@ export default function MetricasClient() {
     }
   }
 
+  const handleEdit = (registro: any) => {
+    setFormData({
+      mes_anio: registro.mes_anio,
+      visitantes: registro.visitantes || 0,
+      regiones: registro.regiones?.length
+        ? registro.regiones.map((r: any) => ({ region: r.region, visitas: r.visitas }))
+        : [{ region: '', visitas: 0 }],
+      fuentes: registro.fuentes?.length
+        ? registro.fuentes.map((f: any) => ({ fuente: f.fuente, visitas: f.visitas }))
+        : [{ fuente: '', visitas: 0 }],
+      seguidores: registro.seguidores || 0,
+      interacciones: registro.interacciones || 0,
+      publicaciones: registro.publicaciones || 0,
+      conversaciones: registro.conversaciones || 0,
+      mensajes: registro.mensajes || 0,
+      puntuacion_promedio: registro.puntuacion_promedio || 0,
+      tasa_resolucion: registro.tasa_resolucion || 0,
+    })
+    setModoEdicion({ id: registro.id })
+    setErrorFormulario(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleCancelarEdicion = () => {
+    setModoEdicion(null)
+    setErrorFormulario(null)
+    resetFormData()
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+
+    if (!esMesAnioValido(formData.mes_anio)) {
+      setErrorFormulario('El formato de mes/año debe ser MM/YYYY (ej: 04/2026)')
+      return
+    }
+    if (!modoEdicion) {
+      const yaExiste = records.some((r) => r.mes_anio === formData.mes_anio)
+      if (yaExiste) {
+        setErrorFormulario(`Ya existe un registro para ${formatearMesAnio(formData.mes_anio)}. Editalo en lugar de crear uno nuevo.`)
+        return
+      }
+    }
+    setErrorFormulario(null)
+    setEnviando(true)
 
     const userEmail = session?.user?.email || 'admin@observatorio.com'
-    let payload: any = { 
+    let payload: any = {
       mes_anio: formData.mes_anio,
       usuario_registro: userEmail
     }
@@ -111,44 +163,37 @@ export default function MetricasClient() {
       }
     }
 
-    const res = await MetricasService.createMetrica(activeTab, payload)
+    const res = modoEdicion
+      ? await MetricasService.updateMetrica(activeTab, modoEdicion.id, payload)
+      : await MetricasService.createMetrica(activeTab, payload)
 
     if (res.success) {
-      setToast({ message: 'Métrica guardada con éxito', type: 'success' })
-      cargarRegistros()
-      setFormData((prev: any) => ({ 
-        ...prev, 
-        mes_anio: '',
-        visitantes: 0,
-        regiones: [{ region: '', visitas: 0 }],
-        fuentes: [{ fuente: '', visitas: 0 }],
-        seguidores: 0,
-        interacciones: 0,
-        publicaciones: 0,
-        conversaciones: 0,
-        mensajes: 0,
-        puntuacion_promedio: 0,
-        tasa_resolucion: 0
-      }))
+      setToast({
+        message: modoEdicion ? 'Registro actualizado con éxito' : 'Métrica guardada con éxito',
+        type: 'success'
+      })
+      setModoEdicion(null)
+      resetFormData()
+      await cargarRegistros()
+      router.refresh()
     } else {
-      // Manejo de errores detallado
-      const errorMsg = res.error || 'Error al guardar'
-      setToast({ message: errorMsg, type: 'error' })
+      setToast({ message: res.error || 'Error al guardar', type: 'error' })
     }
-    setLoading(false)
+    setEnviando(false)
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este registro?')) return
-    setLoading(true)
+    setEnviando(true)
     const res = await MetricasService.deleteMetrica(activeTab, id)
     if (res.success) {
       setToast({ message: 'Registro eliminado', type: 'success' })
-      cargarRegistros()
+      await cargarRegistros()
+      router.refresh()
     } else {
       setToast({ message: res.error || 'Error al eliminar', type: 'error' })
     }
-    setLoading(false)
+    setEnviando(false)
   }
 
   return (
@@ -178,19 +223,22 @@ export default function MetricasClient() {
         <div className="lg:col-span-1">
           <form onSubmit={handleSubmit} className="card p-6 sticky top-24">
             <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-              <i className="fa-solid fa-plus-circle text-primary"></i>
-              Nueva Métrica - {activeTab.toUpperCase()}
+              <i className={`fa-solid ${modoEdicion ? 'fa-pen-to-square' : 'fa-plus-circle'} text-primary`}></i>
+              {modoEdicion ? 'Editar Métrica' : 'Nueva Métrica'} - {activeTab.toUpperCase()}
             </h2>
 
             <div className="space-y-4">
-              <InputField
-                label="Mes/Año (MM/YYYY)"
-                name="mes_anio"
+              <MesAnioPicker
                 value={formData.mes_anio}
-                onChange={handleInputChange}
-                placeholder="04/2026"
+                onChange={(v) => setFormData((p: any) => ({ ...p, mes_anio: v }))}
                 required
               />
+
+              {errorFormulario && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {errorFormulario}
+                </p>
+              )}
 
               {activeTab === 'web' && (
                 <>
@@ -237,18 +285,27 @@ export default function MetricasClient() {
                   <InputField label="Conversaciones" name="conversaciones" type="number" value={formData.conversaciones} onChange={handleInputChange} required />
                   <InputField label="Mensajes Totales" name="mensajes" type="number" value={formData.mensajes} onChange={handleInputChange} required />
                   <InputField label="Tasa Resolución (%)" name="tasa_resolucion" type="number" value={formData.tasa_resolucion} onChange={handleInputChange} required min="0" max="100" />
-                  <RatingField label="Puntuación Promedio" name="puntuacion_promedio" value={formData.puntuacion_promedio} onChange={(v) => setFormData((p:any)=>({...p, puntuacion_promedio: v}))} required />
+                  <InputField label="Puntuación Promedio (0-10)" name="puntuacion_promedio" type="number" value={formData.puntuacion_promedio} onChange={handleInputChange} required min="0" max="10" step="0.1" />
                 </>
               )}
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn btn-primary w-full mt-8"
-            >
-              {loading ? <LoadingSpinner /> : 'Guardar Métricas'}
-            </button>
+            <div className="flex gap-2 mt-8">
+              {modoEdicion && (
+                <button type="button" onClick={handleCancelarEdicion} className="btn btn-secondary flex-1">
+                  Cancelar
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={enviando}
+                className="btn btn-primary flex-1"
+              >
+                {enviando
+                  ? <><span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Guardando...</>
+                  : modoEdicion ? 'Actualizar' : 'Guardar Métricas'}
+              </button>
+            </div>
           </form>
         </div>
 
@@ -259,7 +316,7 @@ export default function MetricasClient() {
               <h2 className="font-bold">Registros Históricos</h2>
             </div>
 
-            {loading && records.length === 0 ? (
+            {cargandoLista && records.length === 0 ? (
               <div className="p-12 text-center"><LoadingSpinner /></div>
             ) : records.length === 0 ? (
               <div className="p-12 text-center text-text-secondary italic">No hay registros aún.</div>
@@ -268,17 +325,22 @@ export default function MetricasClient() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="text-[10px] font-black uppercase tracking-widest text-text-secondary border-b">
+                      <th className="px-4 py-4 w-8"></th>
                       <th className="px-6 py-4">Mes/Año</th>
-                      {activeTab === 'web' && <th className="px-6 py-4 text-center">Visitantes</th>}
+                      {activeTab === 'web' && (
+                        <th className="px-6 py-4 text-center">Visitantes</th>
+                      )}
                       {(activeTab === 'facebook' || activeTab === 'instagram') && (
                         <>
                           <th className="px-6 py-4 text-center">Seguidores</th>
                           <th className="px-6 py-4 text-center">Interac.</th>
+                          <th className="px-6 py-4 text-center">Public.</th>
                         </>
                       )}
                       {activeTab === 'catu' && (
                         <>
                           <th className="px-6 py-4 text-center">Conv.</th>
+                          <th className="px-6 py-4 text-center">Mensajes</th>
                           <th className="px-6 py-4 text-center">Tasa Res.</th>
                         </>
                       )}
@@ -287,30 +349,13 @@ export default function MetricasClient() {
                   </thead>
                   <tbody className="divide-y">
                     {records.map((r) => (
-                      <tr key={r.id} className="text-sm hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 font-bold">{r.mes_anio}</td>
-                        {activeTab === 'web' && <td className="px-6 py-4 text-center font-medium">{r.visitantes?.toLocaleString() || 0}</td>}
-                        {(activeTab === 'facebook' || activeTab === 'instagram') && (
-                          <>
-                            <td className="px-6 py-4 text-center font-medium">{r.seguidores?.toLocaleString() || 0}</td>
-                            <td className="px-6 py-4 text-center font-medium">{r.interacciones?.toLocaleString() || 0}</td>
-                          </>
-                        )}
-                        {activeTab === 'catu' && (
-                          <>
-                            <td className="px-6 py-4 text-center font-medium">{r.conversaciones?.toLocaleString() || 0}</td>
-                            <td className="px-6 py-4 text-center font-medium">{r.tasa_resolucion || 0}%</td>
-                          </>
-                        )}
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => handleDelete(r.id)}
-                            className="text-red-400 hover:text-red-600 transition-colors"
-                          >
-                            <i className="fa-solid fa-trash-can"></i>
-                          </button>
-                        </td>
-                      </tr>
+                      <MetricaRow
+                        key={r.id}
+                        canal={activeTab}
+                        registro={r}
+                        onDelete={handleDelete}
+                        onEdit={handleEdit}
+                      />
                     ))}
                   </tbody>
                 </table>
