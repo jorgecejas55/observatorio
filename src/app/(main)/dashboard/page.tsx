@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState, useMemo } from 'react'
 import {
-  AreaChart, Area, LineChart, Line,
+  ComposedChart, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from 'recharts'
@@ -91,6 +91,22 @@ function SelectAno({ value, onChange, anos }: {
   )
 }
 
+// ─── Regresión lineal para tendencia ────────────────────────────────────────
+
+function calcularTendenciaLineal(valores: number[]): (number | null)[] {
+  const n = valores.length
+  if (n < 2) return valores.map(() => null)
+  const sumX = (n * (n - 1)) / 2
+  const sumX2 = (n * (n - 1) * (2 * n - 1)) / 6
+  const sumY = valores.reduce((a, b) => a + b, 0)
+  const sumXY = valores.reduce((acc, y, i) => acc + i * y, 0)
+  const denom = n * sumX2 - sumX * sumX
+  if (denom === 0) return valores.map(() => null)
+  const m = (n * sumXY - sumX * sumY) / denom
+  const b = (sumY - m * sumX) / n
+  return valores.map((_, i) => parseFloat((m * i + b).toFixed(2)))
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -114,6 +130,33 @@ export default function DashboardPage() {
   // Filtros — Atractivos
   const [anoAtractivosChart, setAnoAtractivosChart] = useState('todos')
   const [anoAtractivosTable, setAnoAtractivosTable] = useState('todos')
+
+  // Líneas de tendencia — Mensual
+  const [mostrarTendenciaOH, setMostrarTendenciaOH] = useState(false)
+  const [mostrarTendenciaEstadia, setMostrarTendenciaEstadia] = useState(false)
+
+  // Líneas de tendencia — Findes
+  const [mostrarTendenciaFindesOH, setMostrarTendenciaFindesOH] = useState(false)
+  const [mostrarTendenciaFindesEstadia, setMostrarTendenciaFindesEstadia] = useState(false)
+
+  // Selección interactiva de atractivos en el gráfico
+  const [selectedAtractivos, setSelectedAtractivos] = useState<Set<string>>(new Set())
+
+  const handleLegendClickAtractivo = (dataKey: string) => {
+    setSelectedAtractivos(prev => {
+      const next = new Set(prev)
+      if (next.size === 0) {
+        // Todos visibles → seleccionar solo este
+        next.add(dataKey)
+      } else if (next.has(dataKey)) {
+        next.delete(dataKey)
+        // Si quedó vacío → mostrar todos de nuevo
+      } else {
+        next.add(dataKey)
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -170,15 +213,25 @@ export default function DashboardPage() {
 
   // ── Datos derivados — Mensual ────────────────────────────────────────────
 
-  const ohChartData = useMemo(() =>
-    filtrarPorAno(datos?.historico ?? [], anoGraficoOH)
-      .map(d => ({ label: `${d.mes.substring(0, 3)} ${d.ano}`, oh: d.oh }))
-  , [datos, anoGraficoOH])
+  const ohChartData = useMemo(() => {
+    const filtered = filtrarPorAno(datos?.historico ?? [], anoGraficoOH)
+    const tendencia = calcularTendenciaLineal(filtered.map(d => d.oh))
+    return filtered.map((d, i) => ({
+      label: `${d.mes.substring(0, 3)} ${d.ano}`,
+      oh: d.oh,
+      tendencia_oh: tendencia[i],
+    }))
+  }, [datos, anoGraficoOH])
 
-  const estadiaChartData = useMemo(() =>
-    filtrarPorAno(datos?.historico ?? [], anoGraficoEstadia)
-      .map(d => ({ label: `${d.mes.substring(0, 3)} ${d.ano}`, estadia: d.estadia_prom }))
-  , [datos, anoGraficoEstadia])
+  const estadiaChartData = useMemo(() => {
+    const filtered = filtrarPorAno(datos?.historico ?? [], anoGraficoEstadia)
+    const tendencia = calcularTendenciaLineal(filtered.map(d => d.estadia_prom))
+    return filtered.map((d, i) => ({
+      label: `${d.mes.substring(0, 3)} ${d.ano}`,
+      estadia: d.estadia_prom,
+      tendencia_estadia: tendencia[i],
+    }))
+  }, [datos, anoGraficoEstadia])
 
   const tablaData = useMemo(() =>
     [...filtrarPorAno(datos?.historico ?? [], anoTabla)]
@@ -192,15 +245,25 @@ export default function DashboardPage() {
 
   // ── Datos derivados — Findes ──────────────────────────────────────────────
 
-  const findesOHData = useMemo(() =>
-    filtrarPorAno(datosFindes?.historico ?? [], anoGraficoFindesOH)
-      .map(d => ({ label: `${d.evento} (${d.ano})`, oh: d.oh }))
-  , [datosFindes, anoGraficoFindesOH])
+  const findesOHData = useMemo(() => {
+    const filtered = filtrarPorAno(datosFindes?.historico ?? [], anoGraficoFindesOH)
+    const tendencia = calcularTendenciaLineal(filtered.map(d => d.oh))
+    return filtered.map((d, i) => ({
+      label: `${d.evento} (${d.ano})`,
+      oh: d.oh,
+      tendencia_oh: tendencia[i],
+    }))
+  }, [datosFindes, anoGraficoFindesOH])
 
-  const findesEstadiaData = useMemo(() =>
-    filtrarPorAno(datosFindes?.historico ?? [], anoGraficoFindesEstadia)
-      .map(d => ({ label: `${d.evento} (${d.ano})`, estadia: d.estadia_prom }))
-  , [datosFindes, anoGraficoFindesEstadia])
+  const findesEstadiaData = useMemo(() => {
+    const filtered = filtrarPorAno(datosFindes?.historico ?? [], anoGraficoFindesEstadia)
+    const tendencia = calcularTendenciaLineal(filtered.map(d => d.estadia_prom))
+    return filtered.map((d, i) => ({
+      label: `${d.evento} (${d.ano})`,
+      estadia: d.estadia_prom,
+      tendencia_estadia: tendencia[i],
+    }))
+  }, [datosFindes, anoGraficoFindesEstadia])
 
   const findesTablaData = useMemo(() =>
     [...filtrarPorAno(datosFindes?.historico ?? [], anoFindes)]
@@ -414,11 +477,25 @@ export default function DashboardPage() {
           <div className="card p-5 md:p-6 mb-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
               <h3 className="text-lg font-semibold text-text-primary">Evolución Ocupación Hotelera</h3>
-              <SelectAno value={anoGraficoOH} onChange={setAnoGraficoOH} anos={anosDisponibles} />
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  onClick={() => setMostrarTendenciaOH(v => !v)}
+                  title="Mostrar / ocultar línea de tendencia"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    mostrarTendenciaOH
+                      ? 'bg-amber-50 border-amber-400 text-amber-700'
+                      : 'bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300 hover:text-text-primary'
+                  }`}
+                >
+                  <i className="fa-solid fa-arrow-trend-up text-[11px]" />
+                  Tendencia
+                </button>
+                <SelectAno value={anoGraficoOH} onChange={setAnoGraficoOH} anos={anosDisponibles} />
+              </div>
             </div>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={ohChartData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
+                <ComposedChart data={ohChartData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
                   <defs>
                     <linearGradient id="gradOH" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#e6007e" stopOpacity={0.7} />
@@ -430,7 +507,19 @@ export default function DashboardPage() {
                   <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} unit="%" domain={[0, 100]} />
                   <Tooltip formatter={(v: number) => [`${v.toFixed(1)}%`, 'Ocupación Hotelera']} contentStyle={{ fontSize: 12 }} />
                   <Area type="monotone" dataKey="oh" stroke="#e6007e" strokeWidth={2} fill="url(#gradOH)" dot={false} activeDot={{ r: 4 }} name="Ocupación Hotelera" />
-                </AreaChart>
+                  <Line
+                    type="linear"
+                    dataKey="tendencia_oh"
+                    stroke="#f49534"
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
+                    dot={false}
+                    activeDot={false}
+                    name="Tendencia"
+                    legendType="none"
+                    hide={!mostrarTendenciaOH}
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -439,11 +528,25 @@ export default function DashboardPage() {
           <div className="card p-5 md:p-6 mb-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
               <h3 className="text-lg font-semibold text-text-primary">Evolución Estadía Promedio</h3>
-              <SelectAno value={anoGraficoEstadia} onChange={setAnoGraficoEstadia} anos={anosDisponibles} />
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <button
+                  onClick={() => setMostrarTendenciaEstadia(v => !v)}
+                  title="Mostrar / ocultar línea de tendencia"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    mostrarTendenciaEstadia
+                      ? 'bg-amber-50 border-amber-400 text-amber-700'
+                      : 'bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300 hover:text-text-primary'
+                  }`}
+                >
+                  <i className="fa-solid fa-arrow-trend-up text-[11px]" />
+                  Tendencia
+                </button>
+                <SelectAno value={anoGraficoEstadia} onChange={setAnoGraficoEstadia} anos={anosDisponibles} />
+              </div>
             </div>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={estadiaChartData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
+                <ComposedChart data={estadiaChartData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
                   <defs>
                     <linearGradient id="gradEstadia" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#00b5db" stopOpacity={0.7} />
@@ -455,7 +558,19 @@ export default function DashboardPage() {
                   <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
                   <Tooltip formatter={(v: number) => [`${v.toFixed(1)} días`, 'Estadía Promedio']} contentStyle={{ fontSize: 12 }} />
                   <Area type="monotone" dataKey="estadia" stroke="#00b5db" strokeWidth={2} fill="url(#gradEstadia)" dot={false} activeDot={{ r: 4 }} name="Estadía Promedio" />
-                </AreaChart>
+                  <Line
+                    type="linear"
+                    dataKey="tendencia_estadia"
+                    stroke="#f49534"
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
+                    dot={false}
+                    activeDot={false}
+                    name="Tendencia"
+                    legendType="none"
+                    hide={!mostrarTendenciaEstadia}
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -558,11 +673,25 @@ export default function DashboardPage() {
             <div className="card p-5 md:p-6 mb-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                 <h3 className="text-lg font-semibold text-text-primary">Ocupación por Finde XL</h3>
-                <SelectAno value={anoGraficoFindesOH} onChange={setAnoGraficoFindesOH} anos={anosFindesDisponibles} />
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  <button
+                    onClick={() => setMostrarTendenciaFindesOH(v => !v)}
+                    title="Mostrar / ocultar línea de tendencia"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      mostrarTendenciaFindesOH
+                        ? 'bg-amber-50 border-amber-400 text-amber-700'
+                        : 'bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300 hover:text-text-primary'
+                    }`}
+                  >
+                    <i className="fa-solid fa-arrow-trend-up text-[11px]" />
+                    Tendencia
+                  </button>
+                  <SelectAno value={anoGraficoFindesOH} onChange={setAnoGraficoFindesOH} anos={anosFindesDisponibles} />
+                </div>
               </div>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={findesOHData} margin={{ top: 10, right: 10, left: 0, bottom: 90 }}>
+                  <ComposedChart data={findesOHData} margin={{ top: 10, right: 10, left: 0, bottom: 90 }}>
                     <defs>
                       <linearGradient id="gradFindesOH" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#e6007e" stopOpacity={0.7} />
@@ -574,7 +703,19 @@ export default function DashboardPage() {
                     <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} unit="%" domain={[0, 100]} />
                     <Tooltip formatter={(v: number) => [`${v.toFixed(1)}%`, 'Ocupación']} contentStyle={{ fontSize: 12 }} />
                     <Area type="monotone" dataKey="oh" stroke="#e6007e" strokeWidth={2} fill="url(#gradFindesOH)" dot={{ r: 4 }} activeDot={{ r: 5 }} name="Ocupación" />
-                  </AreaChart>
+                    <Line
+                      type="linear"
+                      dataKey="tendencia_oh"
+                      stroke="#f49534"
+                      strokeWidth={2}
+                      strokeDasharray="6 3"
+                      dot={false}
+                      activeDot={false}
+                      name="Tendencia"
+                      legendType="none"
+                      hide={!mostrarTendenciaFindesOH}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
@@ -583,11 +724,25 @@ export default function DashboardPage() {
             <div className="card p-5 md:p-6 mb-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                 <h3 className="text-lg font-semibold text-text-primary">Estadía Promedio por Finde XL</h3>
-                <SelectAno value={anoGraficoFindesEstadia} onChange={setAnoGraficoFindesEstadia} anos={anosFindesDisponibles} />
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  <button
+                    onClick={() => setMostrarTendenciaFindesEstadia(v => !v)}
+                    title="Mostrar / ocultar línea de tendencia"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      mostrarTendenciaFindesEstadia
+                        ? 'bg-amber-50 border-amber-400 text-amber-700'
+                        : 'bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300 hover:text-text-primary'
+                    }`}
+                  >
+                    <i className="fa-solid fa-arrow-trend-up text-[11px]" />
+                    Tendencia
+                  </button>
+                  <SelectAno value={anoGraficoFindesEstadia} onChange={setAnoGraficoFindesEstadia} anos={anosFindesDisponibles} />
+                </div>
               </div>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={findesEstadiaData} margin={{ top: 10, right: 10, left: 0, bottom: 90 }}>
+                  <ComposedChart data={findesEstadiaData} margin={{ top: 10, right: 10, left: 0, bottom: 90 }}>
                     <defs>
                       <linearGradient id="gradFindesEstadia" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#00b5db" stopOpacity={0.7} />
@@ -599,7 +754,19 @@ export default function DashboardPage() {
                     <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
                     <Tooltip formatter={(v: number) => [`${v.toFixed(1)} días`, 'Estadía']} contentStyle={{ fontSize: 12 }} />
                     <Area type="monotone" dataKey="estadia" stroke="#00b5db" strokeWidth={2} fill="url(#gradFindesEstadia)" dot={{ r: 4 }} activeDot={{ r: 5 }} name="Estadía" />
-                  </AreaChart>
+                    <Line
+                      type="linear"
+                      dataKey="tendencia_estadia"
+                      stroke="#f49534"
+                      strokeWidth={2}
+                      strokeDasharray="6 3"
+                      dot={false}
+                      activeDot={false}
+                      name="Tendencia"
+                      legendType="none"
+                      hide={!mostrarTendenciaFindesEstadia}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
@@ -664,16 +831,29 @@ export default function DashboardPage() {
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6B7280' }} angle={-45} textAnchor="end" height={70} interval={0} />
                     <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
                     <Tooltip contentStyle={{ fontSize: 12 }} />
-                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                    <Legend
+                      wrapperStyle={{ fontSize: 12, paddingTop: 8, cursor: 'pointer' }}
+                      onClick={(data: any) => handleLegendClickAtractivo(data.dataKey)}
+                      formatter={(value: string) => (
+                        <span style={{
+                          opacity: selectedAtractivos.size > 0 && !selectedAtractivos.has(value) ? 0.35 : 1,
+                          transition: 'opacity 0.2s',
+                          fontWeight: selectedAtractivos.has(value) ? 600 : 400,
+                        }}>
+                          {value}
+                        </span>
+                      )}
+                    />
                     {NOMBRES_ATRACTIVOS.map((nombre, i) => (
                       <Line
                         key={nombre}
                         type="monotone"
                         dataKey={nombre}
                         stroke={COLORES_ATRACTIVOS[i]}
-                        strokeWidth={2.5}
+                        strokeWidth={selectedAtractivos.has(nombre) ? 3 : 2.5}
                         dot={{ r: 3 }}
                         activeDot={{ r: 5 }}
+                        hide={selectedAtractivos.size > 0 && !selectedAtractivos.has(nombre)}
                       />
                     ))}
                   </LineChart>
