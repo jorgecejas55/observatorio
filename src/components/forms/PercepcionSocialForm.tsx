@@ -389,13 +389,12 @@ export default function PercepcionSocialForm() {
       {/* P5 — Definición en una palabra */}
       <PreguntaWrapper
         numero={5}
-        titulo="En una sola palabra, ¿cómo definirías a la ciudad desde el punto de vista turístico?"
+        titulo="En una sola palabra, ¿cómo describirías a nuestra ciudad como destino turístico?"
         error={errores.definicion}
       >
         {errores.definicion && <span data-error />}
         <input
           type="text"
-          placeholder="Una sola palabra..."
           value={form.definicion}
           onChange={(e) => {
             set('definicion', e.target.value)
@@ -416,17 +415,19 @@ export default function PercepcionSocialForm() {
       {/* P6 — Representación turística */}
       <PreguntaWrapper
         numero={6}
-        titulo="¿Qué es lo que mejor representa a la ciudad desde el turismo?"
+        titulo="¿Cuál es el atractivo, lugar o evento que considerás más representativo de la ciudad como destino turístico?"
         error={errores.representacion_turistica}
       >
         {errores.representacion_turistica && <span data-error />}
         <input
           type="text"
-          placeholder="Ej: La Virgen del Valle, la gastronomía, el paisaje..."
           value={form.representacion_turistica}
           onChange={(e) => { set('representacion_turistica', e.target.value); setErrores((err) => ({ ...err, representacion_turistica: undefined })) }}
           className={`input ${errores.representacion_turistica ? 'border-red-400 focus:border-red-400 focus:ring-red-200' : ''}`}
         />
+        <p className="mt-1.5 text-xs text-text-secondary">
+          Pueden ser lugares, elementos culturales, atractivos, fiestas, eventos, etc. Mencioná el más representativo para vos.
+        </p>
       </PreguntaWrapper>
 
       {/* P7 — Conocimiento de actividades + condicional canales */}
@@ -480,6 +481,9 @@ export default function PercepcionSocialForm() {
         titulo="¿Cuál creés que es el principal beneficio que el turismo genera en la ciudad?"
         error={errores.beneficio_principal}
       >
+        <p className="mt-1.5 text-xs text-text-secondary">
+          Podés elegir una sola opción. Elegí la más importante para vos.
+        </p>
         {errores.beneficio_principal && <span data-error />}
         <GrupoRadio
           nombre="beneficio_principal"
@@ -497,8 +501,11 @@ export default function PercepcionSocialForm() {
       {/* P9 — Atractivo a impulsar (opcional) */}
       <PreguntaWrapper
         numero={9}
-        titulo="¿Qué atractivo o evento te gustaría que se potencie más? (Opcional)"
+        titulo="¿Qué atractivo, evento o actividad te gustaría que se potencie más? (Opcional)"
       >
+        <p className="mt-1.5 text-xs text-text-secondary">
+          Mencioná opciones que actualmente no se estén promocionando y que considerás que deben entrar en la agenda turística.
+        </p>
         <textarea
           placeholder="Describí brevemente..."
           rows={3}

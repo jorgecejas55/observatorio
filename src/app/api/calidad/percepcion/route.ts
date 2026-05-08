@@ -10,10 +10,16 @@ export async function POST(req: Request) {
 
     const data = await req.json()
 
+    // El GAS lee los datos con e.parameter, que solo funciona con form-urlencoded
+    const params = new URLSearchParams()
+    Object.entries(data).forEach(([key, value]) => {
+      params.append(key, String(value ?? ''))
+    })
+
     const res = await fetch(GAS, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(data),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
       redirect: 'follow',
     })
 
