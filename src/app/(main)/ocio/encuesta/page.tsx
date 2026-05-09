@@ -428,8 +428,11 @@ export default function EncuestaPerfilTuristaPage() {
     const necesitaMovilidad = form.medioTransporte === 'OMNIBUS' || form.medioTransporte === 'AVION'
     if (necesitaMovilidad && !form.movilidadCiudad) e.movilidadCiudad = 'Requerido'
 
-    if (!form.otrosDestinos) e.otrosDestinos = 'Requerido'
-    if (form.factoresDecision.length === 0) e.factoresDecision = 'Seleccioná al menos un factor'
+    const ocultarSeccion4 = form.motivoVisita === 'TRABAJO/ESTUDIO' || form.motivoVisita === 'SALUD/ATENCIÓN SANITARIA'
+    if (!ocultarSeccion4) {
+      if (!form.otrosDestinos) e.otrosDestinos = 'Requerido'
+      if (form.factoresDecision.length === 0) e.factoresDecision = 'Seleccioná al menos un factor'
+    }
 
     const sinValoracion = DIMENSIONES_VALORACION.some(d => form.valoraciones[d.key] === 0)
     if (sinValoracion) e.valoraciones = 'Completá todas las valoraciones (o marcá S/D si no aplica)'
@@ -478,8 +481,8 @@ export default function EncuestaPerfilTuristaPage() {
       comentarios: form.comentarios,
       movilidad_ciudad: necesitaMovilidad ? form.movilidadCiudad : '',
       primera_vez: form.primeraVez,
-      otros_destinos: form.otrosDestinos,
-      factores_decision: form.factoresDecision.join(', '),
+      otros_destinos: (form.motivoVisita === 'TRABAJO/ESTUDIO' || form.motivoVisita === 'SALUD/ATENCIÓN SANITARIA') ? '' : form.otrosDestinos,
+      factores_decision: (form.motivoVisita === 'TRABAJO/ESTUDIO' || form.motivoVisita === 'SALUD/ATENCIÓN SANITARIA') ? '' : form.factoresDecision.join(', '),
       sat_alojamiento: form.valoraciones.alojamiento === -1 ? '' : form.valoraciones.alojamiento,
       sat_gastronomia: form.valoraciones.gastronomia === -1 ? '' : form.valoraciones.gastronomia,
       sat_calidad_precio: form.valoraciones.calidad_precio === -1 ? '' : form.valoraciones.calidad_precio,
@@ -521,6 +524,7 @@ export default function EncuestaPerfilTuristaPage() {
 
   const noAloja = form.tipoAlojamiento === 'NO SE ALOJA/SE ENCUENTRA DE PASO'
   const necesitaMovilidad = form.medioTransporte === 'OMNIBUS' || form.medioTransporte === 'AVION'
+  const ocultarSeccion4 = form.motivoVisita === 'TRABAJO/ESTUDIO' || form.motivoVisita === 'SALUD/ATENCIÓN SANITARIA'
 
   return (
     <div>
@@ -747,40 +751,42 @@ export default function EncuestaPerfilTuristaPage() {
         </div>
 
         {/* ── Sección 4: Decisión de visita ─────────────────────────────── */}
-        <div className="card p-6">
-          <h3 className="text-base font-bold text-text-primary mb-5 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold">4</span>
-            Decisión de Visita
-          </h3>
+        {!ocultarSeccion4 && (
+          <div className="card p-6">
+            <h3 className="text-base font-bold text-text-primary mb-5 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold">4</span>
+              Decisión de Visita
+            </h3>
 
-          <div className="flex flex-col gap-5">
-            <Field label="¿Pensó en otros destinos antes que en SFVC?" required error={errores.otrosDestinos}>
-              <RadioGroup
-                name="otrosDestinos"
-                options={['SÍ', 'NO']}
-                value={form.otrosDestinos}
-                onChange={v => set('otrosDestinos', v)}
-                cols={2}
-              />
-            </Field>
+            <div className="flex flex-col gap-5">
+              <Field label="¿Pensó en otros destinos antes que en SFVC?" required error={errores.otrosDestinos}>
+                <RadioGroup
+                  name="otrosDestinos"
+                  options={['SÍ', 'NO']}
+                  value={form.otrosDestinos}
+                  onChange={v => set('otrosDestinos', v)}
+                  cols={2}
+                />
+              </Field>
 
-            <Field
-              label="¿Qué lo ayudó a decidir por SFVC?"
-              required
-              hint="Podés seleccionar más de una opción"
-              error={errores.factoresDecision}
-            >
-              <CheckboxGroup
-                options={FACTORES_DECISION}
-                selected={form.factoresDecision}
-                onChange={v => {
-                  setForm(f => ({ ...f, factoresDecision: v }))
-                  setErrores(e => ({ ...e, factoresDecision: undefined }))
-                }}
-              />
-            </Field>
+              <Field
+                label="¿Qué lo ayudó a decidir por SFVC?"
+                required
+                hint="Podés seleccionar más de una opción"
+                error={errores.factoresDecision}
+              >
+                <CheckboxGroup
+                  options={FACTORES_DECISION}
+                  selected={form.factoresDecision}
+                  onChange={v => {
+                    setForm(f => ({ ...f, factoresDecision: v }))
+                    setErrores(e => ({ ...e, factoresDecision: undefined }))
+                  }}
+                />
+              </Field>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ── Sección 5: Valoraciones ───────────────────────────────────── */}
         <div className="card p-6">

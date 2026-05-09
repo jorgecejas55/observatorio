@@ -31,6 +31,10 @@ const CANALES = [
   'Web de turismo municipal',
   'Radio',
   'Televisión',
+  'Cabina de información turística',
+  'Por recomendación',
+  'De paso',
+  'Bot de información turística',
   'Otro',
 ]
 
@@ -50,6 +54,7 @@ export default function FormVisitaOcasional({
   })
 
   const [canalesSeleccionados, setCanalesSeleccionados] = useState<string[]>([])
+  const [otroTexto, setOtroTexto] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -65,7 +70,14 @@ export default function FormVisitaOcasional({
       })
 
       if (visita.canal_difusion) {
-        setCanalesSeleccionados(visita.canal_difusion.split(', '))
+        const canales = visita.canal_difusion.split(', ')
+        const otroCanal = canales.find((c) => c.startsWith('Otro:'))
+        if (otroCanal) {
+          setOtroTexto(otroCanal.replace('Otro: ', ''))
+          setCanalesSeleccionados([...canales.filter((c) => !c.startsWith('Otro:')), 'Otro'])
+        } else {
+          setCanalesSeleccionados(canales)
+        }
       }
     }
   }, [visita])
@@ -114,10 +126,14 @@ export default function FormVisitaOcasional({
     setLoading(true)
 
     try {
+      const canalesParaGuardar = canalesSeleccionados.map((c) =>
+        c === 'Otro' ? (otroTexto.trim() ? `Otro: ${otroTexto.trim()}` : 'Otro') : c
+      )
+
       const dataToSave = {
         ...formData,
         'Total de personas': totalPersonas,
-        canal_difusion: canalesSeleccionados.join(', '),
+        canal_difusion: canalesParaGuardar.join(', '),
         usuario_registro: userEmail,
       }
 
@@ -274,6 +290,15 @@ export default function FormVisitaOcasional({
                 </label>
               ))}
             </div>
+            {canalesSeleccionados.includes('Otro') && (
+              <input
+                type="text"
+                value={otroTexto}
+                onChange={(e) => setOtroTexto(e.target.value)}
+                placeholder="Especificá el canal..."
+                className="input mt-3"
+              />
+            )}
           </div>
 
           {/* Error */}
