@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ComposedChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
 } from 'recharts'
 import { SkeletonCard, SkeletonChart, SkeletonFilters } from '@/components/shared/SkeletonLoader'
@@ -65,7 +65,112 @@ const ORIGENES_EVENTO = [
   'Otro'
 ]
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function filtrarPorAno<T extends { mes: string }>(lista: T[], ano: string): T[] {
+  return ano === 'todos' ? lista : lista.filter(d => d.mes.startsWith(ano + '-'))
+}
+
+function calcularTendenciaLineal(valores: number[]): (number | null)[] {
+  const n = valores.length
+  if (n < 2) return valores.map(() => null)
+  const sumX = (n * (n - 1)) / 2
+  const sumX2 = (n * (n - 1) * (2 * n - 1)) / 6
+  const sumY = valores.reduce((a, b) => a + b, 0)
+  const sumXY = valores.reduce((acc, y, i) => acc + i * y, 0)
+  const denom = n * sumX2 - sumX * sumX
+  if (denom === 0) return valores.map(() => null)
+  const m = (n * sumXY - sumX * sumY) / denom
+  const b = (sumY - m * sumX) / n
+  return valores.map((_, i) => parseFloat((m * i + b).toFixed(2)))
+}
+
+function SelectAno({ value, onChange, anos }: {
+  value: string; onChange: (v: string) => void; anos: number[]
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="text-sm font-medium text-text-secondary">Año:</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="input bg-white w-auto text-sm py-1.5"
+      >
+        <option value="todos">Todos los años</option>
+        {anos.map(ano => <option key={ano} value={ano}>{ano}</option>)}
+      </select>
+    </div>
+  )
+}
+
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
+
+function PieEventos({ data }: { data: CategoriaItem[] }) {
+  const capitalizar = (txt: string): string => {
+    if (!txt) return ''
+    return txt.toLowerCase().split(' ').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ')
+  }
+
+  // porcentaje ya viene pre-calculado del backend — filtrar los que redondean a 0
+  const dataFinal = data.filter(d => Math.round(d.porcentaje ?? 0) > 0)
+  if (dataFinal.length === 0) {
+    return <div className="h-40 flex items-center justify-center text-text-secondary text-sm">Sin datos</div>
+  }
+
+  const renderLabelInterna = ({ cx, cy, midAngle, innerRadius, outerRadius, value }: any) => {
+    const pct = Math.round(value)
+    if (pct < 7) return null
+    const RADIAN = Math.PI / 180
+    const radio = innerRadius + (outerRadius - innerRadius) * 0.5
+    const x = cx + radio * Math.cos(-midAngle * RADIAN)
+    const y = cy + radio * Math.sin(-midAngle * RADIAN)
+    return (
+      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central"
+        style={{ fontSize: 13, fontWeight: 700, pointerEvents: 'none' }}>
+        {pct}%
+      </text>
+    )
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <PieChart>
+        <Pie
+          data={dataFinal}
+          dataKey="porcentaje"
+          nameKey="nombre"
+          cx="50%" cy="42%"
+          innerRadius={50} outerRadius={80}
+          paddingAngle={2}
+          label={renderLabelInterna}
+          labelLine={false}
+        >
+          {dataFinal.map((_, i) => (
+            <Cell key={`cell-${i}`} fill={COLORES_PIE[i % COLORES_PIE.length]} />
+          ))}
+        </Pie>
+        <Legend
+          verticalAlign="bottom"
+          height={32}
+          iconSize={10}
+          wrapperStyle={{ paddingTop: 8 }}
+          formatter={(v: string, entry: any) => (
+            <span style={{ fontSize: 12, color: '#374151' }}>
+              {capitalizar(v)} ({Math.round(entry.payload.porcentaje)}%)
+            </span>
+          )}
+        />
+        <Tooltip
+          formatter={(value: number, name: string, props: any) => [
+            `${props.payload.cantidad} eventos (${Math.round(value)}%)`,
+            capitalizar(name)
+          ]}
+          contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
 
 function KPI({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -115,6 +220,11 @@ export default function DashboardEventosPage() {
     tipo: '',
     origen: ''
   })
+
+  const [anoGraficoEventos, setAnoGraficoEventos] = useState('todos')
+  const [anoGraficoAsistentes, setAnoGraficoAsistentes] = useState('todos')
+  const [mostrarTendenciaEventos, setMostrarTendenciaEventos] = useState(false)
+  const [mostrarTendenciaAsistentes, setMostrarTendenciaAsistentes] = useState(false)
 
   // ── Cargar datos ──────────────────────────────────────────────────────────
 
@@ -183,6 +293,33 @@ export default function DashboardEventosPage() {
     return !!(filtrosAplicados.fechaDesde || filtrosAplicados.fechaHasta ||
       filtrosAplicados.tipo || filtrosAplicados.origen)
   }, [filtrosAplicados])
+
+  const anosDisponibles = useMemo(() => {
+    if (!data) return []
+    return [...new Set(data.eventosPorMes.map(d => parseInt(d.mes.split('-')[0])))].sort() as number[]
+  }, [data])
+
+  const eventosChartData = useMemo(() => {
+    if (!data) return []
+    const filtered = filtrarPorAno(data.eventosPorMes, anoGraficoEventos)
+    const tendencia = calcularTendenciaLineal(filtered.map(d => d.cantidad ?? 0))
+    return filtered.map((d, i) => ({
+      label: formatearMes(d.mes),
+      cantidad: d.cantidad,
+      tendencia: tendencia[i],
+    }))
+  }, [data, anoGraficoEventos])
+
+  const asistentesChartData = useMemo(() => {
+    if (!data) return []
+    const filtered = filtrarPorAno(data.asistentesPorMes, anoGraficoAsistentes)
+    const tendencia = calcularTendenciaLineal(filtered.map(d => d.asistentes ?? 0))
+    return filtered.map((d, i) => ({
+      label: formatearMes(d.mes),
+      asistentes: d.asistentes,
+      tendencia: tendencia[i],
+    }))
+  }, [data, anoGraficoAsistentes])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -393,75 +530,106 @@ export default function DashboardEventosPage() {
             <SectionTitle>Evolución temporal</SectionTitle>
             <div className="space-y-4">
               {/* Gráfico 1: Eventos por mes */}
-              <ChartCard title="Eventos por mes" full>
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={data.eventosPorMes}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="mes"
-                      tick={{ fontSize: 12 }}
-                      tickFormatter={formatearMes}
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                    />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      labelFormatter={formatearMes}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="cantidad"
-                      stroke="#db2777"
-                      strokeWidth={2}
-                      dot={{ fill: '#db2777', r: 4 }}
-                      activeDot={{ r: 6 }}
-                      name="Eventos"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartCard>
+              <div className="card p-5 col-span-full">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                  <p className="text-sm font-semibold text-text-primary">Eventos por mes</p>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <button
+                      onClick={() => setMostrarTendenciaEventos(v => !v)}
+                      title="Mostrar / ocultar línea de tendencia"
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        mostrarTendenciaEventos
+                          ? 'bg-amber-50 border-amber-400 text-amber-700'
+                          : 'bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300 hover:text-text-primary'
+                      }`}
+                    >
+                      <i className="fa-solid fa-arrow-trend-up text-[11px]" />
+                      Tendencia
+                    </button>
+                    <SelectAno value={anoGraficoEventos} onChange={setAnoGraficoEventos} anos={anosDisponibles} />
+                  </div>
+                </div>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={eventosChartData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
+                      <defs>
+                        <linearGradient id="gradEventos" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#db2777" stopOpacity={0.7} />
+                          <stop offset="95%" stopColor="#db2777" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="4 4" stroke="#E5E7EB" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6B7280' }} angle={-45} textAnchor="end" height={70} interval={0} />
+                      <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
+                      <Tooltip formatter={(v: number) => [v, 'Eventos']} contentStyle={{ fontSize: 12 }} />
+                      <Area type="monotone" dataKey="cantidad" stroke="#db2777" strokeWidth={2} fill="url(#gradEventos)" dot={false} activeDot={{ r: 4 }} name="Eventos" />
+                      <Line
+                        type="linear"
+                        dataKey="tendencia"
+                        stroke="#f49534"
+                        strokeWidth={2}
+                        strokeDasharray="6 3"
+                        dot={false}
+                        activeDot={false}
+                        name="Tendencia"
+                        legendType="none"
+                        hide={!mostrarTendenciaEventos}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
               {/* Gráfico 2: Asistentes por mes */}
-              <ChartCard title="Asistentes por mes" full>
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={data.asistentesPorMes}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="mes"
-                      tick={{ fontSize: 12 }}
-                      tickFormatter={formatearMes}
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                    />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      labelFormatter={formatearMes}
-                      formatter={(value: number) => formatearNumero(value)}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="asistentes"
-                      stroke="#0ea5e9"
-                      strokeWidth={2}
-                      dot={{ fill: '#0ea5e9', r: 4 }}
-                      activeDot={{ r: 6 }}
-                      name="Asistentes"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartCard>
+              <div className="card p-5 col-span-full">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                  <p className="text-sm font-semibold text-text-primary">Asistentes por mes</p>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <button
+                      onClick={() => setMostrarTendenciaAsistentes(v => !v)}
+                      title="Mostrar / ocultar línea de tendencia"
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        mostrarTendenciaAsistentes
+                          ? 'bg-amber-50 border-amber-400 text-amber-700'
+                          : 'bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300 hover:text-text-primary'
+                      }`}
+                    >
+                      <i className="fa-solid fa-arrow-trend-up text-[11px]" />
+                      Tendencia
+                    </button>
+                    <SelectAno value={anoGraficoAsistentes} onChange={setAnoGraficoAsistentes} anos={anosDisponibles} />
+                  </div>
+                </div>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={asistentesChartData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
+                      <defs>
+                        <linearGradient id="gradAsistentes" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.7} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="4 4" stroke="#E5E7EB" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6B7280' }} angle={-45} textAnchor="end" height={70} interval={0} />
+                      <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
+                      <Tooltip formatter={(v: number) => [formatearNumero(v), 'Asistentes']} contentStyle={{ fontSize: 12 }} />
+                      <Area type="monotone" dataKey="asistentes" stroke="#0ea5e9" strokeWidth={2} fill="url(#gradAsistentes)" dot={false} activeDot={{ r: 4 }} name="Asistentes" />
+                      <Line
+                        type="linear"
+                        dataKey="tendencia"
+                        stroke="#f49534"
+                        strokeWidth={2}
+                        strokeDasharray="6 3"
+                        dot={false}
+                        activeDot={false}
+                        name="Tendencia"
+                        legendType="none"
+                        hide={!mostrarTendenciaAsistentes}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -471,82 +639,12 @@ export default function DashboardEventosPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Gráfico 3: % eventos por origen */}
               <ChartCard title="Distribución por origen del evento">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={data.porcentajesPorOrigen}
-                      dataKey="porcentaje"
-                      nameKey="nombre"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      label={(entry) => `${entry.porcentaje}%`}
-                      labelLine={false}
-                    >
-                      {data.porcentajesPorOrigen.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORES_PIE[index % COLORES_PIE.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number, name: string, props: any) => [
-                        `${value}% (${props.payload.cantidad} eventos)`,
-                        name
-                      ]}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                      }}
-                    />
-                    <Legend
-                      verticalAlign="bottom"
-                      height={36}
-                      formatter={(value, entry: any) => `${value} (${entry.payload.cantidad})`}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                <PieEventos data={data.porcentajesPorOrigen} />
               </ChartCard>
 
               {/* Gráfico 4: % eventos por tipo */}
               <ChartCard title="Distribución por tipo de evento">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={data.porcentajesPorTipo}
-                      dataKey="porcentaje"
-                      nameKey="nombre"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      label={(entry) => `${entry.porcentaje}%`}
-                      labelLine={false}
-                    >
-                      {data.porcentajesPorTipo.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORES_PIE[index % COLORES_PIE.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number, name: string, props: any) => [
-                        `${value}% (${props.payload.cantidad} eventos)`,
-                        name
-                      ]}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                      }}
-                    />
-                    <Legend
-                      verticalAlign="bottom"
-                      height={36}
-                      formatter={(value, entry: any) => `${value} (${entry.payload.cantidad})`}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                <PieEventos data={data.porcentajesPorTipo} />
               </ChartCard>
             </div>
           </div>

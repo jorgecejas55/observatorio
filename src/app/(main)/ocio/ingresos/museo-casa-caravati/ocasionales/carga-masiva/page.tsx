@@ -58,6 +58,7 @@ function CargaMasivaContent() {
       'Total de personas': '',
       motivo_visita: '',
       canalesSeleccionados: [],
+      otroTexto: '',
     }])
   }, [visitas])
 
@@ -162,6 +163,7 @@ function CargaMasivaContent() {
           'Total de personas': '',
           motivo_visita: '',
           canalesSeleccionados: [],
+          otroTexto: '',
         }])
       } else {
         setToast({ message: `${exitosas} exitosas, ${errores} errores`, type: 'error' })

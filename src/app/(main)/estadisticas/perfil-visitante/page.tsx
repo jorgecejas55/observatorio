@@ -147,27 +147,80 @@ function BarH({ data, color = '#db2777', domain, unit = '%' }: {
   )
 }
 
-/** Gráfico de torta genérico — muestra porcentajes */
+/** Gráfico de torta genérico — etiquetas internas, sin labels externas */
 function PieG({ data, colors = COLORES_PIE }: { data: { name: string; value: number }[]; colors?: string[] }) {
   if (!data || data.length === 0) return <EmptyChart />
-  const total = data.reduce((s, d) => s + d.value, 0)
+
+  const dataPositiva = data.filter(d => d.value > 0)
+  if (dataPositiva.length === 0) return <EmptyChart />
+
+  const total = dataPositiva.reduce((s, d) => s + d.value, 0)
+
+  // Filtra rebanadas que redondean a 0% (ej: 1 de 380 = 0.26% → 0%)
+  const dataFinal = dataPositiva.filter(d => Math.round(d.value / total * 100) > 0)
+  if (dataFinal.length === 0) return <EmptyChart />
+
+  const totalFinal = dataFinal.reduce((s, d) => s + d.value, 0)
+
+  const capitalizar = (txt: string): string => {
+    if (!txt) return ''
+    return txt.toLowerCase().split(' ').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ')
+  }
+
+  const renderLabelInterna = ({ cx, cy, midAngle, innerRadius, outerRadius, value }: any) => {
+    const pct = totalFinal ? Math.round(value / totalFinal * 100) : 0
+    if (pct < 7) return null
+
+    const RADIAN = Math.PI / 180
+    const radio = innerRadius + (outerRadius - innerRadius) * 0.5
+    const x = cx + radio * Math.cos(-midAngle * RADIAN)
+    const y = cy + radio * Math.sin(-midAngle * RADIAN)
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="white"
+        textAnchor="middle"
+        dominantBaseline="central"
+        style={{ fontSize: 13, fontWeight: 700, pointerEvents: 'none' }}
+      >
+        {pct}%
+      </text>
+    )
+  }
+
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    <ResponsiveContainer width="100%" height={240}>
       <PieChart>
         <Pie
-          data={data}
-          cx="50%" cy="50%"
-          innerRadius={55} outerRadius={85}
+          data={dataFinal}
+          cx="50%" cy="42%"
+          innerRadius={50} outerRadius={80}
           dataKey="value"
-          label={({ value }) => total ? `${Math.round(value / total * 100)}%` : ''}
-          labelLine={true}
+          label={renderLabelInterna}
+          labelLine={false}
+          isAnimationActive={true}
         >
-          {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+          {dataFinal.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
         </Pie>
-        <Legend formatter={(v) => <span style={{ fontSize: 12 }}>{v}</span>} />
-        <Tooltip formatter={(v: number) => [
-          total ? `${Math.round(v / total * 100)}%` : '—', ''
-        ]} />
+        <Legend
+          verticalAlign="bottom"
+          height={32}
+          iconSize={10}
+          wrapperStyle={{ paddingTop: 8 }}
+          formatter={(v: string, entry: any) => (
+            <span style={{ fontSize: 12, color: '#374151', textTransform: 'none' }}>
+              {capitalizar(v)} ({Math.round(entry.payload.value / totalFinal * 100)}%)
+            </span>
+          )}
+        />
+        <Tooltip
+          formatter={(v: number, name: string) => {
+            const pct = totalFinal ? Math.round(v / totalFinal * 100) : 0
+            return [`${v.toLocaleString('es-AR')} (${pct}%)`, capitalizar(name)]
+          }}
+        />
       </PieChart>
     </ResponsiveContainer>
   )
