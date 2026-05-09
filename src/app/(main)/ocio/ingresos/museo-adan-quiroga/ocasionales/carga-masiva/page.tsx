@@ -17,6 +17,10 @@ const CANALES = [
   'Web de turismo municipal',
   'Radio',
   'Televisión',
+  'Cabina de información turística',
+  'Por recomendación',
+  'De paso',
+  'Bot de información turística',
   'Otro',
 ]
 
@@ -27,6 +31,7 @@ interface VisitaOcasional {
   'Total de personas': number | string
   motivo_visita: string
   canalesSeleccionados: string[]
+  otroTexto: string
 }
 
 function CargaMasivaContent() {
@@ -39,6 +44,7 @@ function CargaMasivaContent() {
     'Total de personas': '',
     motivo_visita: '',
     canalesSeleccionados: [],
+    otroTexto: '',
   }])
 
   const [guardando, setGuardando] = useState(false)
@@ -129,7 +135,9 @@ function CargaMasivaContent() {
               'Lugar de procedencia ': visita['Lugar de procedencia '],
               'Total de personas': parseInt(String(visita['Total de personas'])),
               motivo_visita: visita.motivo_visita,
-              canal_difusion: visita.canalesSeleccionados.join(', '),
+              canal_difusion: visita.canalesSeleccionados.map(c =>
+                c === 'Otro' ? (visita.otroTexto.trim() ? `Otro: ${visita.otroTexto.trim()}` : 'Otro') : c
+              ).join(', '),
               usuario_registro: userEmail
             }),
           })
@@ -379,6 +387,15 @@ function CargaMasivaContent() {
                       </label>
                     ))}
                   </div>
+                  {visita.canalesSeleccionados.includes('Otro') && (
+                    <input
+                      type="text"
+                      value={visita.otroTexto}
+                      onChange={e => actualizarCampo(index, 'otroTexto', e.target.value)}
+                      placeholder="Especificá el canal..."
+                      className="input mt-3"
+                    />
+                  )}
                 </div>
               </div>
             </div>
