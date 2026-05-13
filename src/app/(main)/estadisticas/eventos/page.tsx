@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   ComposedChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LabelList
 } from 'recharts'
 import { SkeletonCard, SkeletonChart, SkeletonFilters } from '@/components/shared/SkeletonLoader'
 
@@ -656,24 +656,22 @@ export default function DashboardEventosPage() {
               {/* Gráfico 5: Duración por tipo */}
               <ChartCard title="Duración promedio por tipo de evento">
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={data.duracionPorTipo} layout="vertical" margin={{ left: 20 }}>
+                  <BarChart data={data.duracionPorTipo} layout="vertical" margin={{ left: 20, right: 60, top: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis type="number" tick={{ fontSize: 12 }} label={{ value: 'Días', position: 'insideBottom', offset: -5 }} />
-                    <YAxis
-                      type="category"
-                      dataKey="nombre"
-                      tick={{ fontSize: 11 }}
-                      width={150}
-                    />
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${v}`} />
+                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={150} />
                     <Tooltip
                       formatter={(value: number) => [`${value} días`, 'Duración promedio']}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                      }}
+                      contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
                     />
-                    <Bar dataKey="duracion" fill="#f97316" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="duracion" fill="#f97316" radius={[0, 4, 4, 0]}>
+                      <LabelList
+                        dataKey="duracion"
+                        position="right"
+                        formatter={(v: number) => `${v} días`}
+                        style={{ fontSize: 11, fill: '#374151', fontWeight: 600 }}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -681,24 +679,22 @@ export default function DashboardEventosPage() {
               {/* Gráfico 6: Duración por origen */}
               <ChartCard title="Duración promedio por origen del evento">
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={data.duracionPorOrigen} layout="vertical" margin={{ left: 20 }}>
+                  <BarChart data={data.duracionPorOrigen} layout="vertical" margin={{ left: 20, right: 60, top: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis type="number" tick={{ fontSize: 12 }} label={{ value: 'Días', position: 'insideBottom', offset: -5 }} />
-                    <YAxis
-                      type="category"
-                      dataKey="nombre"
-                      tick={{ fontSize: 11 }}
-                      width={100}
-                    />
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${v}`} />
+                    <YAxis type="category" dataKey="nombre" tick={{ fontSize: 11 }} width={100} />
                     <Tooltip
                       formatter={(value: number) => [`${value} días`, 'Duración promedio']}
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                      }}
+                      contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
                     />
-                    <Bar dataKey="duracion" fill="#0ea5e9" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="duracion" fill="#0ea5e9" radius={[0, 4, 4, 0]}>
+                      <LabelList
+                        dataKey="duracion"
+                        position="right"
+                        formatter={(v: number) => `${v} días`}
+                        style={{ fontSize: 11, fill: '#374151', fontWeight: 600 }}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>

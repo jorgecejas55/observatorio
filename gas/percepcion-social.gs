@@ -63,6 +63,12 @@ function doPost(e) {
       formData.conocimiento_actividades || '',
       formData.canales_info || '',
       formData.beneficio_principal || '',
+      formData.satisfaccion_impacto || '',
+      formData.impactos_negativos || '',
+      formData.gestion_informacion || '',
+      formData.gestion_espacios || '',
+      formData.gestion_participacion || '',
+      formData.gestion_beneficios_locales || '',
       formData.atractivo_impulsar || '',
       formData.propuesta || ''
     ];
@@ -72,8 +78,8 @@ function doPost(e) {
     return createResponse('success', 'Respuesta guardada correctamente');
     
   } catch (error) {
-    logEvent('Error: ' + error.toString(), 'error');
-    return createResponse('error', error.toString());
+    logEvent('Error en doPost', 'error');
+    return createResponse('error', 'Error al procesar la solicitud');
   }
 }
 
@@ -113,6 +119,12 @@ function setupSheet(sheet) {
     'Conocimiento de actividades',
     'Canales de información',
     'Beneficio principal',
+    'Satisfacción con el impacto del turismo',
+    'Impactos negativos percibidos',
+    'Satisfacción: información turística',
+    'Satisfacción: espacios para residentes',
+    'Satisfacción: participación vecinal',
+    'Satisfacción: beneficios económicos locales',
     'Atractivo/Evento a impulsar',
     'Propuesta o sugerencia'
   ];
@@ -125,18 +137,24 @@ function setupSheet(sheet) {
   headerRange.setFontWeight('bold');
   headerRange.setHorizontalAlignment('center');
 
-  sheet.setColumnWidth(1, 180);
-  sheet.setColumnWidth(2, 120);
-  sheet.setColumnWidth(3, 80);
-  sheet.setColumnWidth(4, 130);
-  sheet.setColumnWidth(5, 140);
-  sheet.setColumnWidth(6, 150);
-  sheet.setColumnWidth(7, 200);
-  sheet.setColumnWidth(8, 150);
-  sheet.setColumnWidth(9, 280);
-  sheet.setColumnWidth(10, 300);
-  sheet.setColumnWidth(11, 250);
-  sheet.setColumnWidth(12, 300);
+  sheet.setColumnWidth(1, 180);   // Fecha y Hora
+  sheet.setColumnWidth(2, 120);   // Sector
+  sheet.setColumnWidth(3, 80);    // Edad
+  sheet.setColumnWidth(4, 130);   // ¿Es ciudad turística?
+  sheet.setColumnWidth(5, 140);   // Frecuencia interacción
+  sheet.setColumnWidth(6, 150);   // Definición
+  sheet.setColumnWidth(7, 200);   // Representación turística
+  sheet.setColumnWidth(8, 150);   // Conocimiento actividades
+  sheet.setColumnWidth(9, 280);   // Canales info
+  sheet.setColumnWidth(10, 300);  // Beneficio principal
+  sheet.setColumnWidth(11, 200);  // Satisfacción impacto
+  sheet.setColumnWidth(12, 350);  // Impactos negativos
+  sheet.setColumnWidth(13, 220);  // Gestión: información
+  sheet.setColumnWidth(14, 220);  // Gestión: espacios
+  sheet.setColumnWidth(15, 220);  // Gestión: participación
+  sheet.setColumnWidth(16, 220);  // Gestión: beneficios locales
+  sheet.setColumnWidth(17, 250);  // Atractivo a impulsar
+  sheet.setColumnWidth(18, 300);  // Propuesta/sugerencia
   
   sheet.setFrozenRows(1);
 }
@@ -221,10 +239,50 @@ function createSummarySheet() {
     const count = countOccurrences(dataSheet, 4, option);
     summarySheet.getRange(`A${row}`).setValue(option);
     summarySheet.getRange(`B${row}`).setValue(count);
-    summarySheet.getRange(`C${row}`).setValue((count / totalResponses * 100).toFixed(1) + '%');
+    summarySheet.getRange(`C${row}`).setValue(totalResponses > 0 ? (count / totalResponses * 100).toFixed(1) + '%' : '0%');
     row++;
   });
-  
+
+  row += 2;
+
+  summarySheet.getRange(`A${row}`).setValue('SATISFACCIÓN CON EL IMPACTO DEL TURISMO (P9)');
+  summarySheet.getRange(`A${row}:C${row}`).setBackground('#00b5db').setFontColor('#ffffff').setFontWeight('bold');
+  row++;
+
+  ['Muy satisfecho/a', 'Satisfecho/a', 'Ni satisfecho/a ni insatisfecho/a', 'Insatisfecho/a', 'Muy insatisfecho/a'].forEach(option => {
+    const count = countOccurrences(dataSheet, 11, option);
+    summarySheet.getRange(`A${row}`).setValue(option);
+    summarySheet.getRange(`B${row}`).setValue(count);
+    summarySheet.getRange(`C${row}`).setValue(totalResponses > 0 ? (count / totalResponses * 100).toFixed(1) + '%' : '0%');
+    row++;
+  });
+
+  row += 2;
+
+  const escalaGestion = ['Muy satisfecho/a', 'Satisfecho/a', 'Neutro/a', 'Insatisfecho/a', 'Muy insatisfecho/a'];
+  const itemsGestion = [
+    { label: 'SATISFACCIÓN GESTIÓN: INFORMACIÓN TURÍSTICA (P11a)', col: 13 },
+    { label: 'SATISFACCIÓN GESTIÓN: ESPACIOS PARA RESIDENTES (P11b)', col: 14 },
+    { label: 'SATISFACCIÓN GESTIÓN: PARTICIPACIÓN VECINAL (P11c)', col: 15 },
+    { label: 'SATISFACCIÓN GESTIÓN: BENEFICIOS ECONÓMICOS LOCALES (P11d)', col: 16 },
+  ];
+
+  itemsGestion.forEach(item => {
+    summarySheet.getRange(`A${row}`).setValue(item.label);
+    summarySheet.getRange(`A${row}:C${row}`).setBackground('#00b5db').setFontColor('#ffffff').setFontWeight('bold');
+    row++;
+
+    escalaGestion.forEach(option => {
+      const count = countOccurrences(dataSheet, item.col, option);
+      summarySheet.getRange(`A${row}`).setValue(option);
+      summarySheet.getRange(`B${row}`).setValue(count);
+      summarySheet.getRange(`C${row}`).setValue(totalResponses > 0 ? (count / totalResponses * 100).toFixed(1) + '%' : '0%');
+      row++;
+    });
+
+    row += 2;
+  });
+
   summarySheet.autoResizeColumns(1, 3);
   Browser.msgBox('Resumen creado exitosamente');
 }

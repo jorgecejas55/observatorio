@@ -17,6 +17,12 @@ interface FormState {
   conocimiento_actividades: string
   canales_info: string[]
   beneficio_principal: string
+  satisfaccion_impacto: string
+  impactos_negativos: string[]
+  gestion_informacion: string
+  gestion_espacios: string
+  gestion_participacion: string
+  gestion_beneficios_locales: string
   atractivo_impulsar: string
   propuesta: string
 }
@@ -30,6 +36,12 @@ interface Errores {
   representacion_turistica?: string
   conocimiento_actividades?: string
   beneficio_principal?: string
+  satisfaccion_impacto?: string
+  impactos_negativos?: string
+  gestion_informacion?: string
+  gestion_espacios?: string
+  gestion_participacion?: string
+  gestion_beneficios_locales?: string
 }
 
 const ESTADO_INICIAL: FormState = {
@@ -42,6 +54,12 @@ const ESTADO_INICIAL: FormState = {
   conocimiento_actividades: '',
   canales_info: [],
   beneficio_principal: '',
+  satisfaccion_impacto: '',
+  impactos_negativos: [],
+  gestion_informacion: '',
+  gestion_espacios: '',
+  gestion_participacion: '',
+  gestion_beneficios_locales: '',
   atractivo_impulsar: '',
   propuesta: '',
 }
@@ -149,6 +167,67 @@ function GrupoCheckbox({
   )
 }
 
+const ESCALA_SATISFACCION = [
+  'Muy satisfecho/a',
+  'Satisfecho/a',
+  'Neutro/a',
+  'Insatisfecho/a',
+  'Muy insatisfecho/a',
+]
+
+function MatrizSatisfaccion({
+  items,
+  valores,
+  onChange,
+  errores,
+}: {
+  items: { campo: string; label: string; descripcion?: string }[]
+  valores: Record<string, string>
+  onChange: (campo: string, valor: string) => void
+  errores: Record<string, string | undefined>
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      {items.map(({ campo, label, descripcion }) => (
+        <div key={campo}>
+          <p className="text-sm font-medium text-text-primary mb-0.5">{label}</p>
+          {descripcion && (
+            <p className="text-xs text-text-secondary mb-2">{descripcion}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {ESCALA_SATISFACCION.map((op) => (
+              <label
+                key={op}
+                className={`flex items-center gap-2 cursor-pointer rounded-lg border-2 px-3 py-2 text-xs transition-all duration-200 select-none
+                  ${valores[campo] === op
+                    ? 'border-primary bg-primary/5 font-semibold text-primary'
+                    : 'border-gray-200 bg-white text-text-primary hover:border-primary/40'
+                  }`}
+              >
+                <input
+                  type="radio"
+                  name={campo}
+                  value={op}
+                  checked={valores[campo] === op}
+                  onChange={() => onChange(campo, op)}
+                  className="sr-only"
+                />
+                {op}
+              </label>
+            ))}
+          </div>
+          {errores[campo] && (
+            <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+              <i className="fa-solid fa-triangle-exclamation text-xs" />
+              {errores[campo]}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function PreguntaWrapper({
   numero,
   titulo,
@@ -216,6 +295,16 @@ export default function PercepcionSocialForm() {
     if (!form.conocimiento_actividades) e.conocimiento_actividades = 'Seleccioná una opción.'
     if (!form.beneficio_principal) e.beneficio_principal = 'Seleccioná una opción.'
 
+    if (!form.satisfaccion_impacto) e.satisfaccion_impacto = 'Seleccioná una opción.'
+
+    if (form.impactos_negativos.length === 0)
+      e.impactos_negativos = 'Seleccioná al menos una opción.'
+
+    if (!form.gestion_informacion) e.gestion_informacion = 'Completá este ítem.'
+    if (!form.gestion_espacios) e.gestion_espacios = 'Completá este ítem.'
+    if (!form.gestion_participacion) e.gestion_participacion = 'Completá este ítem.'
+    if (!form.gestion_beneficios_locales) e.gestion_beneficios_locales = 'Completá este ítem.'
+
     setErrores(e)
     return Object.keys(e).length === 0
   }
@@ -243,6 +332,12 @@ export default function PercepcionSocialForm() {
         conocimiento_actividades: form.conocimiento_actividades,
         canales_info: form.canales_info.join(', '),
         beneficio_principal: form.beneficio_principal,
+        satisfaccion_impacto: form.satisfaccion_impacto,
+        impactos_negativos: form.impactos_negativos.join(', '),
+        gestion_informacion: form.gestion_informacion,
+        gestion_espacios: form.gestion_espacios,
+        gestion_participacion: form.gestion_participacion,
+        gestion_beneficios_locales: form.gestion_beneficios_locales,
         atractivo_impulsar: form.atractivo_impulsar,
         propuesta: form.propuesta,
         timestamp: new Date().toISOString(),
@@ -253,12 +348,21 @@ export default function PercepcionSocialForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+
+      if (res.status === 429) {
+        throw new Error('Ya enviaste demasiadas respuestas. Esperá una hora antes de intentar nuevamente.')
+      }
+
+      if (!res.ok) {
+        throw new Error('Hubo un problema al enviar la respuesta. Intentá nuevamente.')
+      }
+
       const data = await res.json()
 
       if (data.status === 'success') {
         setEstado('exito')
       } else {
-        throw new Error(data.message || 'Error al enviar los datos')
+        throw new Error('Hubo un problema al enviar la respuesta. Intentá nuevamente.')
       }
     } catch (err) {
       setMensajeError(
@@ -498,9 +602,104 @@ export default function PercepcionSocialForm() {
         />
       </PreguntaWrapper>
 
-      {/* P9 — Atractivo a impulsar (opcional) */}
+      {/* P9 — Satisfacción con el impacto del turismo */}
       <PreguntaWrapper
         numero={9}
+        titulo="¿Qué tan satisfecho/a estás con el impacto que tiene el turismo en tu vida cotidiana y en la ciudad?"
+        error={errores.satisfaccion_impacto}
+      >
+        {errores.satisfaccion_impacto && <span data-error />}
+        <GrupoRadio
+          nombre="satisfaccion_impacto"
+          opciones={[
+            'Muy satisfecho/a',
+            'Satisfecho/a',
+            'Ni satisfecho/a ni insatisfecho/a',
+            'Insatisfecho/a',
+            'Muy insatisfecho/a',
+          ]}
+          valor={form.satisfaccion_impacto}
+          onChange={(v) => {
+            set('satisfaccion_impacto', v)
+            setErrores((e) => ({ ...e, satisfaccion_impacto: undefined }))
+          }}
+        />
+      </PreguntaWrapper>
+
+      {/* P10 — Impactos negativos */}
+      <PreguntaWrapper
+        numero={10}
+        titulo="¿Percibís alguno de estos impactos negativos del turismo en tu barrio o en la ciudad?"
+        error={errores.impactos_negativos}
+      >
+        <p className="mt-1.5 text-xs text-text-secondary">Podés elegir más de uno.</p>
+        {errores.impactos_negativos && <span data-error />}
+        <GrupoCheckbox
+          nombre="impactos_negativos"
+          opciones={[
+            'Aumento del tráfico y dificultad para estacionar',
+            'Suba de precios en comercios y servicios',
+            'Ruido, aglomeraciones o saturación de espacios públicos',
+            'Deterioro de espacios públicos o patrimonio',
+            'Desplazamiento de comercios y servicios para residentes',
+            'No percibo impactos negativos',
+          ]}
+          seleccionados={form.impactos_negativos}
+          onChange={(v) => {
+            const sinImpacto = 'No percibo impactos negativos'
+            if (v.includes(sinImpacto) && !form.impactos_negativos.includes(sinImpacto)) {
+              set('impactos_negativos', [sinImpacto])
+            } else if (!v.includes(sinImpacto)) {
+              set('impactos_negativos', v)
+            } else {
+              set('impactos_negativos', v.filter((x) => x !== sinImpacto))
+            }
+            setErrores((e) => ({ ...e, impactos_negativos: undefined }))
+          }}
+        />
+      </PreguntaWrapper>
+
+      {/* P11 — Satisfacción con la gestión municipal */}
+      <PreguntaWrapper
+        numero={11}
+        titulo="En relación a la gestión municipal del turismo, ¿qué tan satisfecho/a estás con los siguientes aspectos?"
+        error={
+          errores.gestion_informacion ||
+          errores.gestion_espacios ||
+          errores.gestion_participacion ||
+          errores.gestion_beneficios_locales
+        }
+      >
+        {(errores.gestion_informacion || errores.gestion_espacios || errores.gestion_participacion || errores.gestion_beneficios_locales) && <span data-error />}
+        <MatrizSatisfaccion
+          items={[
+            { campo: 'gestion_informacion', label: 'La información que recibís sobre actividades y eventos turísticos', descripcion: 'A través de medios tradicionales y digitales.' },
+            { campo: 'gestion_espacios', label: 'Los espacios públicos y atractivos disponibles para disfrutar como residente', descripcion: 'Por ej.: Dique El Jumeal, Gruta de la Virgen del V., Pueblo Perdido de la Quebrada, etc.' },
+            { campo: 'gestion_participacion', label: 'La participación de los vecinos en las decisiones sobre turismo', descripcion: 'Apertura del municipio a escuchar y recibir propuestas de los vecinos, a través de programas como "Barrios turísticos".' },
+            { campo: 'gestion_beneficios_locales', label: 'Los beneficios económicos que el turismo genera para el comercio local', descripcion: 'En gastronomía, comercios, hospedajes, transporte y servicios de la ciudad.' },
+          ]}
+          valores={{
+            gestion_informacion: form.gestion_informacion,
+            gestion_espacios: form.gestion_espacios,
+            gestion_participacion: form.gestion_participacion,
+            gestion_beneficios_locales: form.gestion_beneficios_locales,
+          }}
+          onChange={(campo, valor) => {
+            set(campo as keyof FormState, valor)
+            setErrores((e) => ({ ...e, [campo]: undefined }))
+          }}
+          errores={{
+            gestion_informacion: errores.gestion_informacion,
+            gestion_espacios: errores.gestion_espacios,
+            gestion_participacion: errores.gestion_participacion,
+            gestion_beneficios_locales: errores.gestion_beneficios_locales,
+          }}
+        />
+      </PreguntaWrapper>
+
+      {/* P12 — Atractivo a impulsar (opcional) */}
+      <PreguntaWrapper
+        numero={12}
         titulo="¿Qué atractivo, evento o actividad te gustaría que se potencie más? (Opcional)"
       >
         <p className="mt-1.5 text-xs text-text-secondary">
@@ -515,9 +714,9 @@ export default function PercepcionSocialForm() {
         />
       </PreguntaWrapper>
 
-      {/* P10 — Propuesta (opcional) */}
+      {/* P13 — Propuesta (opcional) */}
       <PreguntaWrapper
-        numero={10}
+        numero={13}
         titulo="¿Tenés alguna propuesta o sugerencia para mejorar el turismo en la ciudad? (Opcional)"
       >
         <textarea

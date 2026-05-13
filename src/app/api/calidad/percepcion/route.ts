@@ -1,18 +1,37 @@
 import { NextResponse } from 'next/server'
+import { PercepcionSocialSchema } from '@/lib/schemas'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 const GAS = process.env.PERCEPCION_SCRIPT_URL ?? ''
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req)
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'Demasiadas solicitudes. Intentá nuevamente en una hora.' },
+      { status: 429 }
+    )
+  }
+
   try {
     if (!GAS) {
-      return NextResponse.json({ error: 'PERCEPCION_SCRIPT_URL no configurada' }, { status: 500 })
+      return NextResponse.json({ error: 'Error de configuración del servidor' }, { status: 500 })
     }
 
-    const data = await req.json()
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Cuerpo de la solicitud inválido' }, { status: 400 })
+    }
 
-    // El GAS lee los datos con e.parameter, que solo funciona con form-urlencoded
+    const validacion = PercepcionSocialSchema.safeParse(body)
+    if (!validacion.success) {
+      return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
+    }
+
     const params = new URLSearchParams()
-    Object.entries(data).forEach(([key, value]) => {
+    Object.entries(validacion.data).forEach(([key, value]) => {
       params.append(key, String(value ?? ''))
     })
 
@@ -27,11 +46,9 @@ export async function POST(req: Request) {
     try {
       return NextResponse.json(JSON.parse(text))
     } catch {
-      console.error('[calidad/percepcion] respuesta no válida del script')
       return NextResponse.json({ error: 'Respuesta no válida del servidor' }, { status: 502 })
     }
-  } catch (err) {
-    console.error('[calidad/percepcion]', err)
+  } catch {
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

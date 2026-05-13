@@ -94,6 +94,51 @@ export const EventoSchema = z.object({
   observaciones: campoLargo,
 })
 
+// ─── Percepción Social del Residente ─────────────────────────────────────────
+
+const SECTORES_PERCEPCION = ['Norte', 'Sur', 'Este', 'Oeste', 'Centro'] as const
+const ESCALA_SATISFACCION_IMPACTO = [
+  'Muy satisfecho/a',
+  'Satisfecho/a',
+  'Ni satisfecho/a ni insatisfecho/a',
+  'Insatisfecho/a',
+  'Muy insatisfecho/a',
+] as const
+const ESCALA_SATISFACCION_GESTION = [
+  'Muy satisfecho/a',
+  'Satisfecho/a',
+  'Neutro/a',
+  'Insatisfecho/a',
+  'Muy insatisfecho/a',
+] as const
+const BENEFICIOS_PERCEPCION = [
+  'Fortalece la imagen, el prestigio y la identidad de la ciudad',
+  'Genera empleo y desarrollo económico',
+  'Impulsa mejoras en infraestructura y espacios públicos',
+  'Incrementa la oferta cultural y de entretenimiento',
+] as const
+
+export const PercepcionSocialSchema = z.object({
+  sector: z.enum(SECTORES_PERCEPCION),
+  edad: z.string().regex(/^\d+$/).refine((v) => { const n = parseInt(v); return n >= 18 && n <= 120 }),
+  ciudad_turistica: z.enum(['Sí', 'No', 'Tal vez']),
+  frecuencia_interaccion: z.enum(['Frecuentemente', 'Ocasionalmente', 'Nunca']),
+  definicion: z.string().min(1).max(50),
+  representacion_turistica: z.string().min(1).max(500),
+  conocimiento_actividades: z.enum(['Nada', 'Poco', 'Mucho']),
+  canales_info: z.string().max(500).optional().default(''),
+  beneficio_principal: z.enum(BENEFICIOS_PERCEPCION),
+  satisfaccion_impacto: z.enum(ESCALA_SATISFACCION_IMPACTO),
+  impactos_negativos: z.string().min(1).max(500),
+  gestion_informacion: z.enum(ESCALA_SATISFACCION_GESTION),
+  gestion_espacios: z.enum(ESCALA_SATISFACCION_GESTION),
+  gestion_participacion: z.enum(ESCALA_SATISFACCION_GESTION),
+  gestion_beneficios_locales: z.enum(ESCALA_SATISFACCION_GESTION),
+  atractivo_impulsar: z.string().max(500).optional().default(''),
+  propuesta: z.string().max(1000).optional().default(''),
+  timestamp: z.string().optional(),
+})
+
 // ─── Métricas Digitales ────────────────────────────────────────────────────────
 
 const MesAnioSchema = z.string().regex(/^\d{2}\/\d{4}$/, 'Formato debe ser MM/YYYY')
