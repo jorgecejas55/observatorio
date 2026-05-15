@@ -197,6 +197,41 @@ export interface IngresoMensualAtractivo {
   timestamp: string
 }
 
+// ─── Informes Técnicos ────────────────────────────────────────────────────────
+
+export type TipoInforme = 'ocio' | 'mice'
+export type SubcategoriaInforme = 'periodico' | 'especial'
+export type CategoriaInforme =
+  | 'mensual'
+  | 'trimestral'
+  | 'quincenal'
+  | 'finde'
+  | 'evento-especifico'
+  | 'tematico'
+
+export interface Informe {
+  id: string
+  titulo: string
+  descripcion?: string
+  tipo: TipoInforme
+  subcategoria: SubcategoriaInforme
+  categoria: CategoriaInforme
+  periodo: string
+  fecha: string
+  urlPdf: string
+  usuario?: string
+  timestamp?: string
+}
+
+export const LABELS_CATEGORIA: Record<CategoriaInforme, string> = {
+  mensual: 'Mensual',
+  trimestral: 'Trimestral',
+  quincenal: 'Quincenal',
+  finde: 'Fin de semana largo',
+  'evento-especifico': 'Evento turístico',
+  tematico: 'Temático',
+}
+
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 export interface ApiResponse<T = void> {

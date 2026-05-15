@@ -38,6 +38,15 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    label: 'Informes Técnicos',
+    icon: 'fa-file-lines',
+    color: 'text-teal-600',
+    items: [
+      { href: '/informes/ocio', label: 'Turismo de Ocio', icon: 'fa-umbrella-beach' },
+      { href: '/informes/mice', label: 'Turismo MICE', icon: 'fa-calendar-star' },
+    ],
+  },
+  {
     label: 'Oferta de Servicios',
     icon: 'fa-hotel',
     color: 'text-accent',
@@ -99,6 +108,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'Turismo de Ocio': true,
     'Turismo de Eventos': true,
+    'Informes Técnicos': true,
     'Oferta de Servicios': true,
     'Análisis de Calidad': true,
     'Estadísticas': true,
@@ -144,6 +154,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <div className="my-2 border-t border-gray-100" />
 
           {/* Admin */}
+          <NavLink href="/admin/informes" label="Cargar informe" icon="fa-file-arrow-up" onNavigate={onClose} />
           <NavLink href="/admin/metricas" label="Métricas" icon="fa-chart-simple" onNavigate={onClose} />
           <NavLink href="/admin/usuarios" label="Usuarios" icon="fa-users-gear" onNavigate={onClose} />
           <NavLink href="/admin/config" label="Configuración" icon="fa-gear" onNavigate={onClose} />
