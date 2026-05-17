@@ -18,7 +18,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async session({ session, token }) {
       if (session.user?.email) {
-        const rol = ROLES_ESTATICOS[session.user.email] ?? 'operador'
+        const rol = ROLES_ESTATICOS[session.user.email] ?? 'admin'
         // @ts-expect-error — extendemos la sesión con el rol
         session.user.rol = rol
       }
