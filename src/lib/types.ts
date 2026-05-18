@@ -208,6 +208,7 @@ export type CategoriaInforme =
   | 'finde'
   | 'evento-especifico'
   | 'tematico'
+  | 'especial'
 
 export interface Informe {
   id: string
@@ -230,6 +231,7 @@ export const LABELS_CATEGORIA: Record<CategoriaInforme, string> = {
   finde: 'Fin de semana largo',
   'evento-especifico': 'Evento turístico',
   tematico: 'Temático',
+  especial: 'Especial',
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────

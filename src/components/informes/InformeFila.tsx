@@ -8,6 +8,7 @@ const BADGE_COLORS: Record<CategoriaInforme, string> = {
   finde: 'bg-orange-100 text-orange-700',
   'evento-especifico': 'bg-red-100 text-red-700',
   tematico: 'bg-gray-100 text-gray-700',
+  especial: 'bg-purple-100 text-purple-700',
 }
 
 interface Props {

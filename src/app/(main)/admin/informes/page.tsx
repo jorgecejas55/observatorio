@@ -16,7 +16,7 @@ const CATEGORIAS: CategoriasPorCombinacion = {
     '': [],
   },
   mice: {
-    '': ['trimestral'],
+    '': ['trimestral', 'especial'],
     periodico: [],
     especial: [],
   },
@@ -446,7 +446,10 @@ export default function AdminInformesPage() {
             >
               <option value="todas">Todas</option>
               {filtroTipo === 'mice' ? (
-                <option value="trimestral">{LABELS_CATEGORIA['trimestral']}</option>
+                <>
+                  <option value="trimestral">{LABELS_CATEGORIA['trimestral']}</option>
+                  <option value="especial">{LABELS_CATEGORIA['especial']}</option>
+                </>
               ) : filtroTipo === 'ocio' ? (
                 <>
                   <option value="mensual">{LABELS_CATEGORIA['mensual']}</option>
@@ -465,6 +468,7 @@ export default function AdminInformesPage() {
                   <option value="finde">{LABELS_CATEGORIA['finde']}</option>
                   <option value="evento-especifico">{LABELS_CATEGORIA['evento-especifico']}</option>
                   <option value="tematico">{LABELS_CATEGORIA['tematico']}</option>
+                  <option value="especial">{LABELS_CATEGORIA['especial']}</option>
                 </>
               )}
             </select>
