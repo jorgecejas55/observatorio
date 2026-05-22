@@ -110,6 +110,15 @@ var COLUMNAS = {
 
   // Col AD — responsable de carga
   'RESPONSABLE DE CARGA':                 'responsable_carga',
+
+  // Col AE — discapacidad en el grupo
+  '¿ALGÚN INTEGRANTE DEL GRUPO TIENE ALGÚN TIPO DE DISCAPACIDAD?': 'discapacidad_en_grupo',
+
+  // Col AF — cantidad de personas con discapacidad (solo si col AE = 'SÍ')
+  'CANTIDAD DE PERSONAS CON DISCAPACIDAD EN EL GRUPO': 'cant_personas_discapacidad',
+
+  // Col AG — tipos de discapacidad (valores separados por coma, solo si col AE = 'SÍ')
+  'TIPOS DE DISCAPACIDAD EN EL GRUPO': 'tipos_discapacidad',
 }
 
 // ─── Punto de entrada ─────────────────────────────────────────────────────────

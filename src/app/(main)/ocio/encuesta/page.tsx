@@ -155,6 +155,10 @@ interface FormState {
   volveria: string
   recomendaria: string
   comentarios: string
+  // Accesibilidad
+  discapacidadEnGrupo: string
+  cantPersonasDiscapacidad: string
+  tiposDiscapacidad: string[]
   // Operativo
   lugarCaptado: string
   responsableCarga: string
@@ -191,6 +195,9 @@ const ESTADO_INICIAL: FormState = {
   volveria: '',
   recomendaria: '',
   comentarios: '',
+  discapacidadEnGrupo: '',
+  cantPersonasDiscapacidad: '',
+  tiposDiscapacidad: [],
   lugarCaptado: '',
   responsableCarga: '',
 }
@@ -245,8 +252,10 @@ function RadioGroup({ name, options, value, onChange, cols = 1 }: {
   )
 }
 
-function CheckboxGroup({ options, selected, onChange }: {
+function CheckboxGroup({ options, selected, onChange, labels, hints }: {
   options: string[]; selected: string[]; onChange: (v: string[]) => void
+  labels?: Record<string, string>
+  hints?: Record<string, string>
 }) {
   const toggle = (op: string) => {
     onChange(selected.includes(op) ? selected.filter(x => x !== op) : [...selected, op])
@@ -255,22 +264,27 @@ function CheckboxGroup({ options, selected, onChange }: {
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {options.map(op => {
         const checked = selected.includes(op)
+        const displayLabel = labels?.[op] ?? op
+        const hint = hints?.[op]
         return (
           <label
             key={op}
-            className={`flex items-center gap-2.5 cursor-pointer rounded-xl border-2 px-4 py-2.5 text-sm transition-all select-none
+            className={`flex items-start gap-2.5 cursor-pointer rounded-xl border-2 px-4 py-2.5 text-sm transition-all select-none
               ${checked
                 ? 'border-primary bg-primary/5 font-semibold text-primary'
                 : 'border-gray-200 bg-white text-text-primary hover:border-primary/40'
               }`}
           >
-            <span className={`w-4 h-4 rounded-lg border-2 flex-shrink-0 flex items-center justify-center
+            <span className={`w-4 h-4 mt-0.5 rounded-lg border-2 flex-shrink-0 flex items-center justify-center
               ${checked ? 'border-primary bg-primary' : 'border-gray-300 bg-white'}`}>
               {checked && <i className="fa-solid fa-check text-white text-[10px]" />}
             </span>
             <input type="checkbox" value={op} checked={checked}
               onChange={() => toggle(op)} className="sr-only" />
-            {op}
+            <span className="flex flex-col">
+              <span>{displayLabel}</span>
+              {hint && <span className="text-xs font-normal text-text-secondary mt-0.5">{hint}</span>}
+            </span>
           </label>
         )
       })}
@@ -364,6 +378,7 @@ export default function EncuestaPerfilTuristaPage() {
   const [errores, setErrores] = useState<Errores>({})
   const [estado, setEstado] = useState<EstadoForm>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [valoracionesExpanded, setValoracionesExpanded] = useState(false)
   const firstErrorRef = useRef<HTMLDivElement>(null)
 
   // Prellenar responsable desde la sesión
@@ -434,11 +449,23 @@ export default function EncuestaPerfilTuristaPage() {
       if (form.factoresDecision.length === 0) e.factoresDecision = 'Seleccioná al menos un factor'
     }
 
-    const sinValoracion = DIMENSIONES_VALORACION.some(d => form.valoraciones[d.key] === 0)
+    const sinValoracion = valoracionesExpanded && DIMENSIONES_VALORACION.some(d => form.valoraciones[d.key] === 0)
     if (sinValoracion) e.valoraciones = 'Completá todas las valoraciones (o marcá S/D si no aplica)'
 
     if (!form.volveria) e.volveria = 'Requerido'
     if (!form.recomendaria) e.recomendaria = 'Requerido'
+
+    if (!form.discapacidadEnGrupo) e.discapacidadEnGrupo = 'Requerido'
+    if (form.discapacidadEnGrupo === 'SÍ') {
+      const cant = Number(form.cantPersonasDiscapacidad)
+      const total = Number(form.cantidadPersonas)
+      if (!form.cantPersonasDiscapacidad || cant < 1)
+        e.cantPersonasDiscapacidad = 'Ingresá la cantidad de personas con discapacidad'
+      else if (total > 0 && cant > total)
+        e.cantPersonasDiscapacidad = `No puede superar la cantidad total del grupo (${total})`
+      if (form.tiposDiscapacidad.length === 0)
+        e.tiposDiscapacidad = 'Seleccioná al menos un tipo de discapacidad'
+    }
 
     if (!form.lugarCaptado) e.lugarCaptado = 'Requerido'
     if (!form.responsableCarga.trim()) e.responsableCarga = 'Ingresá el responsable'
@@ -475,7 +502,7 @@ export default function EncuestaPerfilTuristaPage() {
       cantidad_personas: Number(form.cantidadPersonas),
       motivo_visita: form.motivoVisita,
       tipo_alojamiento: form.tipoAlojamiento,
-      cantidad_noches: form.tipoAlojamiento === 'NO SE ALOJA/SE ENCUENTRA DE PASO' ? 0 : Number(form.cantidadNoches),
+      cantidad_noches: noAloja ? '' : (form.cantidadNoches ? Number(form.cantidadNoches) : ''),
       lugar_captado: form.lugarCaptado,
       edad: Number(form.edad),
       comentarios: form.comentarios,
@@ -483,18 +510,21 @@ export default function EncuestaPerfilTuristaPage() {
       primera_vez: form.primeraVez,
       otros_destinos: (form.motivoVisita === 'TRABAJO/ESTUDIO' || form.motivoVisita === 'SALUD/ATENCIÓN SANITARIA') ? '' : form.otrosDestinos,
       factores_decision: (form.motivoVisita === 'TRABAJO/ESTUDIO' || form.motivoVisita === 'SALUD/ATENCIÓN SANITARIA') ? '' : form.factoresDecision.join(', '),
-      sat_alojamiento: form.valoraciones.alojamiento === -1 ? '' : form.valoraciones.alojamiento,
-      sat_gastronomia: form.valoraciones.gastronomia === -1 ? '' : form.valoraciones.gastronomia,
-      sat_calidad_precio: form.valoraciones.calidad_precio === -1 ? '' : form.valoraciones.calidad_precio,
-      sat_hospitalidad: form.valoraciones.hospitalidad === -1 ? '' : form.valoraciones.hospitalidad,
-      sat_seguridad: form.valoraciones.seguridad === -1 ? '' : form.valoraciones.seguridad,
-      sat_info_turistica: form.valoraciones.info_turistica === -1 ? '' : form.valoraciones.info_turistica,
-      sat_senaletica: form.valoraciones.senaletica === -1 ? '' : form.valoraciones.senaletica,
-      sat_oferta_cultural: form.valoraciones.oferta_cultural === -1 ? '' : form.valoraciones.oferta_cultural,
-      sat_estadia_general: form.valoraciones.estadia_general === -1 ? '' : form.valoraciones.estadia_general,
+      sat_alojamiento: form.valoraciones.alojamiento <= 0 ? '' : form.valoraciones.alojamiento,
+      sat_gastronomia: form.valoraciones.gastronomia <= 0 ? '' : form.valoraciones.gastronomia,
+      sat_calidad_precio: form.valoraciones.calidad_precio <= 0 ? '' : form.valoraciones.calidad_precio,
+      sat_hospitalidad: form.valoraciones.hospitalidad <= 0 ? '' : form.valoraciones.hospitalidad,
+      sat_seguridad: form.valoraciones.seguridad <= 0 ? '' : form.valoraciones.seguridad,
+      sat_info_turistica: form.valoraciones.info_turistica <= 0 ? '' : form.valoraciones.info_turistica,
+      sat_senaletica: form.valoraciones.senaletica <= 0 ? '' : form.valoraciones.senaletica,
+      sat_oferta_cultural: form.valoraciones.oferta_cultural <= 0 ? '' : form.valoraciones.oferta_cultural,
+      sat_estadia_general: form.valoraciones.estadia_general <= 0 ? '' : form.valoraciones.estadia_general,
       volveria: form.volveria,
       recomendaria: form.recomendaria,
       responsable_carga: form.responsableCarga,
+      discapacidad_en_grupo: form.discapacidadEnGrupo,
+      cant_personas_discapacidad: form.discapacidadEnGrupo === 'SÍ' ? Number(form.cantPersonasDiscapacidad) : '',
+      tipos_discapacidad: form.discapacidadEnGrupo === 'SÍ' ? form.tiposDiscapacidad.join(', ') : '',
     }
 
     try {
@@ -671,6 +701,73 @@ export default function EncuestaPerfilTuristaPage() {
               </Field>
             </div>
 
+            <Field
+              label="¿Algún integrante del grupo tiene algún tipo de discapacidad?"
+              required
+              error={errores.discapacidadEnGrupo}
+            >
+              <RadioGroup
+                name="discapacidadEnGrupo"
+                options={['SÍ', 'NO', 'NO LO SÉ', 'PREFIERE NO RESPONDER']}
+                value={form.discapacidadEnGrupo}
+                onChange={v => {
+                  set('discapacidadEnGrupo', v)
+                  if (v !== 'SÍ') set('cantPersonasDiscapacidad', '')
+                }}
+                cols={2}
+              />
+            </Field>
+
+            {form.discapacidadEnGrupo === 'SÍ' && (
+              <>
+                <Field
+                  label="Cantidad de personas con discapacidad en el grupo"
+                  required
+                  error={errores.cantPersonasDiscapacidad}
+                >
+                  <input
+                    type="number"
+                    min={1}
+                    max={form.cantidadPersonas ? Number(form.cantidadPersonas) : 200}
+                    value={form.cantPersonasDiscapacidad}
+                    onChange={e => set('cantPersonasDiscapacidad', e.target.value)}
+                    className={`input w-40 ${errores.cantPersonasDiscapacidad ? 'border-red-400' : ''}`}
+                    placeholder="ej: 1"
+                  />
+                </Field>
+
+                <Field
+                  label="Tipo/s de discapacidad"
+                  required
+                  hint="Podés seleccionar más de una opción"
+                  error={errores.tiposDiscapacidad}
+                >
+                  <CheckboxGroup
+                    options={[
+                      'MOVILIDAD REDUCIDA',
+                      'DISCAPACIDAD VISUAL',
+                      'DISCAPACIDAD AUDITIVA',
+                      'OTRA',
+                    ]}
+                    selected={form.tiposDiscapacidad}
+                    onChange={v => {
+                      setForm(f => ({ ...f, tiposDiscapacidad: v }))
+                      setErrores(e => ({ ...e, tiposDiscapacidad: undefined }))
+                    }}
+                    labels={{
+                      'MOVILIDAD REDUCIDA': 'Movilidad reducida',
+                      'DISCAPACIDAD VISUAL': 'Discapacidad visual',
+                      'DISCAPACIDAD AUDITIVA': 'Discapacidad auditiva',
+                      'OTRA': 'Otra',
+                    }}
+                    hints={{
+                      'MOVILIDAD REDUCIDA': 'Usa silla de ruedas, bastón u otro apoyo',
+                    }}
+                  />
+                </Field>
+              </>
+            )}
+
             <Field label="Principal Motivo de la Visita" required error={errores.motivoVisita}>
               <RadioGroup
                 name="motivoVisita"
@@ -700,7 +797,7 @@ export default function EncuestaPerfilTuristaPage() {
               >
                 <input
                   type="number"
-                  min={0}
+                  min={1}
                   max={365}
                   value={noAloja ? '' : form.cantidadNoches}
                   onChange={e => set('cantidadNoches', e.target.value)}
@@ -789,20 +886,46 @@ export default function EncuestaPerfilTuristaPage() {
         )}
 
         {/* ── Sección 5: Valoraciones ───────────────────────────────────── */}
-        <div className="card p-6">
-          <h3 className="text-base font-bold text-text-primary mb-2 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold">5</span>
-            Valoraciones del Destino
-          </h3>
-          <p className="text-xs text-text-secondary mb-5">
-            Escala del 1 al 5 · 1 = Muy mala · 5 = Excelente · S/D = Sin dato / No aplica
-          </p>
+        {/* ── Sección 5: Valoraciones (opcional / desplegable) ─────────────── */}
+        <div className="card overflow-hidden">
 
-          <MatrizValoracion
-            valoraciones={form.valoraciones}
-            onChange={setValoracion}
-            error={errores.valoraciones}
-          />
+          {/* Header — siempre visible, clickeable */}
+          <button
+            type="button"
+            onClick={() => setValoracionesExpanded(v => !v)}
+            className="w-full flex items-center justify-between px-6 py-5 text-left hover:bg-gray-50/60 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-gray-300 text-white text-xs flex items-center justify-center font-bold">
+                5
+              </span>
+              <span className="text-base font-bold text-text-primary">Valoraciones del Destino</span>
+              <span className="ml-2 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                Opcional
+              </span>
+            </div>
+            <i className={`fa-solid fa-chevron-down text-text-secondary text-sm transition-transform duration-200 ${
+              valoracionesExpanded ? 'rotate-180' : ''
+            }`} />
+          </button>
+
+          {/* Contenido desplegable */}
+          {valoracionesExpanded ? (
+            <div className="px-6 pb-6 flex flex-col gap-4">
+              <p className="text-xs text-text-secondary -mt-1">
+                Escala del 1 al 5 · 1 = Muy mala · 5 = Excelente · S/D = Sin dato / No aplica
+              </p>
+              <MatrizValoracion
+                valoraciones={form.valoraciones}
+                onChange={setValoracion}
+                error={errores.valoraciones}
+              />
+            </div>
+          ) : (
+            <p className="px-6 pb-5 text-xs text-text-secondary">
+              Completá esta sección si el tiempo lo permite — no es obligatoria.
+            </p>
+          )}
         </div>
 
         {/* ── Sección 6: Satisfacción final ─────────────────────────────── */}
