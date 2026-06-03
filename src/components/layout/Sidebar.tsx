@@ -56,6 +56,14 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    label: 'Accesibilidad Turística',
+    icon: 'fa-wheelchair',
+    color: 'text-teal-500',
+    items: [
+      { href: '/accesibilidad', label: 'Inventario de atractivos', icon: 'fa-map-location-dot' },
+    ],
+  },
+  {
     label: 'Análisis de Calidad',
     icon: 'fa-star-half-stroke',
     color: 'text-yellow-500',
@@ -110,6 +118,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     'Turismo de Eventos': true,
     'Informes Técnicos': true,
     'Oferta de Servicios': true,
+    'Accesibilidad Turística': true,
     'Análisis de Calidad': true,
     'Estadísticas': true,
   })
