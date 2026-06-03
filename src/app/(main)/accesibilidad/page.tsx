@@ -12,6 +12,25 @@ import {
 
 const DIRECTUS_ASSETS = 'https://turismo.apps.cc.gob.ar/assets'
 
+// ─── Estilos para tabla print ─────────────────────────────────────────────────
+
+const thP: React.CSSProperties = {
+  padding: '4px 7px',
+  borderBottom: '2px solid #374151',
+  textAlign: 'left',
+  fontSize: '7.5pt',
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+  backgroundColor: '#f9fafb',
+}
+const tdP: React.CSSProperties = {
+  padding: '4px 7px',
+  borderBottom: '1px solid #e5e7eb',
+  fontSize: '7.5pt',
+  verticalAlign: 'middle',
+}
+const tdPCenter: React.CSSProperties = { ...tdP, textAlign: 'center' }
+
 // ─── Subcomponentes ───────────────────────────────────────────────────────────
 
 function BarraDimension({ label, pct }: { label: string; pct: number | null }) {
@@ -72,7 +91,6 @@ function TarjetaAtractivo({ registro }: { registro: AccAtractivoDirectus }) {
 
   return (
     <div className="card flex flex-col overflow-hidden hover:shadow-md transition-shadow">
-      {/* Foto */}
       <div className="h-36 bg-gray-100 overflow-hidden flex-shrink-0">
         {fotoId ? (
           <img
@@ -89,7 +107,6 @@ function TarjetaAtractivo({ registro }: { registro: AccAtractivoDirectus }) {
       </div>
 
       <div className="p-4 flex flex-col flex-1 gap-3">
-        {/* Header */}
         <div>
           <div className="flex items-start justify-between gap-2">
             <h3 className="text-sm font-semibold text-text-primary leading-tight">
@@ -102,7 +119,6 @@ function TarjetaAtractivo({ registro }: { registro: AccAtractivoDirectus }) {
           )}
         </div>
 
-        {/* Score general */}
         <div className="flex items-center gap-3">
           <span
             className="text-2xl font-bold tabular-nums"
@@ -116,7 +132,6 @@ function TarjetaAtractivo({ registro }: { registro: AccAtractivoDirectus }) {
           </div>
         </div>
 
-        {/* Barras por dimensión */}
         <div className="flex flex-col gap-1.5">
           {DIMENSIONES.map(dim => (
             <BarraDimension
@@ -127,7 +142,6 @@ function TarjetaAtractivo({ registro }: { registro: AccAtractivoDirectus }) {
           ))}
         </div>
 
-        {/* Footer */}
         <Link
           href={`/accesibilidad/${registro.id}`}
           className="mt-auto flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary/5 text-primary text-xs font-medium hover:bg-primary/10 transition-colors"
@@ -190,6 +204,13 @@ export default function AccesibilidadPage() {
     return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
   }, [registrosFiltrados])
 
+  const ahora = new Date()
+  const fechaGeneracion = ahora.toLocaleDateString('es-AR', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  }) + ' ' + ahora.toLocaleTimeString('es-AR', {
+    hour: '2-digit', minute: '2-digit',
+  })
+
   if (cargando) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -215,16 +236,38 @@ export default function AccesibilidadPage() {
 
   return (
     <div>
-      {/* Encabezado */}
-      <div className="mb-6">
-        <h2 className="section-title">Accesibilidad Turística</h2>
-        <p className="text-text-secondary text-sm -mt-6">
-          Inventario de atractivos relevados — {registros.length} registros
-        </p>
+      {/* ── Print CSS ── */}
+      <style>{`
+        @media print {
+          header, aside { display: none !important; }
+          main { margin-left: 0 !important; padding-top: 0 !important; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          body { font-size: 9pt; color: #111; }
+          @page { margin: 1.5cm; size: A4 landscape; }
+        }
+        .print-only { display: none; }
+      `}</style>
+
+      {/* ── Encabezado ── */}
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="section-title">Accesibilidad Turística</h2>
+          <p className="text-text-secondary text-sm -mt-6">
+            Inventario de atractivos relevados — {registros.length} registros
+          </p>
+        </div>
+        <button
+          onClick={() => window.print()}
+          className="no-print flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-text-secondary hover:text-primary hover:border-primary/40 text-sm font-medium transition-colors flex-shrink-0"
+        >
+          <i className="fa-solid fa-print" />
+          Imprimir / PDF
+        </button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      {/* ── KPIs (pantalla) ── */}
+      <div className="no-print grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <div className="card p-4">
           <p className="text-xs text-text-secondary">Total relevados</p>
           <p className="text-2xl font-bold text-text-primary mt-1">{registros.length}</p>
@@ -247,8 +290,8 @@ export default function AccesibilidadPage() {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      {/* ── Filtros (pantalla) ── */}
+      <div className="no-print flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs" />
           <input
@@ -271,19 +314,89 @@ export default function AccesibilidadPage() {
         </select>
       </div>
 
-      {/* Grid de tarjetas */}
-      {registrosFiltrados.length === 0 ? (
-        <div className="card p-10 text-center text-text-secondary">
-          <i className="fa-solid fa-wheelchair text-3xl mb-3 block text-gray-300" />
-          <p>No hay atractivos que coincidan con los filtros</p>
+      {/* ── Grid de tarjetas (pantalla) ── */}
+      <div className="no-print">
+        {registrosFiltrados.length === 0 ? (
+          <div className="card p-10 text-center text-text-secondary">
+            <i className="fa-solid fa-wheelchair text-3xl mb-3 block text-gray-300" />
+            <p>No hay atractivos que coincidan con los filtros</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+            {registrosFiltrados.map(r => (
+              <TarjetaAtractivo key={r.id} registro={r} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Contenido print-only ── */}
+      <div className="print-only">
+        {/* Encabezado institucional */}
+        <div style={{ borderBottom: '2px solid #374151', paddingBottom: '8px', marginBottom: '12px' }}>
+          <p style={{ fontWeight: 700, fontSize: '10pt', margin: 0 }}>
+            Municipalidad de la Capital · Secretaría de Turismo y Desarrollo Económico
+          </p>
+          <p style={{ fontSize: '9pt', margin: '2px 0 0 0', color: '#374151' }}>
+            Observatorio Municipal de Turismo — Inventario de Accesibilidad Turística
+          </p>
+          <p style={{ fontSize: '8pt', margin: '4px 0 0 0', color: '#6b7280' }}>
+            Generado: {fechaGeneracion} · {registrosFiltrados.length} atractivos
+            {promedioGeneral !== null ? ` · Promedio general: ${promedioGeneral}% — ${nivelAccesibilidad(promedioGeneral).label}` : ''}
+          </p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-          {registrosFiltrados.map(r => (
-            <TarjetaAtractivo key={r.id} registro={r} />
+
+        {/* Tabla resumen */}
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={thP}>Atractivo</th>
+              <th style={thP}>Tipo</th>
+              {DIMENSIONES.map(d => (
+                <th key={d.key} style={{ ...thP, color: d.color }}>{d.label}</th>
+              ))}
+              <th style={{ ...thP, textAlign: 'center' }}>General</th>
+              <th style={{ ...thP, textAlign: 'center' }}>Nivel</th>
+            </tr>
+          </thead>
+          <tbody>
+            {registrosFiltrados.map((r, i) => {
+              const pctGen = calcularCumplimientoGeneral(r)
+              const nivel = nivelAccesibilidad(pctGen)
+              return (
+                <tr key={r.id} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                  <td style={{ ...tdP, fontWeight: 600 }}>{r.atractivo_id?.nombre ?? '—'}</td>
+                  <td style={{ ...tdP, color: '#6b7280' }}>{r.atractivo_id?.tipo_atractivos ?? '—'}</td>
+                  {DIMENSIONES.map(d => {
+                    const pct = calcularCumplimiento(r, d)
+                    return (
+                      <td key={d.key} style={{ ...tdPCenter, color: nivelAccesibilidad(pct).color, fontWeight: 600 }}>
+                        {pct !== null ? `${pct}%` : '—'}
+                      </td>
+                    )
+                  })}
+                  <td style={{ ...tdPCenter, fontWeight: 700, fontSize: '8pt', color: nivel.color }}>
+                    {pctGen !== null ? `${pctGen}%` : '—'}
+                  </td>
+                  <td style={{ ...tdPCenter, color: nivel.color }}>{nivel.label}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+
+        {/* Leyenda dimensiones */}
+        <div style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+          {DIMENSIONES.map(d => (
+            <span key={d.key} style={{ fontSize: '7pt', color: d.color, fontWeight: 600 }}>
+              ■ {d.label}
+            </span>
           ))}
         </div>
-      )}
+        <p style={{ fontSize: '7pt', color: '#9ca3af', marginTop: '8px' }}>
+          Niveles: Muy alto ≥90% · Alto ≥70% · Medio ≥50% · Bajo ≥30% · Muy bajo &lt;30%
+        </p>
+      </div>
     </div>
   )
 }

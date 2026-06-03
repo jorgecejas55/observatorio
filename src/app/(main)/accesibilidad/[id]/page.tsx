@@ -39,7 +39,7 @@ function Indicador({ label, val }: { label: string; val: AccOpcion }) {
 function GaleriaFotos({ ids, titulo }: { ids: string[]; titulo: string }) {
   if (ids.length === 0) return null
   return (
-    <div className="mt-3">
+    <div className="mt-3 no-print">
       <p className="text-xs font-medium text-text-secondary mb-2">
         <i className="fa-solid fa-images mr-1" />
         {titulo}
@@ -98,8 +98,7 @@ function SeccionDimension({
   const fotoIds = fotos.map(f => f.directus_files_id).filter(Boolean)
 
   return (
-    <div className="card overflow-hidden">
-      {/* Header dimensión */}
+    <div className="card overflow-hidden" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
       <div className="px-5 py-3 flex items-center gap-3 border-b border-gray-100" style={{ backgroundColor: `${dim.color}10` }}>
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm flex-shrink-0"
@@ -110,17 +109,13 @@ function SeccionDimension({
         <div className="flex-1">
           <h3 className="text-sm font-bold text-text-primary">{dim.label}</h3>
         </div>
-        <span
-          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${nivel.bg} ${nivel.textColor}`}
-        >
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${nivel.bg} ${nivel.textColor}`}>
           {nivel.label}
         </span>
       </div>
 
       <div className="px-5 pt-3 pb-4">
         <BarraCumplimiento pct={pct} color={dim.color} />
-
-        {/* Indicadores */}
         <div className="divide-y divide-gray-50">
           {dim.campos.map((campo, i) => (
             <Indicador
@@ -130,8 +125,6 @@ function SeccionDimension({
             />
           ))}
         </div>
-
-        {/* Fotos de la dimensión */}
         <GaleriaFotos ids={fotoIds} titulo="Fotos de evidencia" />
       </div>
     </div>
@@ -194,21 +187,64 @@ export default function AccesibilidadDetallePage() {
       })
     : null
 
+  const ahora = new Date()
+  const fechaGeneracion = ahora.toLocaleDateString('es-AR', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  }) + ' ' + ahora.toLocaleTimeString('es-AR', {
+    hour: '2-digit', minute: '2-digit',
+  })
+
   return (
     <div className="max-w-3xl">
-      {/* Back */}
-      <Link
-        href="/accesibilidad"
-        className="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition-colors mb-5"
-      >
-        <i className="fa-solid fa-arrow-left text-xs" />
-        Volver al inventario
-      </Link>
+      {/* ── Print CSS ── */}
+      <style>{`
+        @media print {
+          header, aside { display: none !important; }
+          main { margin-left: 0 !important; padding-top: 0 !important; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+          body { font-size: 10pt; color: #111; }
+          @page { margin: 1.5cm; size: A4 portrait; }
+        }
+        .print-only { display: none; }
+      `}</style>
 
-      {/* Header del atractivo */}
-      <div className="card overflow-hidden mb-5">
+      {/* ── Encabezado institucional (solo print) ── */}
+      <div className="print-only" style={{ borderBottom: '2px solid #374151', paddingBottom: '8px', marginBottom: '16px' }}>
+        <p style={{ fontWeight: 700, fontSize: '10pt', margin: 0 }}>
+          Municipalidad de la Capital · Secretaría de Turismo y Desarrollo Económico
+        </p>
+        <p style={{ fontSize: '9pt', margin: '2px 0 0 0', color: '#374151' }}>
+          Observatorio Municipal de Turismo — Ficha de Accesibilidad Turística
+        </p>
+        <p style={{ fontSize: '8pt', margin: '4px 0 0 0', color: '#6b7280' }}>
+          Generado: {fechaGeneracion}
+        </p>
+      </div>
+
+      {/* ── Nav (pantalla) ── */}
+      <div className="no-print flex items-center justify-between mb-5">
+        <Link
+          href="/accesibilidad"
+          className="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition-colors"
+        >
+          <i className="fa-solid fa-arrow-left text-xs" />
+          Volver al inventario
+        </Link>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-text-secondary hover:text-primary hover:border-primary/40 text-sm font-medium transition-colors"
+        >
+          <i className="fa-solid fa-print" />
+          Imprimir / PDF
+        </button>
+      </div>
+
+      {/* ── Header del atractivo ── */}
+      <div className="card overflow-hidden mb-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
         {fotoId && (
-          <div className="h-48 overflow-hidden">
+          <div className="h-48 overflow-hidden no-print">
             <img
               src={`${DIRECTUS_ASSETS}/${fotoId}?width=800&height=192&fit=cover`}
               alt={atractivo.nombre}
@@ -244,7 +280,6 @@ export default function AccesibilidadDetallePage() {
                 )}
               </div>
             </div>
-            {/* Score general */}
             <div className="text-right">
               <span className="text-4xl font-bold tabular-nums" style={{ color: nivelGeneral.color }}>
                 {pctGeneral !== null ? `${pctGeneral}%` : '—'}
@@ -260,8 +295,8 @@ export default function AccesibilidadDetallePage() {
         </div>
       </div>
 
-      {/* Resumen por dimensión */}
-      <div className="card p-5 mb-5">
+      {/* ── Resumen por dimensión ── */}
+      <div className="card p-5 mb-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
         <h3 className="text-sm font-semibold text-text-primary mb-4">Resumen por dimensión</h3>
         <div className="flex flex-col gap-2">
           {DIMENSIONES.map(dim => {
@@ -293,16 +328,16 @@ export default function AccesibilidadDetallePage() {
         </div>
       </div>
 
-      {/* Detalle por dimensión */}
+      {/* ── Detalle por dimensión ── */}
       <div className="flex flex-col gap-4 mb-5">
         {DIMENSIONES.map(dim => (
           <SeccionDimension key={dim.key} dim={dim} registro={registro} />
         ))}
       </div>
 
-      {/* Valoración técnica */}
+      {/* ── Valoración técnica ── */}
       {tieneValoracion && (
-        <div className="card p-5 mb-5">
+        <div className="card p-5 mb-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
           <h3 className="text-sm font-semibold text-text-primary mb-3">
             <i className="fa-solid fa-star-half-stroke text-amber-500 mr-2" />
             Valoración técnica
@@ -328,9 +363,9 @@ export default function AccesibilidadDetallePage() {
         </div>
       )}
 
-      {/* Fotos generales */}
+      {/* ── Fotos generales (solo pantalla) ── */}
       {(registro.foto_acceso || registro.foto_bano) && (
-        <div className="card p-5 mb-5">
+        <div className="card p-5 mb-5 no-print">
           <h3 className="text-sm font-semibold text-text-primary mb-3">
             <i className="fa-solid fa-camera text-text-secondary mr-2" />
             Fotos generales
@@ -364,9 +399,9 @@ export default function AccesibilidadDetallePage() {
         </div>
       )}
 
-      {/* Observaciones */}
+      {/* ── Observaciones ── */}
       {registro.observaciones && (
-        <div className="card p-5 mb-5">
+        <div className="card p-5 mb-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
           <h3 className="text-sm font-semibold text-text-primary mb-2">
             <i className="fa-solid fa-note-sticky text-text-secondary mr-2" />
             Observaciones
