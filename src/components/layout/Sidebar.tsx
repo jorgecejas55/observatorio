@@ -61,6 +61,7 @@ const NAV: NavGroup[] = [
     color: 'text-teal-500',
     items: [
       { href: '/accesibilidad', label: 'Inventario de atractivos', icon: 'fa-map-location-dot' },
+      { href: '/accesibilidad-gastronomica', label: 'Acc. Gastronomía', icon: 'fa-utensils' },
     ],
   },
   {
