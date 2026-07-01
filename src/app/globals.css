@@ -93,3 +93,31 @@
     transform: scale(1.1);
   }
 }
+
+/* ── Impresión — Informes exportables ──────────────────────────────────────── */
+@layer base {
+  @media print {
+    /* Forzar impresión de colores de fondo (barras, tarjetas, recuadros) */
+    *, *::before, *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .no-print {
+      display: none !important;
+    }
+    /* Ocultar chrome de la app (header + sidebar + nav del layout) */
+    header[data-app-header], aside[data-app-sidebar], nav[data-app-nav] {
+      display: none !important;
+    }
+    html, body {
+      background: #fff !important;
+    }
+    .seccion-informe {
+      page-break-inside: avoid;
+    }
+    @page {
+      size: A4;
+      margin: 1.5cm;
+    }
+  }
+}

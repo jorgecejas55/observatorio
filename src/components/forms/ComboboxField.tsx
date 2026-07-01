@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 
 interface ComboboxFieldProps {
   label: string
-  options: string[]
+  options: readonly string[]
   value: string
   onChange: (value: string) => void
   placeholder?: string

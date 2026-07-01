@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 
 interface NavItem {
   href: string
@@ -35,6 +36,15 @@ const NAV: NavGroup[] = [
     items: [
       { href: '/eventos/registro', label: 'Registro de evento', icon: 'fa-calendar-plus' },
       { href: '/eventos/encuesta', label: 'Encuesta demanda', icon: 'fa-clipboard-question' },
+    ],
+  },
+  {
+    label: 'Casa de Catamarca',
+    icon: 'fa-house-building',
+    color: 'text-teal-600',
+    items: [
+      { href: '/casa-catamarca/encuesta', label: 'Cargar encuesta', icon: 'fa-clipboard-list' },
+      { href: '/casa-catamarca/dashboard', label: 'Panel operativo', icon: 'fa-chart-pie' },
     ],
   },
   {
@@ -114,9 +124,13 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ open, onClose }: SidebarProps) {
+  const { data: session } = useSession()
+  const estaLogueado = !!session?.user
+  const esJorge = session?.user?.email === 'jorgecejas55@gmail.com'
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'Turismo de Ocio': true,
     'Turismo de Eventos': true,
+    'Casa de Catamarca': true,
     'Informes Técnicos': true,
     'Oferta de Servicios': true,
     'Accesibilidad Turística': true,
@@ -129,7 +143,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   return (
     <>
-      <aside className={`flex flex-col fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-gray-100 overflow-y-auto z-40 transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside data-app-sidebar className={`flex flex-col fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-gray-100 overflow-y-auto z-40 transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <nav className="p-4 flex flex-col gap-1">
           {/* Dashboard */}
           <NavLink href="/dashboard" label="Dashboard" icon="fa-chart-pie" onNavigate={onClose} />
@@ -161,13 +175,31 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             </div>
           ))}
 
-          <div className="my-2 border-t border-gray-100" />
+          {esJorge && (
+            <>
+              <div className="my-2 border-t border-gray-100" />
 
-          {/* Admin */}
-          <NavLink href="/admin/informes" label="Cargar informe" icon="fa-file-arrow-up" onNavigate={onClose} />
-          <NavLink href="/admin/metricas" label="Métricas" icon="fa-chart-simple" onNavigate={onClose} />
-          <NavLink href="/admin/usuarios" label="Usuarios" icon="fa-users-gear" onNavigate={onClose} />
-          <NavLink href="/admin/config" label="Configuración" icon="fa-gear" onNavigate={onClose} />
+              {/* Ocupación Hotelera — solo jorgecejas55@gmail.com */}
+              <NavLink href="/admin/ocupacion" label="Ocupación Hotelera" icon="fa-hotel" onNavigate={onClose} />
+            </>
+          )}
+
+          {estaLogueado && (
+            <>
+              <div className="my-2 border-t border-gray-100" />
+
+              {/* Admin — oculto para público no logueado */}
+              {esJorge && (
+                <NavLink href="/admin/informes-auto" label="Agente informes" icon="fa-robot" onNavigate={onClose} />
+              )}
+              <NavLink href="/admin/informes" label="Cargar informe" icon="fa-file-arrow-up" onNavigate={onClose} />
+              <NavLink href="/admin/metricas" label="Métricas" icon="fa-chart-simple" onNavigate={onClose} />
+              {esJorge && (
+                <NavLink href="/admin/usuarios" label="Usuarios" icon="fa-users-gear" onNavigate={onClose} />
+              )}
+              <NavLink href="/admin/config" label="Configuración" icon="fa-gear" onNavigate={onClose} />
+            </>
+          )}
         </nav>
       </aside>
     </>

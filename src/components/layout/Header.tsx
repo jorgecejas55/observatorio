@@ -2,6 +2,7 @@
 
 import { signOut, useSession } from 'next-auth/react'
 import { useState } from 'react'
+import Link from 'next/link'
 
 interface HeaderProps {
   sidebarOpen: boolean
@@ -9,11 +10,11 @@ interface HeaderProps {
 }
 
 export default function Header({ sidebarOpen, onToggle }: HeaderProps) {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white shadow-sm h-16 flex items-center px-4 lg:px-6">
+    <header data-app-header className="fixed top-0 left-0 right-0 z-50 bg-white shadow-sm h-16 flex items-center px-4 lg:px-6">
       {/* Botón toggle sidebar */}
       <button
         onClick={onToggle}
@@ -81,6 +82,17 @@ export default function Header({ sidebarOpen, onToggle }: HeaderProps) {
             </div>
           )}
         </div>
+      )}
+
+      {/* Público no logueado */}
+      {status === 'unauthenticated' && (
+        <Link
+          href="/login"
+          className="btn-primary text-sm px-4 py-1.5 flex items-center gap-2"
+        >
+          <i className="fa-solid fa-arrow-right-to-bracket" />
+          Iniciar sesión
+        </Link>
       )}
     </header>
   )

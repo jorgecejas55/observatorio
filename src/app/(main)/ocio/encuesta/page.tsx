@@ -3,60 +3,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { ComboboxField } from '@/components/forms/ComboboxField'
-
-// ─── Constantes ───────────────────────────────────────────────────────────────
-// Valores en MAYÚSCULAS para coincidir con los de la hoja de Google Sheets.
-
-const PROCEDENCIAS = ['NACIONAL', 'PROVINCIAL', 'INTERNACIONAL'] as const
-type Procedencia = typeof PROCEDENCIAS[number]
-
-// Lista completa en mayúsculas para coincidir con el formato de la hoja
-const PAISES = [
-  // América del Sur
-  'ARGENTINA', 'BOLIVIA', 'BRASIL', 'CHILE', 'COLOMBIA', 'ECUADOR',
-  'GUYANA', 'PARAGUAY', 'PERÚ', 'SURINAM', 'URUGUAY', 'VENEZUELA',
-  // América Central y Caribe
-  'COSTA RICA', 'CUBA', 'EL SALVADOR', 'GUATEMALA', 'HAITÍ', 'HONDURAS',
-  'JAMAICA', 'MÉXICO', 'NICARAGUA', 'PANAMÁ', 'PUERTO RICO', 'REPÚBLICA DOMINICANA',
-  'TRINIDAD Y TOBAGO',
-  // América del Norte
-  'CANADÁ', 'ESTADOS UNIDOS',
-  // Europa
-  'ALBANIA', 'ALEMANIA', 'ANDORRA', 'AUSTRIA', 'BÉLGICA', 'BIELORRUSIA',
-  'BOSNIA Y HERZEGOVINA', 'BULGARIA', 'CHIPRE', 'CROACIA', 'DINAMARCA',
-  'ESLOVAQUIA', 'ESLOVENIA', 'ESPAÑA', 'ESTONIA', 'FINLANDIA', 'FRANCIA',
-  'GEORGIA', 'GRECIA', 'HUNGRÍA', 'IRLANDA', 'ISLANDIA', 'ITALIA',
-  'LETONIA', 'LITUANIA', 'LUXEMBURGO', 'MALTA', 'MOLDAVIA', 'MÓNACO',
-  'MONTENEGRO', 'NORUEGA', 'PAÍSES BAJOS', 'POLONIA', 'PORTUGAL',
-  'REINO UNIDO', 'REPÚBLICA CHECA', 'RUMANIA', 'RUSIA', 'SERBIA',
-  'SUECIA', 'SUIZA', 'UCRANIA',
-  // Asia
-  'ARABIA SAUDITA', 'ARMENIA', 'AZERBAIYÁN', 'BANGLADESH', 'CHINA',
-  'COREA DEL SUR', 'EMIRATOS ÁRABES UNIDOS', 'FILIPINAS', 'INDIA',
-  'INDONESIA', 'IRÁN', 'IRAQ', 'ISRAEL', 'JAPÓN', 'JORDANIA',
-  'KAZAJISTÁN', 'KUWAIT', 'LÍBANO', 'MALASIA', 'NEPAL', 'PAKISTÁN',
-  'QATAR', 'SINGAPUR', 'SRI LANKA', 'TAILANDIA', 'TAIWÁN', 'TURQUÍA',
-  'UZBEKISTÁN', 'VIETNAM',
-  // África
-  'ARGELIA', 'EGIPTO', 'GHANA', 'KENIA', 'MARRUECOS', 'NIGERIA',
-  'SENEGAL', 'SUDÁFRICA', 'TÚNEZ',
-  // Oceanía
-  'AUSTRALIA', 'NUEVA ZELANDA',
-]
-
-const PROVINCIAS_ARG = [
-  'BUENOS AIRES', 'CABA', 'CATAMARCA', 'CHACO', 'CHUBUT', 'CÓRDOBA',
-  'CORRIENTES', 'ENTRE RÍOS', 'FORMOSA', 'JUJUY', 'LA PAMPA', 'LA RIOJA',
-  'MENDOZA', 'MISIONES', 'NEUQUÉN', 'RÍO NEGRO', 'SALTA', 'SAN JUAN',
-  'SAN LUIS', 'SANTA CRUZ', 'SANTA FE', 'SGO DEL ESTERO', 'TIERRA DEL FUEGO', 'TUCUMÁN',
-]
-
-// FME = Fray Mamerto Esquiú
-const DEPARTAMENTOS_CATAMARCA = [
-  'AMBATO', 'ANCASTI', 'ANDALGALÁ', 'ANTOFAGASTA DE LA SIERRA',
-  'BELÉN', 'CAPAYÁN', 'EL ALTO', 'FME', 'LA PAZ',
-  'PACLÍN', 'POMÁN', 'SANTA MARÍA', 'SANTA ROSA', 'TINOGASTA', 'VALLE VIEJO',
-]
+import { PROCEDENCIAS, PAISES, PROVINCIAS_ARG, DEPARTAMENTOS_CATAMARCA } from '@/lib/geografia'
+import type { Procedencia } from '@/lib/geografia'
 
 const MEDIOS_TRANSPORTE = [
   'AUTOMÓVIL PARTICULAR', 'VEHÍCULO DE ALQUILER', 'OMNIBUS', 'OMNIBUS CONTINGENTE',

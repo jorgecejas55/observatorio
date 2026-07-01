@@ -1,4 +1,13 @@
-export default function UsuariosAdmin() {
+import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
+
+export default async function UsuariosAdmin() {
+  const session = await auth()
+  if (!session?.user) redirect('/login')
+  // @ts-expect-error — rol extendido en la sesión
+  if (session.user?.rol !== 'admin') redirect('/sin-acceso')
+  if (session.user.email !== 'jorgecejas55@gmail.com') redirect('/sin-acceso')
+
   return (
     <div>
       <h2 className="section-title">Gestión de Usuarios</h2>

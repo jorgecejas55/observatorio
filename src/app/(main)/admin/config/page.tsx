@@ -1,4 +1,10 @@
-export default function ConfigAdmin() {
+import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
+
+export default async function ConfigAdmin() {
+  const session = await auth()
+  if (!session?.user) redirect('/login')
+
   return (
     <div>
       <h2 className="section-title">Configuración del Sistema</h2>

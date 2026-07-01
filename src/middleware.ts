@@ -16,6 +16,12 @@
 //   /api/ocio/dashboard             — API que alimenta el dashboard público
 // const PUBLIC_PATHS = ['/estadisticas/perfil-visitante', '/login']
 
+// ── Protección de Ocupación Hotelera ─────────────────────────────────────────
+// /admin/ocupacion, /admin/informes-auto y /admin/usuarios ya están protegidas
+// a nivel de layout/página (sesión + rol admin + email jorgecejas55@gmail.com),
+// más las API routes (/api/ocupacion/*) con el mismo chequeo.
+
 export default function middleware() {
   // sin redirecciones — todas las rutas accesibles
+  // La protección real está en las API routes de ocupacion
 }
