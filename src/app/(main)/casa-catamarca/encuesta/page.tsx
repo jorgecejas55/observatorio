@@ -53,10 +53,6 @@ function EscalaLineal({ valor, onChange, error }: {
           )
         })}
       </div>
-      <div className="hidden sm:flex justify-between text-xs text-text-secondary px-1">
-        <span>1 = Nada probable</span>
-        <span>10 = Muy probable</span>
-      </div>
       {/* Mobile fallback: select */}
       <select
         value={valor}
@@ -65,9 +61,13 @@ function EscalaLineal({ valor, onChange, error }: {
       >
         <option value="">— Seleccioná (1-10) —</option>
         {Array.from({ length: 10 }, (_, i) => (
-          <option key={i + 1} value={String(i + 1)}>{i + 1} — {i < 5 ? 'Nada probable' : 'Muy probable'}</option>
+          <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
         ))}
       </select>
+      <div className="flex justify-between text-xs text-text-secondary px-1">
+        <span>1 = Nada probable</span>
+        <span>10 = Muy probable</span>
+      </div>
       {error && (
         <p className="text-xs text-red-500 flex items-center gap-1" data-error>
           <i className="fa-solid fa-triangle-exclamation text-[10px]" />{error}
@@ -146,9 +146,6 @@ export default function CasaCatamarcaEncuestaPage() {
     // P7 — checkbox: al menos 1
     if (form.intereses.length === 0) e.intereses = 'Seleccioná al menos un interés'
     if (form.intereses.includes('OTRO') && !form.interesesOtroTexto.trim()) e.interesesOtroTexto = 'Especificá'
-
-    // P8
-    if (!form.lugarImperdible.trim()) e.lugarImperdible = 'Requerido'
 
     // P9
     if (!form.comoSeEntero) e.comoSeEntero = 'Requerido'
@@ -446,7 +443,7 @@ export default function CasaCatamarcaEncuestaPage() {
             )}
 
             {/* P8 — Lugar imperdible */}
-            <Field label="¿Qué lugar te gustaría conocer sí o sí?" required error={errores.lugarImperdible}>
+            <Field label="¿Qué lugar te gustaría conocer sí o sí?" error={errores.lugarImperdible}>
               <input
                 type="text"
                 value={form.lugarImperdible}
