@@ -190,7 +190,7 @@ export default function InformeAutoDetallePage() {
     : 0
 
   return (
-    <div className="max-w-5xl">
+    <div className="max-w-5xl print:max-w-none">
       {/* ── Barra de acciones (no-print) ── */}
       <div className="no-print flex items-center justify-between mb-4">
         <button
@@ -253,45 +253,121 @@ export default function InformeAutoDetallePage() {
           INFORME IMPRIMIBLE
           ═══════════════════════════════════════════════════════════════════════ */}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8 seccion-informe">
-        {/* ── 1. Encabezado ── */}
-        <div className="text-center mb-8 pb-6 border-b-2 border-primary">
-          <div className="flex items-center justify-center gap-4 mb-2">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <i className="fa-solid fa-chart-column text-2xl text-primary" />
-            </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8 print:shadow-none print:border-0 print:rounded-none print:p-0 print:m-0 print:max-w-none print:w-full">
+        {/* ── 0. PORTADA (solo impresión) ── */}
+        <div className="portada-informe">
+          {/* Fila superior de logos: Secretaría y Observatorio en los extremos */}
+          <div className="flex items-start justify-between">
+            <img
+              src="/logos/secretaria.png"
+              alt="Secretaría de Turismo y Desarrollo Económico"
+              className="h-12 w-auto"
+            />
+            <img
+              src="/logos/observatorio.png"
+              alt="Observatorio de Turismo Municipal"
+              className="h-16 w-auto"
+            />
           </div>
-          <h1 className="text-2xl font-bold text-text-primary mb-1">
+
+          {/* Bloque central: marca del destino + título */}
+          <div className="text-center">
+            <img
+              src="/logos/marca-destino.png"
+              alt="San Fernando del Valle de Catamarca"
+              className="h-20 w-auto mx-auto mb-8"
+            />
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-text-secondary mb-4">
+              Informe Estadístico
+            </p>
+            <h1 className="text-4xl font-bold text-text-primary mb-3">
+              Fin de Semana Largo
+            </h1>
+            <h2 className="text-3xl font-bold text-primary mb-6">
+              {informe.nombre}
+            </h2>
+            <div className="w-24 h-1 bg-primary mx-auto mb-6 rounded-full" />
+            <p className="text-lg text-text-secondary">
+              {new Date(informe.fechaInicio).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })} al{' '}
+              {new Date(informe.fechaFin).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+
+          {/* Pie institucional */}
+          <div className="text-center text-sm text-text-secondary space-y-0.5">
+            <p className="font-semibold text-text-primary">Observatorio de Turismo Municipal</p>
+            <p>Secretaría de Turismo y Desarrollo Económico - Municipalidad de la Capital</p>
+            <p>San Fernando del Valle de Catamarca</p>
+          </div>
+        </div>
+
+        <div className="pagina-1">
+        {/* Encabezado reducido página de datos (solo impresión) */}
+        <div className="hidden print:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 gap-3">
+          <img src="/logos/secretaria.png" alt="Secretaría" className="h-6 w-auto" />
+          <span className="text-xs font-semibold text-text-primary">
             Informe Fin de Semana Largo — {informe.nombre}
-          </h1>
-          <p className="text-text-secondary text-sm">
-            {new Date(informe.fechaInicio).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })} al{' '}
-            {new Date(informe.fechaFin).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
-          <p className="text-text-secondary text-xs mt-1">
-            Observatorio de Turismo Municipal — San Fernando del Valle de Catamarca
-          </p>
+          </span>
+          <div className="flex items-center gap-2">
+            <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
+            <img src="/logos/observatorio.png" alt="Observatorio" className="h-7 w-auto" />
+          </div>
+        </div>
+        {/* ── 1. Encabezado institucional (solo pantalla; en el PDF lo reemplazan portada + encabezados reducidos) ── */}
+        <div className="print:hidden flex items-center justify-between mb-8 pb-6 border-b-2 border-primary gap-4">
+          {/* Logo Secretaría (proporción 6.9:1 → altura menor) */}
+          <img
+            src="/logos/secretaria.png"
+            alt="Secretaría de Turismo y Desarrollo Económico"
+            className="h-9 w-auto print:h-10 flex-shrink-0"
+          />
+          {/* Centro: título + fechas */}
+          <div className="text-center flex-1">
+            <h1 className="text-xl font-bold text-text-primary mb-1 print:text-2xl">
+              Informe Fin de Semana Largo — {informe.nombre}
+            </h1>
+            <p className="text-text-secondary text-xs print:text-sm">
+              {new Date(informe.fechaInicio).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })} al{' '}
+              {new Date(informe.fechaFin).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+            <p className="text-text-secondary text-[10px] mt-0.5 print:text-xs">
+              Observatorio de Turismo Municipal — San Fernando del Valle de Catamarca
+            </p>
+          </div>
+          {/* Derecha: marca destino + logo observatorio */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <img
+              src="/logos/marca-destino.png"
+              alt="Marca del Destino"
+              className="h-12 w-auto print:h-14"
+            />
+            <img
+              src="/logos/observatorio.png"
+              alt="Observatorio de Turismo Municipal"
+              className="h-12 w-auto print:h-14"
+            />
+          </div>
         </div>
 
         {/* ── 2. KPIs principales ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-primary/5 rounded-xl p-4 text-center">
+        <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-4 print:gap-3 mb-8 print:mb-6 evitar-corte">
+          <div className="bg-primary/5 rounded-xl p-4 print:p-3 text-center print:border print:border-gray-200">
             <p className="text-xs text-text-secondary mb-1">Ocupación Hotelera</p>
             <p className="text-3xl font-bold text-primary">{relevamiento.ohTotal}%</p>
           </div>
-          <div className="bg-primary/5 rounded-xl p-4 text-center">
+          <div className="bg-primary/5 rounded-xl p-4 print:p-3 text-center print:border print:border-gray-200">
             <p className="text-xs text-text-secondary mb-1">Estadía Promedio</p>
             <p className="text-3xl font-bold text-primary">
               {perfil.estadiaSinOutliers.estadiaPromedio.toFixed(1)}
             </p>
           </div>
-          <div className="bg-primary/5 rounded-xl p-4 text-center">
+          <div className="bg-primary/5 rounded-xl p-4 print:p-3 text-center print:border print:border-gray-200">
             <p className="text-xs text-text-secondary mb-1">Visitantes Totales</p>
             <p className="text-3xl font-bold text-primary">
               {impacto.visitantesTotales.toLocaleString('es-AR')}
             </p>
           </div>
-          <div className="bg-primary/5 rounded-xl p-4 text-center">
+          <div className="bg-primary/5 rounded-xl p-4 print:p-3 text-center print:border print:border-gray-200">
             <p className="text-xs text-text-secondary mb-1">Impacto Económico</p>
             <p className="text-2xl font-bold text-primary">
               ${impacto.impactoTotal.toLocaleString('es-AR')}
@@ -300,12 +376,12 @@ export default function InformeAutoDetallePage() {
         </div>
 
         {/* ── 3. Tabla Comparativa ── */}
-        <div className="mb-8">
+        <div className="mb-8 print:mb-6 evitar-corte">
           <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2">
             <i className="fa-solid fa-scale-balanced text-primary text-sm" />
             Comparativas
           </h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b-2 border-gray-200">
@@ -314,10 +390,16 @@ export default function InformeAutoDetallePage() {
                     {informe.nombre}
                   </th>
                   <th className="text-center py-2 px-3 text-text-secondary font-medium">
-                    Último finde año
+                    <span className="whitespace-normal text-xs print:text-[10px]">
+                      {comparativaUltimoFinde.relevamiento?.nombre ?? 'Último finde del año'}
+                    </span>
                   </th>
                   <th className="text-center py-2 px-3 text-text-secondary font-medium">
-                    Año anterior
+                    <span className="whitespace-normal text-xs print:text-[10px]">
+                      {comparativaAnioAnterior.relevamiento
+                        ? `${informe.nombre} ${comparativaAnioAnterior.relevamiento.fechaFin.slice(0, 4)}`
+                        : 'Año anterior'}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -360,13 +442,19 @@ export default function InformeAutoDetallePage() {
         </div>
 
         {/* ── 4. OH por tipo de alojamiento ── */}
-        <div className="mb-8">
-          <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2">
-            <i className="fa-solid fa-hotel text-primary text-sm" />
-            Ocupación Hotelera por Tipo de Alojamiento
-          </h3>
-          <div className="space-y-2">
-            {ohPorTipo.map((item) => (
+        {(() => {
+          const ohPorTipoConDatos = ohPorTipo.filter(
+            item => item.habitacionesRelevadas > 0 && item.ohPorcentaje > 0
+          )
+          if (ohPorTipoConDatos.length === 0) return null
+          return (
+            <div className="mb-8 print:mb-0 evitar-corte">
+              <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2">
+                <i className="fa-solid fa-hotel text-primary text-sm" />
+                Ocupación Hotelera por Tipo de Alojamiento
+              </h3>
+              <div className="space-y-2">
+                {ohPorTipoConDatos.map((item) => (
               <div key={item.tipo} className="flex items-center gap-3">
                 <span className="w-36 text-xs text-text-secondary text-right flex-shrink-0">
                   {item.tipo}
@@ -381,19 +469,34 @@ export default function InformeAutoDetallePage() {
                   {item.ohPorcentaje}%
                 </span>
               </div>
-            ))}
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+        </div>{/* cierre pagina-1 */}
+
+        <div className="pagina-2">
+        {/* Encabezado reducido página 2 (solo visible en impresión) */}
+        <div className="hidden print:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 gap-3">
+          <img src="/logos/secretaria.png" alt="Secretaría" className="h-6 w-auto" />
+          <span className="text-xs font-semibold text-text-primary">
+            Informe Fin de Semana Largo — {informe.nombre}
+          </span>
+          <div className="flex items-center gap-2">
+            <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
+            <img src="/logos/observatorio.png" alt="Observatorio" className="h-7 w-auto" />
           </div>
         </div>
-
         {/* ── 5. Perfil del Visitante ── */}
         {perfil.totalEncuestas > 0 && (
           <div className="mb-8">
             <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
               <i className="fa-solid fa-user-group text-primary text-sm" />
-              Perfil del Visitante ({perfil.totalEncuestas} encuestas)
+              Perfil del Visitante
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-3 gap-6">
               {/* Procedencia */}
               <div>
                 <p className="text-xs font-semibold text-text-secondary mb-2">Procedencia</p>
@@ -423,13 +526,13 @@ export default function InformeAutoDetallePage() {
                 {perfil.provinciasFrecuentes.slice(0, 5).map((p) => (
                   <div key={p.nombre} className="flex items-center gap-2 mb-1 text-xs">
                     <span className="w-20 text-text-secondary truncate">{p.nombre}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-3">
+                    <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
-                        className="bg-primary/60 h-3 rounded-full"
+                        className="bg-primary h-3 rounded-full"
                         style={{ width: `${perfil.totalEncuestas > 0 ? (p.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
                       />
                     </div>
-                    <span className="w-10 text-right text-text-primary font-medium">
+                    <span className="w-10 text-right text-text-primary font-semibold">
                       {perfil.totalEncuestas > 0 ? Math.round(p.cantidad / perfil.totalEncuestas * 100) : 0}%
                     </span>
                   </div>
@@ -442,13 +545,13 @@ export default function InformeAutoDetallePage() {
                 {perfil.motivosVisita.slice(0, 5).map((m) => (
                   <div key={m.nombre} className="flex items-center gap-2 mb-1 text-xs">
                     <span className="w-32 truncate text-text-secondary">{m.nombre}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-3">
+                    <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
-                        className="bg-accent/60 h-3 rounded-full"
+                        className="bg-accent h-3 rounded-full"
                         style={{ width: `${perfil.totalEncuestas > 0 ? (m.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
                       />
                     </div>
-                    <span className="w-10 text-right text-text-primary font-medium">
+                    <span className="w-10 text-right text-text-primary font-semibold">
                       {perfil.totalEncuestas > 0 ? Math.round(m.cantidad / perfil.totalEncuestas * 100) : 0}%
                     </span>
                   </div>
@@ -461,13 +564,13 @@ export default function InformeAutoDetallePage() {
                 {perfil.gruposViaje.slice(0, 5).map((g) => (
                   <div key={g.nombre} className="flex items-center gap-2 mb-1 text-xs">
                     <span className="w-20 truncate text-text-secondary">{g.nombre}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-3">
+                    <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
-                        className="bg-orange-400/60 h-3 rounded-full"
+                        className="bg-orange-500 h-3 rounded-full"
                         style={{ width: `${perfil.totalEncuestas > 0 ? (g.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
                       />
                     </div>
-                    <span className="w-10 text-right text-text-primary font-medium">
+                    <span className="w-10 text-right text-text-primary font-semibold">
                       {perfil.totalEncuestas > 0 ? Math.round(g.cantidad / perfil.totalEncuestas * 100) : 0}%
                     </span>
                   </div>
@@ -480,13 +583,13 @@ export default function InformeAutoDetallePage() {
                 {perfil.mediosTransporte.slice(0, 5).map((t) => (
                   <div key={t.nombre} className="flex items-center gap-2 mb-1 text-xs">
                     <span className="w-32 truncate text-text-secondary">{t.nombre}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-3">
+                    <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
-                        className="bg-teal-500/60 h-3 rounded-full"
+                        className="bg-teal-600 h-3 rounded-full"
                         style={{ width: `${perfil.totalEncuestas > 0 ? (t.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
                       />
                     </div>
-                    <span className="w-10 text-right text-text-primary font-medium">
+                    <span className="w-10 text-right text-text-primary font-semibold">
                       {perfil.totalEncuestas > 0 ? Math.round(t.cantidad / perfil.totalEncuestas * 100) : 0}%
                     </span>
                   </div>
@@ -499,13 +602,13 @@ export default function InformeAutoDetallePage() {
                 {perfil.tiposAlojamiento.slice(0, 5).map((a) => (
                   <div key={a.nombre} className="flex items-center gap-2 mb-1 text-xs">
                     <span className="w-32 truncate text-text-secondary">{a.nombre}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-3">
+                    <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
-                        className="bg-yellow-500/60 h-3 rounded-full"
+                        className="bg-amber-500 h-3 rounded-full"
                         style={{ width: `${perfil.totalEncuestas > 0 ? (a.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
                       />
                     </div>
-                    <span className="w-10 text-right text-text-primary font-medium">
+                    <span className="w-10 text-right text-text-primary font-semibold">
                       {perfil.totalEncuestas > 0 ? Math.round(a.cantidad / perfil.totalEncuestas * 100) : 0}%
                     </span>
                   </div>
@@ -514,7 +617,7 @@ export default function InformeAutoDetallePage() {
             </div>
 
             {/* Indicadores Sí/No */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-3 mt-4 evitar-corte">
               <div className="bg-gray-50 rounded-lg p-3 text-center">
                 <p className="text-xs text-text-secondary mb-1">¿Primera vez en SFVC?</p>
                 <div className="flex justify-center gap-4">
@@ -540,9 +643,38 @@ export default function InformeAutoDetallePage() {
             </div>
           </div>
         )}
-      </div>
 
-      {/* ── 6. Reporte de Prensa (no se imprime, se copia y envía aparte) ── */}
+        {/* ── 6. Nota Metodológica ── */}
+        <div className="bg-gray-50 rounded-xl p-6 text-xs text-text-secondary seccion-informe print:text-[10px]">
+          <h3 className="font-bold text-text-primary mb-2 flex items-center gap-2">
+            <i className="fa-solid fa-microscope text-text-secondary" />
+            Nota Metodológica
+          </h3>
+          <ul className="space-y-1 list-disc list-inside">
+            <li>
+              Estadía promedio calculada sobre encuestas realizadas en los principales
+              Atractivos turísticos de la ciudad ({perfil.estadiaSinOutliers.nExcluidas} valores
+              atípicos excluidos con umbral ±2.5σ).
+            </li>
+            <li>
+              Cobertura del relevamiento de ocupación hotelera: {relevamiento.cantidadRelevados} alojamientos.
+            </li>
+            <li>
+              Impacto económico estimado en base a estudios y relevamientos en campo realizados
+              por el Observatorio de Turismo Municipal, considerando precios en servicios de
+              alojamiento, gastronomía y comercios de productos regionales.
+            </li>
+            <li>
+              Generado el {new Date(informe.fechaGeneracion).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {' '}por {informe.usuarioGenerador}.
+            </li>
+          </ul>
+        </div>
+
+        </div>{/* cierre pagina-2 */}
+      </div>{/* cierre card principal */}
+
+      {/* ── 7. Reporte de Prensa (no se imprime, se copia y envía aparte) ── */}
       <div className="no-print bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8 seccion-informe">
         <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
           <i className="fa-solid fa-newspaper text-primary text-sm" />
@@ -621,28 +753,6 @@ export default function InformeAutoDetallePage() {
         </div>
       </div>
 
-      {/* ── 8. Nota Metodológica ── */}
-      <div className="bg-gray-50 rounded-xl p-6 mb-8 text-xs text-text-secondary seccion-informe">
-        <h3 className="font-bold text-text-primary mb-2 flex items-center gap-2">
-          <i className="fa-solid fa-microscope text-text-secondary" />
-          Nota Metodológica
-        </h3>
-        <ul className="space-y-1 list-disc list-inside">
-          <li>
-            Estadía promedio calculada sobre {perfil.estadiaSinOutliers.n} encuestas válidas
-            ({perfil.estadiaSinOutliers.nExcluidas} valores atípicos excluidos con umbral ±2.5σ).
-          </li>
-          <li>
-            Cobertura del relevamiento de ocupación hotelera: {relevamiento.cantidadRelevados} establecimientos
-            ({relevamiento.cantidadRegistrados} registrados, {relevamiento.cantidadRelevados - relevamiento.cantidadRegistrados} no registrados/en trámite).
-          </li>
-          <li>Impacto económico calculado según metodología del Observatorio de Turismo Municipal.</li>
-          <li>
-            Generado el {new Date(informe.fechaGeneracion).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-            {' '}por {informe.usuarioGenerador}.
-          </li>
-        </ul>
-      </div>
     </div>
   )
 }

@@ -115,9 +115,36 @@
     .seccion-informe {
       page-break-inside: avoid;
     }
-    @page {
-      size: A4;
-      margin: 1.5cm;
+    /* Bloques que nunca deben partirse entre páginas */
+    .evitar-corte {
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
+    /* Paginación del PDF */
+    .pagina-1 { break-after: page; page-break-after: always; }
+    .pagina-2 { break-before: page; page-break-before: always; }
+    @page {
+      size: A4 landscape;
+      margin: 1.2cm;
+    }
+  }
+}
+
+/* ── Portada del informe (fuera de @layer a propósito: las reglas sin capa
+   ganan la cascada sobre las que están dentro de @layer, y necesitamos que
+   el display:flex de impresión pueda pisar al display:none de pantalla) ── */
+.portada-informe {
+  display: none;
+}
+
+@media print {
+  /* Portada: hoja 1 completa (A4 apaisado: 21cm − 2×1.2cm de margen ≈ 18.6cm útiles) */
+  .portada-informe {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 17.8cm;
+    break-after: page;
+    page-break-after: always;
   }
 }

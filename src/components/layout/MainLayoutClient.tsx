@@ -16,7 +16,7 @@ export default function MainLayoutClient({ children }: { children: React.ReactNo
   const close  = () => setOpen(false)
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 print:bg-white print:min-h-0">
       <Header sidebarOpen={open} onToggle={toggle} />
 
       {/* Backdrop mobile — clic fuera cierra el sidebar */}
@@ -30,8 +30,8 @@ export default function MainLayoutClient({ children }: { children: React.ReactNo
       <div className="flex min-w-0">
         <Sidebar open={open} onClose={close} />
 
-        <main className={`flex-1 min-w-0 pt-16 min-h-screen transition-all duration-300 ${open ? 'lg:ml-64' : 'lg:ml-0'}`}>
-          <div className="p-6 max-w-7xl mx-auto">
+        <main className={`flex-1 min-w-0 pt-16 min-h-screen transition-all duration-300 print:pt-0 print:min-h-0 print:!ml-0 ${open ? 'lg:ml-64' : 'lg:ml-0'}`}>
+          <div className="p-6 max-w-7xl mx-auto print:p-0 print:max-w-none">
             {children}
           </div>
         </main>
