@@ -56,8 +56,19 @@ export const VisitaInstitucionalSchema = z.object({
 // ─── Eventos ──────────────────────────────────────────────────────────────────
 
 const ESTADOS_EVENTO = ['Registrado', 'Confirmado', 'En progreso', 'Finalizado', 'Cancelado'] as const
-const campo = z.string().max(500).optional().default('')
-const campoLargo = z.string().max(2000).optional().default('')
+
+// Acepta string | number | null | undefined — necesario porque GAS devuelve números en campos como total_asistentes, duracion, etc.
+const stringDesdeGAS = (max: number) => z.preprocess(
+  (val) => {
+    if (val === null || val === undefined) return ''
+    if (typeof val === 'number') return String(val)
+    return val
+  },
+  z.string().max(max)
+)
+
+const campo = stringDesdeGAS(500).optional().default('')
+const campoLargo = stringDesdeGAS(2000).optional().default('')
 
 export const EventoSchema = z.object({
   _userEmail: z.string().email().optional(),
