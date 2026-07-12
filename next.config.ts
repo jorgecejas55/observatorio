@@ -5,7 +5,7 @@ const ContentSecurityPolicy = `
   script-src 'self' 'unsafe-inline' 'unsafe-eval';
   style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com;
   font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;
-  img-src 'self' data: blob: https://turismo.apps.cc.gob.ar https://via.placeholder.com https://*.tile.openstreetmap.org;
+  img-src 'self' data: blob: https://turismo.apps.cc.gob.ar https://via.placeholder.com https://*.tile.openstreetmap.org https://lh3.googleusercontent.com https://*.googleusercontent.com;
   connect-src 'self';
   worker-src blob:;
   frame-ancestors 'none';

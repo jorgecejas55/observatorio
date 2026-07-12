@@ -3,6 +3,27 @@ import { EventoSchema } from '@/lib/schemas'
 
 const GAS = process.env.EVENTOS_SCRIPT_URL ?? ''
 
+// Conversión camelCase → snake_case para el backend GAS
+function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
+  const map: Record<string, string> = {
+    tipoSede: 'tipo_sede', fechaInicio: 'fecha_inicio', fechaFin: 'fecha_fin',
+    aprobacionAgenda: 'aprobacion_agenda', solicitaAsistencia: 'solicita_asistencia',
+    detallesAsistenciaSolicitada: 'detalles_asistencia_solicitada',
+    detallesAsistenciaAsignada: 'detalles_asistencia_asignada',
+    detallesDerivacion: 'detalles_derivacion', presenciaFisica: 'presencia_fisica',
+    totalAsistentes: 'total_asistentes', totalResidentes: 'total_residentes',
+    totalNoResidentes: 'total_no_residentes', inversionSTDE: 'inversion_stde',
+    inversionGenerador: 'inversion_generador', creadoPor: 'creado_por',
+    fechaCreacion: 'fecha_creacion', modificadoPor: 'modificado_por',
+    fechaModificacion: 'fecha_modificacion',
+  }
+  const result: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    result[map[k] ?? k] = v
+  }
+  return result
+}
+
 async function gasPost(body: object) {
   const res = await fetch(GAS, {
     method: 'POST',
@@ -36,13 +57,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // Agregar campos de auditoría al actualizar
     const now = new Date().toISOString()
 
-    const dataWithAudit = {
+    const dataWithAudit = toSnake({
       ...cleanData,
-      modificado_por: userEmail,
-      fecha_modificacion: now,
+      modificadoPor: userEmail,
+      fechaModificacion: now,
       // NO incluir creado_por ni fecha_creacion aquí
       // el Apps Script los protege automáticamente
-    }
+    })
 
     const result = await gasPost({ action: 'updateEvento', id, data: dataWithAudit })
     return NextResponse.json(result)

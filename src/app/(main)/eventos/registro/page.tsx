@@ -168,17 +168,16 @@ function RegistroEventosContent() {
 
   async function handleSave(formData: Omit<Evento, 'id' | 'creadoPor' | 'fechaCreacion' | 'modificadoPor' | 'fechaModificacion'>) {
     try {
-      const snakeData = toSnake(formData as unknown as Record<string, unknown>)
       const isEditing = !!editando
 
       // Obtener email del usuario actual para auditoría
       const currentUser = getUserInfo()
       const userEmail = currentUser?.email || 'desconocido'
 
-      // Agregar campo especial para la API route
+      // Enviar en camelCase — la API route se encarga de convertir a snake_case para GAS
       const dataWithUser = {
-        ...snakeData,
-        _userEmail: userEmail, // Campo especial que la API route leerá
+        ...formData,
+        _userEmail: userEmail,
       }
 
       if (isEditing) {

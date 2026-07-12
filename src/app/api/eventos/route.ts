@@ -3,6 +3,27 @@ import { EventoSchema } from '@/lib/schemas'
 
 const GAS = process.env.EVENTOS_SCRIPT_URL ?? ''
 
+// Conversión camelCase → snake_case para el backend GAS
+function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
+  const map: Record<string, string> = {
+    tipoSede: 'tipo_sede', fechaInicio: 'fecha_inicio', fechaFin: 'fecha_fin',
+    aprobacionAgenda: 'aprobacion_agenda', solicitaAsistencia: 'solicita_asistencia',
+    detallesAsistenciaSolicitada: 'detalles_asistencia_solicitada',
+    detallesAsistenciaAsignada: 'detalles_asistencia_asignada',
+    detallesDerivacion: 'detalles_derivacion', presenciaFisica: 'presencia_fisica',
+    totalAsistentes: 'total_asistentes', totalResidentes: 'total_residentes',
+    totalNoResidentes: 'total_no_residentes', inversionSTDE: 'inversion_stde',
+    inversionGenerador: 'inversion_generador', creadoPor: 'creado_por',
+    fechaCreacion: 'fecha_creacion', modificadoPor: 'modificado_por',
+    fechaModificacion: 'fecha_modificacion',
+  }
+  const result: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    result[map[k] ?? k] = v
+  }
+  return result
+}
+
 // Mismo workaround que el proyecto original: Content-Type text/plain para evitar CORS preflight
 async function gasPost(body: object) {
   const res = await fetch(GAS, {
@@ -60,13 +81,13 @@ export async function POST(req: Request) {
     // Agregar campos de auditoría al crear
     const now = new Date().toISOString()
 
-    const dataWithAudit = {
+    const dataWithAudit = toSnake({
       ...cleanData,
-      creado_por: userEmail,
-      fecha_creacion: now,
-      modificado_por: userEmail,
-      fecha_modificacion: now,
-    }
+      creadoPor: userEmail,
+      fechaCreacion: now,
+      modificadoPor: userEmail,
+      fechaModificacion: now,
+    })
 
     const result = await gasPost({ action: 'createEvento', data: dataWithAudit })
     return NextResponse.json(result)
