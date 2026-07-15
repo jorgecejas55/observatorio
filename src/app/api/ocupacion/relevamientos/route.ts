@@ -1,12 +1,13 @@
 /**
  * GET  /api/ocupacion/relevamientos        — listar relevamientos
  * POST /api/ocupacion/relevamientos        — crear relevamiento
- * Acceso restringido: solo jorgecejas55@gmail.com + rol admin.
+ * Acceso restringido: emails autorizados (ocupacion-acceso) + rol admin.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { getRelevamientos } from '@/lib/ocupacion-service'
+import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 const GAS_URL = process.env.OCUPACION_GAS_URL
 const GAS_API_KEY = process.env.OCUPACION_GAS_API_KEY
@@ -16,7 +17,7 @@ async function checkAuth() {
   if (!session?.user) return false
   // @ts-expect-error
   if (session.user?.rol !== 'admin') return false
-  if (session.user.email !== 'jorgecejas55@gmail.com') return false
+  if (!tieneAccesoOcupacion(session.user.email)) return false
   return session
 }
 

@@ -1,11 +1,12 @@
 /**
  * Layout de la sección Ocupación Hotelera.
- * Acceso restringido a jorgecejas55@gmail.com.
+ * Acceso restringido a emails autorizados (ocupacion-acceso).
  */
 
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
+import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 export const metadata: Metadata = {
   title: 'Ocupación Hotelera — Observatorio',
@@ -17,7 +18,7 @@ export default async function OcupacionLayout({ children }: { children: React.Re
   if (!session?.user) redirect('/login')
   // @ts-expect-error — rol extendido en la sesión
   if (session.user?.rol !== 'admin') redirect('/sin-acceso')
-  if (session.user.email !== 'jorgecejas55@gmail.com') redirect('/sin-acceso')
+  if (!tieneAccesoOcupacion(session.user.email)) redirect('/sin-acceso')
 
   return (
     <div className="space-y-6">

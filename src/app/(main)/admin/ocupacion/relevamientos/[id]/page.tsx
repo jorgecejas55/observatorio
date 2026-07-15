@@ -7,6 +7,7 @@
 
 import { useState, useEffect, use } from 'react'
 import { tituloRelevamiento, formatearRango, formatearFecha } from '@/lib/formato-fechas'
+import type { IndicadoresRelevamiento } from '@/lib/informes-auto/types'
 
 interface Relevamiento {
   id: string
@@ -63,6 +64,8 @@ export default function RelevamientoDetalle({ params }: { params: Promise<{ id: 
   const [grupos, setGrupos] = useState<GrupoTipoCat[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [indicadores, setIndicadores] = useState<IndicadoresRelevamiento | null>(null)
+  const [recalculando, setRecalculando] = useState(false)
 
   useEffect(() => {
     loadDetalle()
@@ -93,10 +96,41 @@ export default function RelevamientoDetalle({ params }: { params: Promise<{ id: 
           calcularGrupos(json.data || [])
         }
       }
+
+      // Cargar indicadores si el relevamiento está cerrado
+      try {
+        const resInd = await fetch(`/api/ocupacion/relevamientos/${id}/indicadores`)
+        if (resInd.ok) {
+          const indJson = await resInd.json()
+          if (indJson.success && indJson.data?.datosJSON) {
+            setIndicadores(indJson.data.datosJSON)
+          } else if (indJson.data?.global) {
+            // Si no hay datosJSON pero tiene datos escalares (formato plano)
+            setIndicadores(indJson.data)
+          }
+        }
+      } catch {
+        // Silencioso: los indicadores son opcionales
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function recalcularIndicadores() {
+    setRecalculando(true)
+    try {
+      const res = await fetch(`/api/ocupacion/relevamientos/${id}/indicadores`, { method: 'POST' })
+      const json = await res.json()
+      if (json.success && json.data) {
+        setIndicadores(json.data)
+      }
+    } catch (err) {
+      console.error('Error al recalcular indicadores:', err)
+    } finally {
+      setRecalculando(false)
     }
   }
 
@@ -189,11 +223,22 @@ export default function RelevamientoDetalle({ params }: { params: Promise<{ id: 
               {relevamiento.tipo} • {formatearRango(relevamiento.fechaInicio, relevamiento.fechaFin)}
             </p>
           </div>
-          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-            relevamiento.estado === 'EN_CURSO' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
-          }`}>
-            {relevamiento.estado === 'EN_CURSO' ? 'EN CURSO' : 'CERRADO'}
-          </span>
+          <div className="flex items-center gap-2">
+            {!vivo && indicadores && (
+              <a
+                href={`/admin/ocupacion/relevamientos/${id}/ficha`}
+                className="btn-outline text-xs px-3 py-1.5"
+                title="Exportar ficha técnica (PDF)"
+              >
+                <i className="fas fa-print mr-1" />Ficha técnica
+              </a>
+            )}
+            <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+              relevamiento.estado === 'EN_CURSO' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
+            }`}>
+              {relevamiento.estado === 'EN_CURSO' ? 'EN CURSO' : 'CERRADO'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -214,6 +259,151 @@ export default function RelevamientoDetalle({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      {/* ── Análisis estadístico (solo CERRADO) ─────────────────────────── */}
+      {!vivo && (
+        <div className="space-y-5">
+          {!indicadores ? (
+            /* Sin indicadores: aviso + botón recalcular */
+            <div className="card p-4 border border-amber-200 bg-amber-50">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-amber-700">
+                  <i className="fas fa-info-circle mr-2" />
+                  Este relevamiento fue cerrado pero sus indicadores estadísticos no fueron calculados.
+                </p>
+                <button
+                  onClick={recalcularIndicadores}
+                  disabled={recalculando}
+                  className="btn-primary text-xs px-3 py-1.5"
+                >
+                  {recalculando ? (
+                    <><i className="fas fa-spinner fa-spin mr-1" />Calculando...</>
+                  ) : (
+                    <><i className="fas fa-calculator mr-1" />Calcular indicadores</>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* KPIs avanzados */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <i className="fas fa-chart-bar text-accent" />
+                  Análisis estadístico
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <MiniCard label="Media simple" valor={`${indicadores.global.mediaSimple}%`} color="text-blue-500" icono="fa-calculator" />
+                  <MiniCard label="Mediana" valor={`${indicadores.global.mediana}%`} color="text-indigo-500" icono="fa-chart-line" />
+                  <MiniCard
+                    label={`Media recortada ${indicadores.global.nRecortados > 0 ? `(-${indicadores.global.nRecortados})` : ''}`}
+                    valor={`${indicadores.global.mediaRecortada}%`}
+                    color="text-teal-500"
+                    icono="fa-scissors"
+                  />
+                  <MiniCard label="Desvío estándar" valor={`${indicadores.global.desvioEstandar}`} color="text-purple-500" icono="fa-arrow-right-arrow-left" />
+                  <MiniCard label="Coef. variación" valor={`${indicadores.global.coeficienteVariacion}%`} color="text-gray-500" icono="fa-percent" />
+                </div>
+              </div>
+
+              {/* Baja actividad + cobertura */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className={`card p-4 border-l-4 ${
+                  indicadores.bajaActividad.porcentaje > 30 ? 'border-red-400 bg-red-50' :
+                  indicadores.bajaActividad.porcentaje > 0 ? 'border-amber-400 bg-amber-50' :
+                  'border-green-400 bg-green-50'
+                }`}>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Baja actividad comercial</p>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {indicadores.bajaActividad.cantidad} <span className="text-sm font-normal text-gray-500">de {indicadores.global.n}</span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {indicadores.bajaActividad.porcentaje}% con OH &lt; {indicadores.bajaActividad.umbral}%
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1 italic" title="Indicador de diagnóstico de gestión — no revela identidades">
+                    <i className="fas fa-info-circle mr-1" />
+                    Establecimientos con ocupación inferior al umbral. Indicador de diagnóstico, sin identidades.
+                  </p>
+                </div>
+
+                <div className="card p-4">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Cobertura</p>
+                  {indicadores.cobertura !== null ? (
+                    <>
+                      <p className="text-2xl font-bold text-gray-800">{indicadores.cobertura}%</p>
+                      <p className="text-sm text-gray-600">
+                        {indicadores.global.n} de {indicadores.totalAlojamientosActivos} alojamientos activos
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-400">Sin datos del padrón</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Distribución por rangos */}
+              <div className="card p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Distribución por rangos de ocupación</h3>
+                <div className="space-y-2">
+                  {indicadores.distribucionRangos.rangos.map((r) => (
+                    <div key={r.etiqueta} className="flex items-center gap-3">
+                      <span className="text-xs text-gray-500 w-16 text-right">{r.etiqueta}</span>
+                      <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            r.desde >= 75 ? 'bg-green-500' :
+                            r.desde >= 50 ? 'bg-blue-500' :
+                            r.desde >= 25 ? 'bg-amber-500' :
+                            'bg-red-400'
+                          }`}
+                          style={{ width: `${Math.max(r.porcentaje, 2)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-600 w-16">{r.cantidad} ({r.porcentaje}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Picos por grupo */}
+              {indicadores.picos.porTipo.length > 0 && (
+                <div className="card p-5">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                    Picos de ocupación por grupo
+                    {indicadores.picos.picoMaximo && (
+                      <span className="text-xs text-gray-400 font-normal ml-2">
+                        — Máximo global: {indicadores.picos.picoMaximo.tipoCategoria} ({indicadores.picos.picoMaximo.ohMaximo}%)
+                      </span>
+                    )}
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="border-b border-gray-200">
+                        <tr className="text-left text-gray-500 text-xs uppercase tracking-wide">
+                          <th className="pb-2 font-medium">Grupo</th>
+                          <th className="pb-2 font-medium text-right">OH máximo</th>
+                          <th className="pb-2 font-medium text-right">Establecimientos</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {indicadores.picos.porTipo.map((p) => (
+                          <tr key={p.tipoCategoria} className="border-b border-gray-50">
+                            <td className="py-2 text-gray-700">{p.tipoCategoria}</td>
+                            <td className="py-2 text-right">
+                              <span className="font-semibold text-accent">{p.ohMaximo}%</span>
+                            </td>
+                            <td className="py-2 text-right text-gray-600">{p.cantidadAlojamientos}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* OH por tipo/categoría */}
       <div className="card p-5">
         <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
@@ -222,7 +412,39 @@ export default function RelevamientoDetalle({ params }: { params: Promise<{ id: 
           <span className="text-xs text-gray-400 font-normal">(solo grupos relevados — sin datos no es 0%)</span>
         </h3>
 
-        {grupos.length === 0 ? (
+        {/* Mostrar grupos desde indicadores si están disponibles (CERRADO), sino client-side */}
+        {(indicadores?.porGrupo && indicadores.porGrupo.length > 0) ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-gray-200">
+                <tr className="text-left text-gray-500 text-xs uppercase tracking-wide">
+                  <th className="pb-2 font-medium">Grupo</th>
+                  <th className="pb-2 font-medium text-right">OH ponderada</th>
+                  <th className="pb-2 font-medium text-right">Mín</th>
+                  <th className="pb-2 font-medium text-right">Máx</th>
+                  <th className="pb-2 font-medium text-right">n</th>
+                  <th className="pb-2 font-medium text-right">Participación</th>
+                </tr>
+              </thead>
+              <tbody>
+                {indicadores.porGrupo.map((g) => (
+                  <tr key={g.tipoCategoria} className="border-b border-gray-50">
+                    <td className="py-2 text-gray-700">{g.tipoCategoria}</td>
+                    <td className="py-2 text-right">
+                      <span className={`font-semibold ${g.estadisticas.mediaPonderada > 0 ? 'text-accent' : 'text-gray-400'}`}>
+                        {g.estadisticas.mediaPonderada > 0 ? `${g.estadisticas.mediaPonderada}%` : '—'}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right text-gray-600">{g.estadisticas.minimo}%</td>
+                    <td className="py-2 text-right text-gray-600">{g.estadisticas.maximo}%</td>
+                    <td className="py-2 text-right text-gray-600">{g.estadisticas.n}</td>
+                    <td className="py-2 text-right text-gray-500 text-xs">{g.participacionHabitaciones}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : grupos.length === 0 ? (
           <p className="text-sm text-gray-400 italic py-2">
             {cargas.length === 0 ? 'Sin cargas todavía.' : 'Sin datos para desglosar por tipo/categoría.'}
           </p>

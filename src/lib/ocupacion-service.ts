@@ -291,3 +291,34 @@ export async function getCargasSince(relevamientoId: string, since: number) {
 export async function getDashboardStats(year: number) {
   return gasGet('dashboard/stats', { year: String(year) })
 }
+
+// ── Indicadores OH (Bloque A) ──────────────────────────────────────────────────
+
+export async function guardarIndicadoresOH(data: Record<string, unknown>) {
+  return gasPost('indicadores/guardar', data)
+}
+
+export async function getIndicadoresOH(relevamientoId: string) {
+  const json = await gasGet('indicadores/get', { relevamientoId })
+  // Parsear datosJSON si viene como string
+  if (json.success && json.data) {
+    if (json.data.datosJSON && typeof json.data.datosJSON === 'string') {
+      try {
+        json.data.datosJSON = JSON.parse(json.data.datosJSON)
+      } catch { /* mantener como string */ }
+    }
+    // Normalizar cobertura: vacío → null
+    if (json.data.cobertura !== undefined) {
+      json.data.cobertura = json.data.cobertura === '' || json.data.cobertura === null
+        ? null
+        : Number(json.data.cobertura)
+    }
+  }
+  return json
+}
+
+export async function listIndicadoresOH(params?: { year?: number }) {
+  const searchParams: Record<string, string> = {}
+  if (params?.year) searchParams.year = String(params.year)
+  return gasGet('indicadores/list', searchParams)
+}

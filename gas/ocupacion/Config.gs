@@ -5,17 +5,18 @@
 
 const CONFIG = {
   // ID de la hoja de cálculo (NUEVO sheet del Observatorio)
-  SPREADSHEET_ID: 'PENDIENTE_CREAR_SPREADSHEET',
+  SPREADSHEET_ID: '1Nhm3mT1WoqP6aIeNC2dSweOU4plfCevGe2IMWHYwxro',
 
   // Nombres de las hojas
   SHEETS: {
     RELEVAMIENTOS: 'Relevamientos',
     CARGAS: 'CargasOH',
-    AUDITORIA: 'Auditoria'
+    AUDITORIA: 'Auditoria',
+    INDICADORES: 'IndicadoresOH'
   },
 
   // API Key compartida con Next.js para proteger el endpoint
-  API_KEY: 'PENDIENTE_CONFIGURAR_API_KEY',
+  API_KEY: 'PENDIENTE_API_KEY',
 
   // Estados de relevamiento
   ESTADOS_RELEVAMIENTO: {
@@ -79,6 +80,34 @@ const CONFIG = {
       EMAIL: 1,
       ACCION: 2,
       DETALLE: 3
+    },
+
+    // Hoja IndicadoresOH (20 columnas, índices 0-19):
+    // RelevamientoID | FechaCalculo | OHPonderada | OHMediaSimple | OHMediana |
+    // OHMediaRecortada | NRecortados | OHMin | OHMax | OHModa | DesvioEstandar |
+    // CoefVariacion | CantidadRelevados | BajaActividadCant | BajaActividadPct |
+    // UmbralBajaActividad | Cobertura | HabRelevadas | HabOcupadas | DatosJSON
+    INDICADORES: {
+      RELEVAMIENTO_ID: 0,
+      FECHA_CALCULO: 1,
+      OH_PONDERADA: 2,
+      OH_MEDIA_SIMPLE: 3,
+      OH_MEDIANA: 4,
+      OH_MEDIA_RECORTADA: 5,
+      N_RECORTADOS: 6,
+      OH_MIN: 7,
+      OH_MAX: 8,
+      OH_MODA: 9,
+      DESVIO_ESTANDAR: 10,
+      COEF_VARIACION: 11,
+      CANTIDAD_RELEVADOS: 12,
+      BAJA_ACTIVIDAD_CANT: 13,
+      BAJA_ACTIVIDAD_PCT: 14,
+      UMBRAL_BAJA_ACTIVIDAD: 15,
+      COBERTURA: 16,
+      HAB_RELEVADAS: 17,
+      HAB_OCUPADAS: 18,
+      DATOS_JSON: 19
     }
   }
 };

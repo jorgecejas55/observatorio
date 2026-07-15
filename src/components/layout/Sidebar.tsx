@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 interface NavItem {
   href: string
@@ -127,6 +128,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const { data: session } = useSession()
   const estaLogueado = !!session?.user
   const esJorge = session?.user?.email === 'jorgecejas55@gmail.com'
+  const accedeOcupacion = tieneAccesoOcupacion(session?.user?.email)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'Turismo de Ocio': true,
     'Turismo de Eventos': true,
@@ -175,11 +177,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             </div>
           ))}
 
-          {esJorge && (
+          {accedeOcupacion && (
             <>
               <div className="my-2 border-t border-gray-100" />
 
-              {/* Ocupación Hotelera — solo jorgecejas55@gmail.com */}
+              {/* Ocupación Hotelera — emails autorizados (ocupacion-acceso) */}
               <NavLink href="/admin/ocupacion" label="Ocupación Hotelera" icon="fa-hotel" onNavigate={onClose} />
             </>
           )}

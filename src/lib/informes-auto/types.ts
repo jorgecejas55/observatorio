@@ -215,3 +215,63 @@ export interface FindeTendencia {
   estadia_prom: number
   visitantes: number
 }
+
+// ── Indicadores Bloque A (Estadísticos de Ocupación Hotelera) ─────────────────
+
+/** Estadísticos de las OH individuales de un relevamiento */
+export interface EstadisticasOH {
+  mediaSimple: number          // OH-05: promedio aritmético de porcentajes
+  mediaPonderada: number       // OH-06: por capacidad (= ohTotal del relevamiento)
+  mediana: number              // robusto: percentil 50
+  mediaRecortada: number       // robusto: media excluyendo fuera de media ± 2,5σ
+  nRecortados: number          // cuántas cargas excluyó el recorte (transparencia)
+  desvioEstandar: number       // OH-07: σ poblacional de los porcentajes
+  coeficienteVariacion: number // OH-08: σ / mediaSimple × 100 (0 si media = 0)
+  minimo: number               // OH-02
+  maximo: number               // OH-03
+  moda: number                 // OH-04
+  n: number                    // OH-09: cantidad de cargas válidas
+}
+
+/** Baja actividad comercial (indicador propio del Observatorio) */
+export interface BajaActividadComercial {
+  umbral: number               // % (default UMBRAL_BAJA_ACTIVIDAD = 10)
+  cantidad: number             // establecimientos con OH < umbral
+  porcentaje: number           // % sobre el total de relevados
+}
+
+/** Estadísticos por grupo tipo-categoría (OH-14) */
+export interface EstadisticasOHPorGrupo {
+  tipoCategoria: string
+  estadisticas: EstadisticasOH
+  habitacionesRelevadas: number
+  habitacionesOcupadas: number
+  participacionHabitaciones: number  // OH-15: % del total de habitaciones relevadas
+}
+
+/** Distribución de cargas por rango de OH */
+export interface DistribucionRangosOH {
+  rangos: Array<{
+    etiqueta: string      // '0-25%', '25-50%', '50-75%', '75-100%'
+    desde: number
+    hasta: number
+    cantidad: number
+    porcentaje: number    // % de cargas en este rango
+  }>
+  total: number
+}
+
+/** Fila completa de indicadores de un relevamiento (lo que se persiste) */
+export interface IndicadoresRelevamiento {
+  relevamientoId: string
+  fechaCalculo: string             // yyyy-MM-dd (texto)
+  global: EstadisticasOH
+  bajaActividad: BajaActividadComercial
+  cobertura: number | null         // OH-10 (null si no se conoce el padrón)
+  totalAlojamientosActivos: number | null
+  habitacionesRelevadas: number    // OH-26 (en habitaciones)
+  habitacionesOcupadas: number     // OH-27
+  porGrupo: EstadisticasOHPorGrupo[]
+  distribucionRangos: DistribucionRangosOH
+  picos: PicosOcupacion            // OH-16 (reutiliza tipo existente)
+}

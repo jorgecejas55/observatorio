@@ -1,6 +1,5 @@
 // ==============================================================================
-// MAIN.GS — Punto de entrada de la API de Ocupación Hotelera (Observatorio)
-// Versión recortada: sin Alojamientos, Auth, Usuarios, Municipios, Categorías.
+// MAIN.GS — Punto de entrada de la API OBS_Admin (permisos de usuarios)
 // Protegido por apiKey (compartida con Next.js vía variable de entorno).
 // ==============================================================================
 
@@ -21,24 +20,8 @@ function doGet(e) {
 
     // Routing para GET
     const routes = {
-      'relevamientos': function () { return getRelevamientos(params); },
-      'relevamientos/get': function () { return getRelevamiento(params.id); },
-      'relevamientos/activo': function () { return getRelevamientoActivo(); },
-      'relevamientos/mensuales': function () { return getRelevamientosMensuales(params.year); },
-      'relevamientos/especiales': function () { return getRelevamientosEspeciales(params.year); },
-
-      'cargas/list': function () { return getCargasByRelevamiento(params.relevamientoId); },
-      'cargas/verificar': function () { return verificarCargaDuplicada(params.relevamientoId, params.alojamientoId); },
-      'cargas/version': function () { return getCargasVersion(params.relevamientoId); },
-      'cargas/since': function () { return getCargasSince(params.relevamientoId, params.since); },
-      'cargas/stats': function () { return getCargasStatsByTipoCategoria(params.relevamientoId); },
-
-      'indicadores/get': function () { return getIndicadores(params.relevamientoId); },
-      'indicadores/list': function () { return listIndicadores(params); },
-
-      'dashboard/stats': function () { return getDashboardStats(params); },
-
-      'auditoria/list': function () { return getAuditoria(params); },
+      'usuarios/list': function () { return getUsuarios(); },
+      'usuarios/get': function () { return getUsuarioByEmail(params.email); },
 
       'system/health': function () { return { success: true, status: 'OK', timestamp: new Date() }; }
     };
@@ -82,12 +65,8 @@ function doPost(e) {
 
     // Routing para POST
     const routes = {
-      'relevamientos': function () { return createRelevamiento(data, data.usuarioEmail); },
-      'relevamientos/close': function () { return closeRelevamiento(data.id, data.usuarioEmail); },
-
-      'cargas/create': function () { return createCargaOH(data); },
-
-      'indicadores/guardar': function () { return guardarIndicadores(data); }
+      'usuarios/upsert': function () { return upsertUsuario(data); },
+      'usuarios/delete': function () { return desactivarUsuario(data.email, data.actorEmail); }
     };
 
     // Ejecutar handler

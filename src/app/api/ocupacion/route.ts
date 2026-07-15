@@ -1,10 +1,11 @@
 /**
  * Proxy al Sistema de Ocupación Hotelera.
- * Solo accesible con sesión NextAuth + rol admin + email jorgecejas55@gmail.com.
+ * Solo accesible con sesión NextAuth + rol admin + email autorizado (ocupacion-acceso).
  */
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
+import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 import {
   loginOcupacion,
   getRelevamientosEspeciales,
@@ -28,8 +29,8 @@ export async function GET() {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 
-  // 3. Solo jorgecejas55@gmail.com
-  if (session.user.email !== 'jorgecejas55@gmail.com') {
+  // 3. Solo emails autorizados para Ocupación Hotelera
+  if (!tieneAccesoOcupacion(session.user.email)) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
 

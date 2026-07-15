@@ -5,6 +5,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
+import { getCargasDeRelevamiento, getAlojamientosParaRelevamiento, guardarIndicadoresOH } from '@/lib/ocupacion-service'
+import { calcularIndicadoresRelevamiento } from '@/lib/informes-auto/calculos'
+import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 const GAS_URL = process.env.OCUPACION_GAS_URL
 const GAS_API_KEY = process.env.OCUPACION_GAS_API_KEY
@@ -17,7 +20,7 @@ export async function POST(
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   // @ts-expect-error
   if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (session.user.email !== 'jorgecejas55@gmail.com') {
+  if (!tieneAccesoOcupacion(session.user.email)) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
 
@@ -43,7 +46,24 @@ export async function POST(
       return NextResponse.json({ error: json.error }, { status: 400 })
     }
 
-    return NextResponse.json(json)
+    // Post-cierre: calcular y persistir indicadores
+    let warning: string | undefined
+    try {
+      const cargas = await getCargasDeRelevamiento(id)
+      const alojamientos = await getAlojamientosParaRelevamiento()
+      const indicadores = calcularIndicadoresRelevamiento(
+        id, cargas, alojamientos, alojamientos.length
+      )
+      await guardarIndicadoresOH({
+        ...indicadores,
+        usuarioEmail: session.user.email,
+      })
+    } catch (err) {
+      console.error('[ocupacion/close] Indicadores pendientes:', err)
+      warning = 'indicadores_pendientes'
+    }
+
+    return NextResponse.json({ ...json, warning })
   } catch (error) {
     console.error('[ocupacion/relevamientos/close]', error)
     return NextResponse.json({ error: 'Error al cerrar relevamiento' }, { status: 500 })

@@ -1,12 +1,13 @@
 /**
  * GET  /api/ocupacion/cargas?relevamientoId=123      — listar cargas
  * POST /api/ocupacion/cargas                          — crear carga (con snapshot)
- * Acceso restringido: solo jorgecejas55@gmail.com + rol admin.
+ * Acceso restringido: emails autorizados (ocupacion-acceso) + rol admin.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { getCargasDeRelevamiento } from '@/lib/ocupacion-service'
+import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 const GAS_URL = process.env.OCUPACION_GAS_URL
 const GAS_API_KEY = process.env.OCUPACION_GAS_API_KEY
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   // @ts-expect-error
   if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (session.user.email !== 'jorgecejas55@gmail.com') {
+  if (!tieneAccesoOcupacion(session.user.email)) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   // @ts-expect-error
   if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (session.user.email !== 'jorgecejas55@gmail.com') {
+  if (!tieneAccesoOcupacion(session.user.email)) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
 
