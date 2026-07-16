@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { redirect, useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { tieneAcceso } from '@/lib/permisos'
+import { formatearRango } from '@/lib/formato-fechas'
 import type { InformeFindeCompleto, TipoInforme } from '@/lib/informes-auto/types'
 import { LABELS_CATEGORIA } from '@/lib/types'
 
@@ -334,15 +335,14 @@ export default function InformeAutoDetallePage() {
               Informe Estadístico
             </p>
             <h1 className="text-4xl font-bold text-text-primary mb-3">
-              Fin de Semana Largo
+              {etiquetaTipo.portada}
             </h1>
             <h2 className="text-3xl font-bold text-primary mb-6">
               {informe.nombre}
             </h2>
             <div className="w-24 h-1 bg-primary mx-auto mb-6 rounded-full" />
             <p className="text-lg text-text-secondary">
-              {new Date(informe.fechaInicio).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })} al{' '}
-              {new Date(informe.fechaFin).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              {formatearRango(informe.fechaInicio, informe.fechaFin)}
             </p>
           </div>
 
@@ -359,7 +359,7 @@ export default function InformeAutoDetallePage() {
         <div className="hidden print:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 gap-3">
           <img src="/logos/secretaria.png" alt="Secretaría" className="h-6 w-auto" />
           <span className="text-xs font-semibold text-text-primary">
-            Informe Fin de Semana Largo — {informe.nombre}
+            {etiquetaTipo.header} — {informe.nombre}
           </span>
           <div className="flex items-center gap-2">
             <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
@@ -377,11 +377,10 @@ export default function InformeAutoDetallePage() {
           {/* Centro: título + fechas */}
           <div className="text-center flex-1">
             <h1 className="text-xl font-bold text-text-primary mb-1 print:text-2xl">
-              Informe Fin de Semana Largo — {informe.nombre}
+              {etiquetaTipo.header} — {informe.nombre}
             </h1>
             <p className="text-text-secondary text-xs print:text-sm">
-              {new Date(informe.fechaInicio).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })} al{' '}
-              {new Date(informe.fechaFin).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              {formatearRango(informe.fechaInicio, informe.fechaFin)}
             </p>
             <p className="text-text-secondary text-[10px] mt-0.5 print:text-xs">
               Observatorio de Turismo Municipal — San Fernando del Valle de Catamarca
@@ -534,7 +533,7 @@ export default function InformeAutoDetallePage() {
         <div className="hidden print:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 gap-3">
           <img src="/logos/secretaria.png" alt="Secretaría" className="h-6 w-auto" />
           <span className="text-xs font-semibold text-text-primary">
-            Informe Fin de Semana Largo — {informe.nombre}
+            {etiquetaTipo.header} — {informe.nombre}
           </span>
           <div className="flex items-center gap-2">
             <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />

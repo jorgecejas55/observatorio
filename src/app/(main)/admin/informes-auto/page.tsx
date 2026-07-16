@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { tieneAcceso } from '@/lib/permisos'
+import { formatearFechaLarga } from '@/lib/formato-fechas'
 import type {
   SugerenciaHistorial,
   RelevamientoOH,
@@ -19,10 +20,11 @@ type PasoEstado = 'idle' | 'cargando' | 'seleccionado' | 'generando' | 'completa
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Acepta tanto fechas texto yyyy-MM-dd (relevamientos) como ISO completo
+// que devuelve el GAS para informes guardados (evita "Invalid Date").
 function formatearFecha(fecha: string): string {
   if (!fecha) return ''
-  const d = new Date(fecha + 'T00:00:00-03:00')
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+  return formatearFechaLarga(fecha)
 }
 
 function calcularDuracion(inicio: string, fin: string): number {
