@@ -126,8 +126,9 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
 
       {/* ── 0. PORTADA (solo impresión) ────────────────────────────────────── */}
       <div className="portada-informe">
-        {/* Fila superior de logos: Secretaría | Asociación (centrada) | Observatorio */}
-        <div className="grid grid-cols-3 items-start">
+        {/* Fila superior de logos: Secretaría | Asociación (centrada) | Observatorio,
+            alineados verticalmente por el centro */}
+        <div className="grid grid-cols-3 items-center">
           <img
             src="/logos/secretaria.png"
             alt="Secretaría de Turismo y Desarrollo Económico"
@@ -136,7 +137,7 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
           <img
             src="/logos/asociacion-hoteles.jpg"
             alt="Asociación de Hoteles, Bares, Confiterías, Restaurantes y Afines de Catamarca"
-            className="h-[4.5rem] w-auto justify-self-center"
+            className="h-24 w-auto justify-self-center"
           />
           <img
             src="/logos/observatorio.png"
