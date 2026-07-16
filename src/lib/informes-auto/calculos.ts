@@ -193,6 +193,13 @@ export function calcularPicosOcupacion(cargas: CargaOH[], alojamientos: Alojamie
 
 // ── Impacto económico ──────────────────────────────────────────────────────────
 
+/**
+ * Fórmulas canónicas (verificadas contra la planilla del gasto):
+ * SIN redondeos intermedios — se redondea únicamente para display al final.
+ * impactoTuristas = pernoctesConsumidos × gastoDiario (equivale a turistas
+ * sin redondear × estadía × gasto). Los excursionistas se derivan como % de
+ * los turistas alojados sin redondear.
+ */
 export function calcularImpactoEconomico(inputs: InputsImpactoEconomico): ResultadoImpactoEconomico {
   const {
     plazasDisponibles,
@@ -201,26 +208,28 @@ export function calcularImpactoEconomico(inputs: InputsImpactoEconomico): Result
     estadiaPromedio,
     gastoDiarioTuristas,
     gastoDiarioExcursionistas,
-    excursionistas,
+    porcentajeExcursionistas,
   } = inputs
 
   const pernoctesEnOferta = plazasDisponibles * duracionPeriodo
   const pernoctesConsumidos = pernoctesEnOferta * (ohPorcentaje / 100)
-  const turistasAlojados = estadiaPromedio > 0
-    ? Math.round(pernoctesConsumidos / estadiaPromedio)
-    : 0
-  const visitantesTotales = turistasAlojados + excursionistas
+  const turistasExactos = estadiaPromedio > 0 ? pernoctesConsumidos / estadiaPromedio : 0
+  const excursionistasExactos = turistasExactos * (porcentajeExcursionistas / 100)
 
-  const impactoTuristas = turistasAlojados * estadiaPromedio * gastoDiarioTuristas
-  const impactoExcursionistas = excursionistas * 1 * gastoDiarioExcursionistas
+  const impactoTuristas = pernoctesConsumidos * gastoDiarioTuristas
+  const impactoExcursionistas = excursionistasExactos * 1 * gastoDiarioExcursionistas
   const impactoTotal = impactoTuristas + impactoExcursionistas
+
+  // Redondeos SOLO de salida/display
+  const turistasAlojados = Math.round(turistasExactos)
+  const excursionistas = Math.round(excursionistasExactos)
 
   return {
     pernoctesEnOferta,
     pernoctesConsumidos: Math.round(pernoctesConsumidos),
     turistasAlojados,
     excursionistas,
-    visitantesTotales,
+    visitantesTotales: turistasAlojados + excursionistas,
     impactoTuristas: Math.round(impactoTuristas),
     impactoExcursionistas: Math.round(impactoExcursionistas),
     impactoTotal: Math.round(impactoTotal),

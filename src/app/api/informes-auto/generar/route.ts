@@ -1,12 +1,13 @@
 /**
- * Orquestador de generación de informes de fines de semana largos.
+ * Orquestador de generación de informes (FSL / EVENTO / MENSUAL).
  * POST — recibe inputs del formulario y devuelve el informe completo.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { requireEscritura } from '@/lib/permisos'
 import {
   getRelevamientoEspecialPorFecha,
+  getRelevamientoPorId,
   getAlojamientosActivos,
   getCargasDeRelevamiento,
 } from '@/lib/ocupacion-api'
@@ -16,29 +17,25 @@ import {
   calcularImpactoEconomico,
   calcularDiasEntreFechas,
 } from '@/lib/informes-auto/calculos'
-import { buscarUltimoFindeDelAnio, buscarMismoFindeAnioAnterior, getRelevamientoParaComparativaManual, getTendenciaAnioEnCurso } from '@/lib/informes-auto/comparativas'
-import { getUltimoGastoHistorial } from '@/lib/informes-auto/historial'
+import {
+  buscarPeriodoAnterior,
+  buscarMismoPeriodoAnioAnterior,
+  getRegistroMaestroPorId,
+  registroAPeriodoComparativo,
+  getTendenciaAnioEnCurso,
+} from '@/lib/informes-auto/comparativas'
+import { empujarAPlanillaMaestra } from '@/lib/informes-auto/empuje'
 import { generarReporteConIA } from '@/lib/informes-auto/narrativa'
 import { getActividadesVigentes } from '@/lib/informes-auto/actividades'
-import type {
-  GenerarInformePayload,
-  InformeFindeCompleto,
-  DatosPerfilVisitante,
-  InputsImpactoEconomico,
-  PeriodoComparativo,
+import {
+  COMPARATIVA_NINGUNA,
+  type GenerarInformePayload,
+  type InformeFindeCompleto,
+  type DatosPerfilVisitante,
+  type InputsImpactoEconomico,
+  type PeriodoComparativo,
+  type TipoInforme,
 } from '@/lib/informes-auto/types'
-
-// ── Verificación de acceso ────────────────────────────────────────────────────
-
-function verificarAcceso(session: unknown): Response | null {
-  const s = session as { user?: { email?: string; rol?: string } } | null
-  if (!s?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (s.user.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (s.user.email !== 'jorgecejas55@gmail.com') {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
-  return null
-}
 
 // ── Obtener datos del perfil del visitante ─────────────────────────────────────
 
@@ -144,24 +141,52 @@ function generarId(): string {
   return 'if_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8)
 }
 
-function generarSlug(nombre: string, fechaInicio: string): string {
-  const base = nombre
+function slugBase(nombre: string): string {
+  return nombre
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+/** Slug por tipo: FSL `<nombre>-<año>` · EVENTO `evento-<nombre>-<año>` · MENSUAL `mensual-<año>-<mm>` */
+function generarSlug(tipoInforme: TipoInforme, nombre: string, fechaInicio: string): string {
   const year = fechaInicio.slice(0, 4)
-  return `${base}-${year}`
+  const mm = fechaInicio.slice(5, 7)
+  if (tipoInforme === 'MENSUAL') return `mensual-${year}-${mm}`
+  if (tipoInforme === 'EVENTO') return `evento-${slugBase(nombre)}-${year}`
+  return `${slugBase(nombre)}-${year}`
+}
+
+// ── Resolución de comparativas (manual vs. automática) ────────────────────────
+
+async function resolverComparativa(
+  manual: string | undefined,
+  automatica: () => Promise<PeriodoComparativo>
+): Promise<PeriodoComparativo> {
+  if (manual === COMPARATIVA_NINGUNA) {
+    return { relevamiento: null, impactoTotal: null, gastoDiarioTuristas: null }
+  }
+  if (manual) {
+    const registro = await getRegistroMaestroPorId(manual)
+    if (registro) return registroAPeriodoComparativo(registro)
+    return {
+      relevamiento: null,
+      impactoTotal: null,
+      gastoDiarioTuristas: null,
+      advertencia: `No se encontró el registro "${manual}" en la planilla maestra`,
+    }
+  }
+  return automatica()
 }
 
 // ── POST /api/informes-auto/generar ───────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   // 1. Verificar acceso
-  const session = await auth()
-  const errorAcceso = verificarAcceso(session)
-  if (errorAcceso) return errorAcceso
+  const session = await requireEscritura('informes-auto')
+  if (session instanceof NextResponse) return session
 
   // 2. Parsear inputs
   let payload: GenerarInformePayload
@@ -171,59 +196,61 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cuerpo JSON inválido' }, { status: 400 })
   }
 
-  const { nombre, fechaInicio, fechaFin, gastoDiarioTuristas, gastoDiarioExcursionistas, excursionistas, comparativaManualUltimoFinde, comparativaManualAnioAnterior } = payload
+  const {
+    relevamientoId,
+    nombre,
+    fechaInicio,
+    fechaFin,
+    gastoDiarioTuristas,
+    gastoDiarioExcursionistas,
+    porcentajeExcursionistas,
+    comparativaManualUltimoFinde,
+    comparativaManualAnioAnterior,
+  } = payload
+  const tipoInforme: TipoInforme = payload.tipoInforme ?? 'FSL'
 
   if (!nombre || !fechaInicio || !fechaFin) {
     return NextResponse.json({ error: 'Faltan datos requeridos: nombre, fechaInicio, fechaFin' }, { status: 400 })
   }
 
-  if (!gastoDiarioTuristas || !gastoDiarioExcursionistas || excursionistas == null) {
-    return NextResponse.json({ error: 'Faltan datos manuales: gasto y excursionistas' }, { status: 400 })
+  if (!gastoDiarioTuristas || !gastoDiarioExcursionistas || porcentajeExcursionistas == null) {
+    return NextResponse.json({ error: 'Faltan datos manuales: gasto diario y % de excursionistas' }, { status: 400 })
   }
 
   try {
-    // 3. Buscar relevamiento en sistema OH
-    const relevamiento = await getRelevamientoEspecialPorFecha(fechaInicio, fechaFin)
+    // 3. Buscar relevamiento en sistema OH (por ID si viene; por fecha como fallback)
+    const relevamiento = relevamientoId
+      ? await getRelevamientoPorId(relevamientoId)
+      : await getRelevamientoEspecialPorFecha(fechaInicio, fechaFin)
     if (!relevamiento) {
       return NextResponse.json({
-        error: 'No se encontró un relevamiento cerrado para ese período en el sistema de Ocupación Hotelera',
+        error: 'No se encontró el relevamiento en el sistema de Ocupación Hotelera',
         notFound: true,
       }, { status: 404 })
     }
 
-    // 4. En paralelo: alojamientos, cargas, perfil, historial, comparativas, tendencia
-    const year = new Date(fechaInicio).getFullYear()
+    // 4. En paralelo: alojamientos, perfil, comparativas, tendencia, actividades
+    const year = Number(fechaInicio.slice(0, 4))
+    const mesNumero = Number(fechaInicio.slice(5, 7))
     const [
       alojamientos,
       perfil,
-      historial,
       comparativaUltimoFinde,
-      comparativaAnioAnteriorRaw,
+      comparativaAnioAnterior,
       tendencia,
       actividades,
     ] = await Promise.all([
       getAlojamientosActivos(),
       fetchPerfil(fechaInicio, fechaFin),
-      getUltimoGastoHistorial(),
-      // Si hay ID manual para último finde, usarlo; si no, auto-detección
-      comparativaManualUltimoFinde
-        ? getRelevamientoParaComparativaManual(comparativaManualUltimoFinde).then(r => ({
-            relevamiento: r,
-            impactoTotal: null,
-            gastoDiarioTuristas: null,
-          }))
-        : buscarUltimoFindeDelAnio(year, fechaInicio),
-      // Si hay ID manual para año anterior, usarlo; si no, Jaccard
-      comparativaManualAnioAnterior
-        ? getRelevamientoParaComparativaManual(comparativaManualAnioAnterior).then(r => ({
-            relevamiento: r,
-            impactoTotal: null,
-            gastoDiarioTuristas: null,
-          }))
-        : buscarMismoFindeAnioAnterior(nombre, year),
-      // Tendencia del año en curso (sin incluir el finde actual)
-      getTendenciaAnioEnCurso(year, nombre),
-      // Actividades vigentes durante el finde (Directus)
+      resolverComparativa(comparativaManualUltimoFinde, () =>
+        buscarPeriodoAnterior(tipoInforme, nombre, year, mesNumero)
+      ),
+      resolverComparativa(comparativaManualAnioAnterior, () =>
+        buscarMismoPeriodoAnioAnterior(tipoInforme, nombre, year, mesNumero)
+      ),
+      // Tendencia del año en curso (sin incluir el período actual)
+      getTendenciaAnioEnCurso(tipoInforme, year, nombre),
+      // Actividades vigentes durante el período (Directus)
       getActividadesVigentes(fechaInicio, fechaFin),
     ])
 
@@ -241,12 +268,12 @@ export async function POST(req: NextRequest) {
       .reduce((sum, a) => sum + a.capacidadPlazas, 0)
     const duracionPeriodo = calcularDiasEntreFechas(fechaInicio, fechaFin)
 
-    // 7. Estadía del perfil (o fallback si no hay encuestas)
+    // 7. Estadía del perfil (encuestas del período; o fallback si no hay)
     const estadia = perfil?.estadiaSinOutliers?.estadiaPromedio ?? 0
     const nEncuestas = perfil?.estadiaSinOutliers?.n ?? 0
     const nExcluidas = perfil?.estadiaSinOutliers?.nExcluidas ?? 0
 
-    // 8. Calcular impacto económico
+    // 8. Calcular impacto económico (fórmulas canónicas, sin redondeos intermedios)
     const inputsImpacto: InputsImpactoEconomico = {
       plazasDisponibles,
       duracionPeriodo,
@@ -254,58 +281,14 @@ export async function POST(req: NextRequest) {
       estadiaPromedio: estadia,
       gastoDiarioTuristas,
       gastoDiarioExcursionistas,
-      excursionistas,
+      porcentajeExcursionistas,
     }
     const impacto = calcularImpactoEconomico(inputsImpacto)
 
-    // 9. Calcular impacto para comparativas
-    let comparativaUltimoFindeFinal: PeriodoComparativo = comparativaUltimoFinde
-    if (comparativaUltimoFinde.relevamiento && gastoDiarioTuristas > 0) {
-      const duracionComp = calcularDiasEntreFechas(
-        comparativaUltimoFinde.relevamiento.fechaInicio,
-        comparativaUltimoFinde.relevamiento.fechaFin
-      )
-      const impactoComp = calcularImpactoEconomico({
-        plazasDisponibles,
-        duracionPeriodo: duracionComp,
-        ohPorcentaje: comparativaUltimoFinde.relevamiento.ohTotal,
-        estadiaPromedio: estadia,
-        gastoDiarioTuristas,
-        gastoDiarioExcursionistas,
-        excursionistas,
-      })
-      comparativaUltimoFindeFinal = {
-        relevamiento: comparativaUltimoFinde.relevamiento,
-        impactoTotal: impactoComp.impactoTotal,
-        gastoDiarioTuristas: gastoDiarioTuristas,
-      }
-    }
-
-    let comparativaAnioAnterior: PeriodoComparativo = comparativaAnioAnteriorRaw
-    if (comparativaAnioAnterior.relevamiento && gastoDiarioTuristas > 0) {
-      const duracionComp = calcularDiasEntreFechas(
-        comparativaAnioAnterior.relevamiento.fechaInicio,
-        comparativaAnioAnterior.relevamiento.fechaFin
-      )
-      const impactoComp = calcularImpactoEconomico({
-        plazasDisponibles,
-        duracionPeriodo: duracionComp,
-        ohPorcentaje: comparativaAnioAnterior.relevamiento.ohTotal,
-        estadiaPromedio: estadia,
-        gastoDiarioTuristas,
-        gastoDiarioExcursionistas,
-        excursionistas,
-      })
-      comparativaAnioAnterior = {
-        relevamiento: comparativaAnioAnterior.relevamiento,
-        impactoTotal: impactoComp.impactoTotal,
-        gastoDiarioTuristas: gastoDiarioTuristas,
-      }
-    }
-
-    // 10. Construir informe (sin narrativa aún)
+    // 9. Construir informe (sin narrativa aún)
+    // Las comparativas ya traen visitantes/impacto reales de la planilla maestra.
     const id = generarId()
-    const slug = generarSlug(nombre, fechaInicio)
+    const slug = generarSlug(tipoInforme, nombre, fechaInicio)
     const perfilDefault: DatosPerfilVisitante = {
       totalEncuestas: 0,
       estadiaSinOutliers: { estadiaPromedio: 0, n: 0, nExcluidas: 0 },
@@ -325,10 +308,11 @@ export async function POST(req: NextRequest) {
       id,
       slug,
       nombre,
+      tipoInforme,
       fechaInicio,
       fechaFin,
       fechaGeneracion: new Date().toISOString(),
-      usuarioGenerador: 'jorgecejas55@gmail.com',
+      usuarioGenerador: session.user?.email || 'sistema',
       estado: 'borrador',
       relevamiento,
       ohPorTipo,
@@ -337,8 +321,9 @@ export async function POST(req: NextRequest) {
       impacto,
       gastoDiarioTuristas,
       gastoDiarioExcursionistas,
-      excursionistasManual: excursionistas,
-      comparativaUltimoFinde: comparativaUltimoFindeFinal,
+      porcentajeExcursionistas,
+      excursionistasManual: impacto.excursionistas, // cantidad calculada (trazabilidad)
+      comparativaUltimoFinde,
       comparativaAnioAnterior,
       tituloPrensa: '',
       bajadaPrensa: '',
@@ -346,7 +331,7 @@ export async function POST(req: NextRequest) {
       actividades,
     }
 
-    // 11. Generar reporte de prensa con IA (con datos de tendencia y actividades)
+    // 10. Generar reporte de prensa con IA (con datos de tendencia y actividades)
     const reporte = await generarReporteConIA(informePre, tendencia, actividades)
 
     const informe: InformeFindeCompleto = {
@@ -354,6 +339,16 @@ export async function POST(req: NextRequest) {
       tituloPrensa: reporte.titulo,
       bajadaPrensa: reporte.bajada,
       reportePrensa: reporte.reportePrensa,
+    }
+
+    // 11. Empuje a la planilla histórica maestra (no-bloqueante).
+    // Solo si la IA generó contenido real: si falló, el informe no se persiste
+    // y tampoco corresponde empujar.
+    if (reporte.generadoConIA) {
+      informe.empujeMaestra = await empujarAPlanillaMaestra(informe)
+      if (!informe.empujeMaestra.ok) {
+        console.warn('[generar] Empuje a planilla maestra falló:', informe.empujeMaestra.error)
+      }
     }
 
     // 12. Persistir en GAS — SOLO si la IA generó contenido real.
@@ -389,11 +384,11 @@ export async function POST(req: NextRequest) {
       data: informe,
       // Datos extra para el formulario
       meta: {
-        historial,
         estadia: { n: nEncuestas, nExcluidas },
         duracionPeriodo,
         plazasDisponibles,
         persistencia: persistenciaResult,
+        empuje: informe.empujeMaestra ?? null,
         iaOk: reporte.generadoConIA,
       },
     })

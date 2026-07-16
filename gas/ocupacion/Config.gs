@@ -82,11 +82,16 @@ const CONFIG = {
       DETALLE: 3
     },
 
-    // Hoja IndicadoresOH (20 columnas, índices 0-19):
+    // Hoja IndicadoresOH (25 columnas, índices 0-24):
     // RelevamientoID | FechaCalculo | OHPonderada | OHMediaSimple | OHMediana |
     // OHMediaRecortada | NRecortados | OHMin | OHMax | OHModa | DesvioEstandar |
     // CoefVariacion | CantidadRelevados | BajaActividadCant | BajaActividadPct |
-    // UmbralBajaActividad | Cobertura | HabRelevadas | HabOcupadas | DatosJSON
+    // UmbralBajaActividad | Cobertura | HabRelevadas | HabOcupadas | DatosJSON |
+    // Origen | TipoPeriodo | Nombre | FechaInicio | FechaFin
+    //
+    // Origen: 'SISTEMA' (calculado al cierre) | 'HISTORICO' (migrado del xlsx).
+    // TipoPeriodo: 'MENSUAL' | 'ESPECIAL' (sistema) | 'FSL' (históricos).
+    // Fechas como texto yyyy-MM-dd (setCeldaTexto) o '' si no se conocen.
     INDICADORES: {
       RELEVAMIENTO_ID: 0,
       FECHA_CALCULO: 1,
@@ -107,7 +112,12 @@ const CONFIG = {
       COBERTURA: 16,
       HAB_RELEVADAS: 17,
       HAB_OCUPADAS: 18,
-      DATOS_JSON: 19
+      DATOS_JSON: 19,
+      ORIGEN: 20,
+      TIPO_PERIODO: 21,
+      NOMBRE: 22,
+      FECHA_INICIO: 23,
+      FECHA_FIN: 24
     }
   }
 };
@@ -186,6 +196,18 @@ function setCeldaTexto(sheet, rowNum, col0, valor) {
   var cell = sheet.getRange(rowNum, col0 + 1);
   cell.setNumberFormat('@');
   cell.setValue(String(valor == null ? '' : valor));
+}
+
+/**
+ * Normaliza una fecha leída del sheet a texto yyyy-MM-dd.
+ * Filas viejas pueden traer Date (coerción de Sheets); las nuevas ya son texto.
+ */
+function normalizarFechaTexto(valor) {
+  if (valor === null || valor === undefined || valor === '') return '';
+  if (valor instanceof Date) {
+    return Utilities.formatDate(valor, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return String(valor).substring(0, 10);
 }
 
 /**

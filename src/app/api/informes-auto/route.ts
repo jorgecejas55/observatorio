@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { requireAcceso, requireEscritura } from '@/lib/permisos'
 
 const GAS_URL = process.env.INFORMES_AUTO_SCRIPT_URL
 const GAS_SECRET = process.env.INFORMES_AUTO_SCRIPT_SECRET
@@ -35,13 +35,8 @@ async function gasGet(action: string, id?: string) {
 // ── GET: listar informes ──────────────────────────────────────────────────────
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (session.user.email !== 'jorgecejas55@gmail.com') {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireAcceso('informes-auto')
+  if (session instanceof NextResponse) return session
 
   try {
     const json = await gasGet('listar')
@@ -59,13 +54,8 @@ export async function GET() {
 // ── POST: guardar informe ─────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (session.user.email !== 'jorgecejas55@gmail.com') {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireEscritura('informes-auto')
+  if (session instanceof NextResponse) return session
 
   try {
     const data = await req.json()

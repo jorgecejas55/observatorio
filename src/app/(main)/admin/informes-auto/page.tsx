@@ -4,7 +4,14 @@ import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import type { SugerenciaHistorial, RelevamientoOH, InformeFindeCompleto } from '@/lib/informes-auto/types'
+import { tieneAcceso } from '@/lib/permisos'
+import type {
+  SugerenciaHistorial,
+  RelevamientoOH,
+  InformeFindeCompleto,
+  RegistroMaestro,
+  TipoInforme,
+} from '@/lib/informes-auto/types'
 
 // ── Estados del flujo ─────────────────────────────────────────────────────────
 
@@ -23,6 +30,15 @@ function calcularDuracion(inicio: string, fin: string): number {
   const end = new Date(fin + 'T00:00:00-03:00')
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
 }
+
+const ETIQUETAS_TIPO: Record<TipoInforme, string> = {
+  FSL: 'Fin de semana largo',
+  EVENTO: 'Evento',
+  MENSUAL: 'Mensual',
+}
+
+/** Valor especial del selector de comparativas: omitir el bloque comparativo */
+const COMPARATIVA_NINGUNA = 'NINGUNA'
 
 interface InformeGuardado {
   id: string
@@ -50,13 +66,15 @@ export default function InformesAutoPage() {
   const [nombre, setNombre] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
+  const [tipoInforme, setTipoInforme] = useState<TipoInforme>('FSL')
 
   // ── Datos manuales ──
   const [gastoDiarioTuristas, setGastoDiarioTuristas] = useState<number>(0)
   const [gastoDiarioExcursionistas, setGastoDiarioExcursionistas] = useState<number>(0)
-  const [excursionistas, setExcursionistas] = useState<number>(0)
+  const [porcentajeExcursionistas, setPorcentajeExcursionistas] = useState<number>(0)
 
-  // ── Comparativas manuales (opcionales) ──
+  // ── Registros históricos (planilla maestra) para comparativas ──
+  const [registrosMaestros, setRegistrosMaestros] = useState<RegistroMaestro[]>([])
   const [comparativaUltimoFindeId, setComparativaUltimoFindeId] = useState('')
   const [comparativaAnioAnteriorId, setComparativaAnioAnteriorId] = useState('')
 
@@ -83,6 +101,31 @@ export default function InformesAutoPage() {
       .finally(() => setCargandoGuardados(false))
   }, [status])
 
+  // Cargar registros de la planilla maestra (para selectores de comparativas)
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    fetch('/api/informes-auto/historicos')
+      .then(async res => {
+        if (!res.ok) return
+        const json = await res.json()
+        setRegistrosMaestros(json.data ?? [])
+      })
+      .catch(() => {})
+  }, [status])
+
+  // Sugerencia del último informe DEL MISMO TIPO (gasto diario + % excursionistas)
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    setSugerenciaHistorial(null)
+    fetch(`/api/informes-auto/sugerencias?tipo=${tipoInforme}`)
+      .then(async res => {
+        if (!res.ok) return
+        const json = await res.json()
+        setSugerenciaHistorial(json.data ?? null)
+      })
+      .catch(() => {})
+  }, [status, tipoInforme])
+
   // ── Relevamiento seleccionado (derivado) ──
   const relevamientoSeleccionado = useMemo(() => {
     if (!relevamientoId) return null
@@ -94,11 +137,19 @@ export default function InformesAutoPage() {
     return calcularDuracion(fechaInicio, fechaFin)
   }, [fechaInicio, fechaFin])
 
-  // Relevamientos disponibles para comparativas (excluye el seleccionado)
-  const relevamientosComparativa = useMemo(() => {
-    if (!relevamientoId) return relevamientos
-    return relevamientos.filter(r => r.id !== relevamientoId)
-  }, [relevamientoId, relevamientos])
+  // Registros de la planilla maestra elegibles según tipo de informe
+  const registrosComparativa = useMemo(() => {
+    const tipoPeriodo = tipoInforme === 'MENSUAL' ? 'MENSUAL' : 'FSL'
+    return registrosMaestros.filter(r => r.tipoPeriodo === tipoPeriodo)
+  }, [registrosMaestros, tipoInforme])
+
+  const anioInforme = fechaInicio ? Number(fechaInicio.slice(0, 4)) : new Date().getFullYear()
+  const registrosMismoAnio = registrosComparativa.filter(r => r.anio === anioInforme)
+  const registrosAnioAnterior = registrosComparativa.filter(r => r.anio === anioInforme - 1)
+  const registrosAnteriores = registrosComparativa.filter(r => r.anio < anioInforme - 1)
+
+  const etiquetaRegistro = (r: RegistroMaestro) =>
+    `${r.nombre} — ${r.anio} — OH: ${r.oh ?? '—'}%${r.visitantes != null ? ` — ${r.visitantes.toLocaleString('es-AR')} visit.` : ''}`
 
   // ── Cargar relevamientos al montar ──
   useEffect(() => {
@@ -140,14 +191,18 @@ export default function InformesAutoPage() {
       setNombre(rel.nombre)
       setFechaInicio(rel.fechaInicio)
       setFechaFin(rel.fechaFin)
+      // Relevamiento Mensual → informe MENSUAL (automático); Especial → FSL o EVENTO (elige el usuario)
+      setTipoInforme(prev => (rel.tipo === 'Mensual' ? 'MENSUAL' : prev === 'MENSUAL' ? 'FSL' : prev))
+      setComparativaUltimoFindeId('')
+      setComparativaAnioAnteriorId('')
       setPaso('seleccionado')
       setErrorMsg('')
     }
   }, [relevamientos])
 
-  // ── Cálculo de impacto en tiempo real ──
+  // ── Cálculo de impacto en tiempo real (fórmulas canónicas, sin redondeos intermedios) ──
   const impactoEstimado = useMemo(() => {
-    if (!relevamientoSeleccionado || !gastoDiarioTuristas || !gastoDiarioExcursionistas || !excursionistas) {
+    if (!relevamientoSeleccionado || !gastoDiarioTuristas || !gastoDiarioExcursionistas) {
       return null
     }
 
@@ -156,24 +211,26 @@ export default function InformesAutoPage() {
     const plazasDisponibles = 2690 // fallback, se actualiza al generar con datos OH reales
     const pernoctesEnOferta = plazasDisponibles * duracionPeriodo
     const pernoctesConsumidos = pernoctesEnOferta * (ohTotal / 100)
-    const turistasAlojados = estadia > 0 ? Math.round(pernoctesConsumidos / estadia) : 0
+    const turistasExactos = estadia > 0 ? pernoctesConsumidos / estadia : 0
+    const excursionistasExactos = turistasExactos * (porcentajeExcursionistas / 100)
 
-    const impactoTuristas = turistasAlojados * estadia * gastoDiarioTuristas
-    const impactoExcursionistas = excursionistas * gastoDiarioExcursionistas
+    const impactoTuristas = pernoctesConsumidos * gastoDiarioTuristas
+    const impactoExcursionistas = excursionistasExactos * gastoDiarioExcursionistas
     const impactoTotal = impactoTuristas + impactoExcursionistas
 
     return {
-      turistasAlojados,
+      turistasAlojados: Math.round(turistasExactos),
+      excursionistas: Math.round(excursionistasExactos),
       impactoTuristas: Math.round(impactoTuristas),
       impactoExcursionistas: Math.round(impactoExcursionistas),
       impactoTotal: Math.round(impactoTotal),
     }
-  }, [relevamientoSeleccionado, gastoDiarioTuristas, gastoDiarioExcursionistas, excursionistas, duracionPeriodo])
+  }, [relevamientoSeleccionado, gastoDiarioTuristas, gastoDiarioExcursionistas, porcentajeExcursionistas, duracionPeriodo])
 
   // ── Generar informe ──
   const handleGenerar = useCallback(async () => {
     if (!nombre || !fechaInicio || !fechaFin) return
-    if (!gastoDiarioTuristas || !gastoDiarioExcursionistas || !excursionistas) {
+    if (!gastoDiarioTuristas || !gastoDiarioExcursionistas) {
       setErrorMsg('Completá todos los campos de datos manuales')
       return
     }
@@ -186,7 +243,7 @@ export default function InformesAutoPage() {
       'Recuperando encuestas de perfil del visitante...',
       'Calculando indicadores y comparativas...',
       'Generando narrativa con IA...',
-      'Guardando informe...',
+      'Guardando informe y empujando a la serie histórica...',
     ]
     let idx = 0
     setMensajeProgreso(mensajes[idx])
@@ -200,12 +257,14 @@ export default function InformesAutoPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          relevamientoId,
+          tipoInforme,
           nombre,
           fechaInicio,
           fechaFin,
           gastoDiarioTuristas,
           gastoDiarioExcursionistas,
-          excursionistas,
+          porcentajeExcursionistas,
           comparativaManualUltimoFinde: comparativaUltimoFindeId || undefined,
           comparativaManualAnioAnterior: comparativaAnioAnteriorId || undefined,
         }),
@@ -229,6 +288,8 @@ export default function InformesAutoPage() {
         return
       }
 
+      // (Si el empuje a la planilla maestra falló, la vista del informe
+      // muestra el aviso y el botón de reintento — informe.empujeMaestra)
       sessionStorage.setItem(`informe_${informe.id}`, JSON.stringify(informe))
       setPaso('completado')
       router.push(`/admin/informes-auto/${informe.id}`)
@@ -237,7 +298,7 @@ export default function InformesAutoPage() {
       setPaso('error')
       setErrorMsg('Error de conexión al generar el informe')
     }
-  }, [nombre, fechaInicio, fechaFin, gastoDiarioTuristas, gastoDiarioExcursionistas, excursionistas, comparativaUltimoFindeId, comparativaAnioAnteriorId, router])
+  }, [relevamientoId, tipoInforme, nombre, fechaInicio, fechaFin, gastoDiarioTuristas, gastoDiarioExcursionistas, porcentajeExcursionistas, comparativaUltimoFindeId, comparativaAnioAnteriorId, router])
 
   // ── Verificación de acceso ──
   if (status === 'loading') {
@@ -250,9 +311,7 @@ export default function InformesAutoPage() {
   }
 
   if (!session?.user) redirect('/login')
-  // @ts-expect-error — rol extendido en la sesión
-  if (session.user?.rol !== 'admin') redirect('/sin-acceso')
-  if (session.user.email !== 'jorgecejas55@gmail.com') redirect('/sin-acceso')
+  if (!tieneAcceso(session.user, 'informes-auto')) redirect('/sin-acceso')
 
   return (
     <div className="max-w-3xl">
@@ -260,11 +319,12 @@ export default function InformesAutoPage() {
       <div className="mb-6">
         <h2 className="section-title mb-1">
           <i className="fa-solid fa-robot text-primary mr-2" />
-          Agente de Informes — Fines de Semana Largos
+          Agente de Informes — Ocupación Hotelera
         </h2>
         <p className="text-text-secondary text-sm">
           Seleccioná un relevamiento del sistema de Ocupación Hotelera para generar automáticamente
-          el informe estadístico con indicadores, perfil del visitante e impacto económico.
+          el informe estadístico (fin de semana largo, evento o mensual) con indicadores,
+          perfil del visitante e impacto económico.
         </p>
       </div>
 
@@ -303,7 +363,7 @@ export default function InformesAutoPage() {
               <option value="">— Seleccionar un relevamiento —</option>
               {relevamientos.map(r => (
                 <option key={r.id} value={r.id}>
-                  {r.nombre} — {formatearFecha(r.fechaInicio)} al {formatearFecha(r.fechaFin)} — OH: {r.ohTotal}% — {r.estado}
+                  [{r.tipo}] {r.nombre} — {formatearFecha(r.fechaInicio)} al {formatearFecha(r.fechaFin)} — OH: {r.ohTotal}% — {r.estado}
                 </option>
               ))}
             </select>
@@ -326,6 +386,31 @@ export default function InformesAutoPage() {
                     El relevamiento está EN CURSO — los datos pueden no ser finales.
                   </div>
                 )}
+
+                {/* ── Tipo de informe ── */}
+                <div className="mt-3 pt-3 border-t border-green-200">
+                  <p className="text-xs font-semibold text-green-700 mb-2">Tipo de informe</p>
+                  {relevamientoSeleccionado.tipo === 'Mensual' ? (
+                    <span className="badge bg-blue-100 text-blue-700 text-xs">
+                      <i className="fa-solid fa-calendar mr-1" />
+                      MENSUAL (automático — relevamiento mensual)
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      {(['FSL', 'EVENTO'] as TipoInforme[]).map(t => (
+                        <label key={t} className="flex items-center gap-1.5 text-xs text-green-700 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="tipoInforme"
+                            checked={tipoInforme === t}
+                            onChange={() => setTipoInforme(t)}
+                          />
+                          <span className="font-medium">{ETIQUETAS_TIPO[t]}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </>
@@ -344,13 +429,16 @@ export default function InformesAutoPage() {
             <div className="flex items-center justify-between">
               <p>
                 <i className="fa-solid fa-lightbulb mr-1.5" />
-                <strong>Sugerencia del último informe:</strong> {sugerenciaHistorial.evento} ({sugerenciaHistorial.anio})
+                <strong>Sugerencia del último informe {ETIQUETAS_TIPO[tipoInforme].toLowerCase()}:</strong>{' '}
+                {sugerenciaHistorial.evento} ({sugerenciaHistorial.anio})
               </p>
               <button
                 onClick={() => {
                   setGastoDiarioTuristas(sugerenciaHistorial.gastoDiarioTuristas)
                   setGastoDiarioExcursionistas(sugerenciaHistorial.gastoDiarioExcursionistas)
-                  setExcursionistas(sugerenciaHistorial.excursionistas)
+                  if (sugerenciaHistorial.porcentajeExcursionistas != null) {
+                    setPorcentajeExcursionistas(sugerenciaHistorial.porcentajeExcursionistas)
+                  }
                 }}
                 className="text-xs text-blue-600 hover:text-blue-800 font-semibold whitespace-nowrap ml-3"
               >
@@ -404,23 +492,31 @@ export default function InformesAutoPage() {
           </div>
           <div>
             <label className="label">
-              Excursionistas
-              {sugerenciaHistorial && (
+              Excursionistas (% sobre turistas)
+              {sugerenciaHistorial?.porcentajeExcursionistas != null && (
                 <button
-                  onClick={() => setExcursionistas(sugerenciaHistorial.excursionistas)}
+                  onClick={() => setPorcentajeExcursionistas(sugerenciaHistorial.porcentajeExcursionistas!)}
                   className="ml-2 text-xs text-primary hover:underline"
                 >
-                  Sug: {sugerenciaHistorial.excursionistas}
+                  Sug: {sugerenciaHistorial.porcentajeExcursionistas}%
                 </button>
               )}
             </label>
             <input
               type="number"
+              min={0}
+              max={100}
               className="input"
-              placeholder="Ej: 880"
-              value={excursionistas || ''}
-              onChange={e => setExcursionistas(Number(e.target.value))}
+              placeholder="Ej: 80"
+              value={porcentajeExcursionistas || ''}
+              onChange={e => setPorcentajeExcursionistas(Number(e.target.value))}
             />
+            {impactoEstimado && porcentajeExcursionistas > 0 && (
+              <p className="text-xs text-text-secondary mt-1">
+                ≈ {impactoEstimado.excursionistas.toLocaleString('es-AR')} excursionistas
+                ({impactoEstimado.turistasAlojados.toLocaleString('es-AR')} turistas × {porcentajeExcursionistas}%)
+              </p>
+            )}
           </div>
         </div>
 
@@ -436,7 +532,7 @@ export default function InformesAutoPage() {
                 {impactoEstimado.turistasAlojados.toLocaleString('es-AR')} turistas × ${gastoDiarioTuristas?.toLocaleString('es-AR') || '—'} × ~3,3 noches = ${impactoEstimado.impactoTuristas.toLocaleString('es-AR')}
               </p>
               <p>
-                {excursionistas?.toLocaleString('es-AR') || '—'} excursionistas × ${gastoDiarioExcursionistas?.toLocaleString('es-AR') || '—'} = ${impactoEstimado.impactoExcursionistas.toLocaleString('es-AR')}
+                {impactoEstimado.excursionistas.toLocaleString('es-AR')} excursionistas ({porcentajeExcursionistas}%) × ${gastoDiarioExcursionistas?.toLocaleString('es-AR') || '—'} = ${impactoEstimado.impactoExcursionistas.toLocaleString('es-AR')}
               </p>
             </div>
             <p className="text-xs text-text-secondary mt-2">
@@ -455,13 +551,15 @@ export default function InformesAutoPage() {
             Comparativas (opcional)
           </h3>
           <p className="text-xs text-text-secondary mb-4">
-            Seleccioná manualmente los períodos a comparar. Si no elegís ninguno, el sistema hará la detección automática.
+            Los períodos comparativos salen de la serie histórica del Observatorio
+            (planilla de indicadores). Si no elegís ninguno, el sistema hace la detección automática
+            {tipoInforme === 'MENSUAL' ? ' (mes anterior y mismo mes del año anterior).' : ' (período anterior y mismo período del año anterior).'}
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="label">
-                Último finde largo del año
+                {tipoInforme === 'MENSUAL' ? 'Mes anterior' : 'Período inmediatamente anterior'}
                 <span className="text-xs text-text-secondary ml-1">(automático si se deja vacío)</span>
               </label>
               <select
@@ -470,18 +568,33 @@ export default function InformesAutoPage() {
                 onChange={e => setComparativaUltimoFindeId(e.target.value)}
               >
                 <option value="">— Automático —</option>
-                {relevamientosComparativa
-                  .filter(r => r.estado === 'CERRADO' && r.fechaFin < fechaInicio)
-                  .map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre} — {formatearFecha(r.fechaInicio)} al {formatearFecha(r.fechaFin)} — OH: {r.ohTotal}%
-                    </option>
-                  ))}
+                <option value={COMPARATIVA_NINGUNA}>— Sin comparativa —</option>
+                {registrosMismoAnio.length > 0 && (
+                  <optgroup label={`Mismo año (${anioInforme})`}>
+                    {registrosMismoAnio.map(r => (
+                      <option key={r.id} value={r.id}>{etiquetaRegistro(r)}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {registrosAnioAnterior.length > 0 && (
+                  <optgroup label={`Año anterior (${anioInforme - 1})`}>
+                    {registrosAnioAnterior.map(r => (
+                      <option key={r.id} value={r.id}>{etiquetaRegistro(r)}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {registrosAnteriores.length > 0 && (
+                  <optgroup label="Años anteriores">
+                    {registrosAnteriores.map(r => (
+                      <option key={r.id} value={r.id}>{etiquetaRegistro(r)}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
             <div>
               <label className="label">
-                Mismo finde año anterior
+                {tipoInforme === 'MENSUAL' ? 'Mismo mes año anterior' : 'Mismo período año anterior'}
                 <span className="text-xs text-text-secondary ml-1">(automático si se deja vacío)</span>
               </label>
               <select
@@ -490,13 +603,28 @@ export default function InformesAutoPage() {
                 onChange={e => setComparativaAnioAnteriorId(e.target.value)}
               >
                 <option value="">— Automático —</option>
-                {relevamientosComparativa
-                  .filter(r => r.fechaInicio.slice(0, 4) !== fechaInicio.slice(0, 4))
-                  .map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre} — {formatearFecha(r.fechaInicio)} al {formatearFecha(r.fechaFin)} — OH: {r.ohTotal}%
-                    </option>
-                  ))}
+                <option value={COMPARATIVA_NINGUNA}>— Sin comparativa —</option>
+                {registrosAnioAnterior.length > 0 && (
+                  <optgroup label={`Año anterior (${anioInforme - 1})`}>
+                    {registrosAnioAnterior.map(r => (
+                      <option key={r.id} value={r.id}>{etiquetaRegistro(r)}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {registrosMismoAnio.length > 0 && (
+                  <optgroup label={`Mismo año (${anioInforme})`}>
+                    {registrosMismoAnio.map(r => (
+                      <option key={r.id} value={r.id}>{etiquetaRegistro(r)}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {registrosAnteriores.length > 0 && (
+                  <optgroup label="Años anteriores">
+                    {registrosAnteriores.map(r => (
+                      <option key={r.id} value={r.id}>{etiquetaRegistro(r)}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
           </div>
@@ -550,16 +678,7 @@ export default function InformesAutoPage() {
                     </td>
                     <td className="py-2 px-2 text-right">
                       <button
-                        onClick={() => {
-                          // Primero intentar cargar de sessionStorage (por si se generó en esta sesión)
-                          const cached = sessionStorage.getItem(`informe_${inf.id}`)
-                          if (cached) {
-                            router.push(`/admin/informes-auto/${inf.id}`)
-                          } else {
-                            // Forzar carga desde GAS
-                            router.push(`/admin/informes-auto/${inf.id}`)
-                          }
-                        }}
+                        onClick={() => router.push(`/admin/informes-auto/${inf.id}`)}
                         className="btn-outline text-xs py-1 px-3"
                       >
                         <i className="fa-solid fa-eye mr-1" />
@@ -600,13 +719,12 @@ export default function InformesAutoPage() {
                 paso !== 'seleccionado' ||
                 !nombre ||
                 !gastoDiarioTuristas ||
-                !gastoDiarioExcursionistas ||
-                !excursionistas
+                !gastoDiarioExcursionistas
               }
               className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <i className="fa-solid fa-wand-magic-sparkles" />
-              Generar informe
+              Generar informe {ETIQUETAS_TIPO[tipoInforme].toLowerCase()}
             </button>
 
             {paso !== 'seleccionado' && (

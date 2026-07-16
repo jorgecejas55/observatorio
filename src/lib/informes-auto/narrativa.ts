@@ -4,7 +4,59 @@
  * Solo se usa server-side desde API Routes.
  */
 
-import type { InformeFindeCompleto, FindeTendencia, ResumenActividades } from '@/lib/informes-auto/types'
+import type { InformeFindeCompleto, FindeTendencia, ResumenActividades, TipoInforme } from '@/lib/informes-auto/types'
+
+// ── Framing por tipo de informe ────────────────────────────────────────────────
+
+interface FramingTipo {
+  /** Sobre qué trata la gacetilla (frase para la consigna inicial) */
+  asunto: string
+  /** Cómo referirse al período en el cuerpo */
+  etiquetaPeriodo: string
+  /** Bloque de contexto que orienta a la IA sobre la naturaleza del período */
+  contexto: string
+  /** Etiquetas de las comparativas */
+  labelCompAnterior: string
+  labelCompAnioAnterior: string
+  /** Título del bloque de actividades */
+  tituloActividades: string
+  /** Descripción de la serie de tendencia del año */
+  descripcionTendencia: string
+}
+
+function framingPorTipo(tipo: TipoInforme, nombre: string): FramingTipo {
+  if (tipo === 'EVENTO') {
+    return {
+      asunto: `el desempeño turístico durante el evento "${nombre}"`,
+      etiquetaPeriodo: 'evento',
+      contexto: `El período corresponde a un EVENTO con nombre propio ("${nombre}"). NO asumas que fue un feriado nacional ni un fin de semana largo: el movimiento turístico gira en torno al evento y su programa.`,
+      labelCompAnterior: 'Período/finde inmediatamente anterior',
+      labelCompAnioAnterior: 'Misma edición del evento el año anterior',
+      tituloActividades: 'Programa y actividades durante el evento',
+      descripcionTendencia: `Registros de findes largos y eventos de este año anteriores al actual, ordenados cronológicamente:`,
+    }
+  }
+  if (tipo === 'MENSUAL') {
+    return {
+      asunto: `el desempeño turístico mensual del destino durante el período "${nombre}"`,
+      etiquetaPeriodo: 'mes',
+      contexto: `Es el INFORME MENSUAL de ocupación hotelera. Enmarcá el análisis como balance del mes completo para el destino (no como fin de semana largo ni feriado).`,
+      labelCompAnterior: 'Mes anterior',
+      labelCompAnioAnterior: 'Mismo mes del año anterior',
+      tituloActividades: 'Actividades destacadas del mes',
+      descripcionTendencia: `Registros mensuales de este año anteriores al actual, ordenados cronológicamente:`,
+    }
+  }
+  return {
+    asunto: 'el desempeño turístico de un fin de semana largo',
+    etiquetaPeriodo: 'fin de semana largo',
+    contexto: `El período corresponde a un FIN DE SEMANA LARGO (feriado nacional). Enmarcá el análisis en el movimiento turístico típico de los findes largos.`,
+    labelCompAnterior: 'Último finde del año',
+    labelCompAnioAnterior: 'Mismo finde año anterior',
+    tituloActividades: 'Propuesta de actividades durante el finde',
+    descripcionTendencia: `Registros de fines de semana largos de este año anteriores al actual, ordenados cronológicamente:`,
+  }
+}
 
 // ── Prompt Builder ─────────────────────────────────────────────────────────────
 
@@ -14,6 +66,8 @@ export function construirPromptReporte(
   resumenActividades?: ResumenActividades
 ): string {
   const { nombre, fechaInicio, fechaFin, relevamiento, ohPorTipo, picos, perfil, impacto, comparativaUltimoFinde, comparativaAnioAnterior } = informe
+  const tipoInforme: TipoInforme = informe.tipoInforme ?? 'FSL'
+  const framing = framingPorTipo(tipoInforme, nombre)
 
   const fechaIni = new Date(fechaInicio).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })
   const fechaEnd = new Date(fechaFin).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -57,15 +111,23 @@ export function construirPromptReporte(
     ? Math.round(((perfil.volveria?.['MUY PROBABLE'] ?? 0) / perfil.totalEncuestas) * 100)
     : 0
 
+  const detalleComparativa = (c: typeof comparativaUltimoFinde): string => {
+    if (!c.relevamiento) return ''
+    const partes = [`OH: ${c.relevamiento.ohTotal}%`]
+    if (c.visitantes != null) partes.push(`${c.visitantes.toLocaleString('es-AR')} visitantes`)
+    if (c.impactoTotal != null) partes.push(`impacto $${c.impactoTotal.toLocaleString('es-AR')}`)
+    return partes.join(', ')
+  }
+
   const compUltimo = comparativaUltimoFinde.relevamiento
-    ? `- Último finde del año: "${comparativaUltimoFinde.relevamiento.nombre}" (OH: ${comparativaUltimoFinde.relevamiento.ohTotal}%)`
-    : '- Último finde del año: no disponible'
+    ? `- ${framing.labelCompAnterior}: "${comparativaUltimoFinde.relevamiento.nombre}" (${detalleComparativa(comparativaUltimoFinde)})`
+    : `- ${framing.labelCompAnterior}: no disponible`
 
   const compAnterior = comparativaAnioAnterior.relevamiento
-    ? `- Mismo finde año anterior: "${comparativaAnioAnterior.relevamiento.nombre}" (OH: ${comparativaAnioAnterior.relevamiento.ohTotal}%)`
+    ? `- ${framing.labelCompAnioAnterior}: "${comparativaAnioAnterior.relevamiento.nombre}" (${detalleComparativa(comparativaAnioAnterior)})`
     : comparativaAnioAnterior.advertencia
-      ? `- Mismo finde año anterior: no disponible (${comparativaAnioAnterior.advertencia})`
-      : '- Mismo finde año anterior: no disponible'
+      ? `- ${framing.labelCompAnioAnterior}: no disponible (${comparativaAnioAnterior.advertencia})`
+      : `- ${framing.labelCompAnioAnterior}: no disponible`
 
   // ── Tendencia del año en curso ──────────────────────────────────────────────
   let tendenciaStr = ''
@@ -79,10 +141,10 @@ export function construirPromptReporte(
 
     tendenciaStr = `
 ## Tendencia del año en curso (${year})
-Registros de fines de semana largos de ${year} anteriores al actual, ordenados cronológicamente:
+${framing.descripcionTendencia}
 ${lineasTendencia}
 
-Promedios parciales del año (sin contar este finde): OH ${promOH}%, estadía ${promEstadia} noches.`
+Promedios parciales del año (sin contar este período): OH ${promOH}%, estadía ${promEstadia} noches.`
   }
 
   // ── Propuesta de actividades ────────────────────────────────────────────────
@@ -91,16 +153,16 @@ Promedios parciales del año (sin contar este finde): OH ${promOH}%, estadía ${
     const tematicasTop = resumenActividades.porTematica.slice(0, 3)
       .map(t => `${t.nombre} (${t.cantidad})`)
       .join(', ')
-    const destacadasStr = resumenActividades.destacadas.length > 0
-      ? `\nActividades destacadas: ${resumenActividades.destacadas.join('; ')}.`
+    const nombresLista = (resumenActividades.nombres ?? []).length > 0
+      ? `\nActividades del período (priorizadas — ocasionales primero, luego destacadas y permanentes):\n${(resumenActividades.nombres ?? []).map(n => `  - ${n}`).join('\n')}`
       : ''
 
     actividadesStr = `
-## Propuesta de actividades durante el finde
-La Secretaría de Turismo y Desarrollo Económico puso a disposición ${resumenActividades.total} actividades vigentes durante este fin de semana (${resumenActividades.permanentes} permanentes y ${resumenActividades.ocasionales} ocasionales).
-Principales temáticas: ${tematicasTop}.${destacadasStr}
+## ${framing.tituloActividades}
+La Secretaría de Turismo y Desarrollo Económico puso a disposición ${resumenActividades.total} actividades vigentes durante este período (${resumenActividades.permanentes} permanentes y ${resumenActividades.ocasionales} ocasionales).
+Principales temáticas: ${tematicasTop}.${nombresLista}
 
-Mencioná a nivel general la oferta de actividades que la Secretaría puso a disposición durante el finde, sin enumerar cada actividad. Destacá la diversidad de la propuesta y su aporte a la experiencia turística.`
+Mencioná POR NOMBRE entre 4 y 8 actividades del período, priorizando ocasionales y destacadas, integradas naturalmente en el párrafo (no como lista con viñetas). SOLO el nombre de cada actividad — sin días, horarios ni descripciones. Destacá además la diversidad de la propuesta y su aporte a la experiencia turística.`
   }
 
   // ── Picos de ocupación ───────────────────────────────────────────────────────────
@@ -115,10 +177,13 @@ Pico máximo del relevamiento: ${picos.picoMaximo.ohMaximo}% (alcanzado por aloj
 Máximos por tipo y categoría:
 ${topPicos}
 
-Al describir la ocupación hotelera del fin de semana, además del promedio (${relevamiento.ohTotal}%), mencioná que se registraron picos de hasta ${picos.picoMaximo.ohMaximo}% en algunos alojamientos del tipo "${picos.picoMaximo.tipoCategoria}". Podés citar uno o dos máximos adicionales por tipo/categoría. REGLA ESTRICTA: referite SIEMPRE solo al tipo y la categoría del alojamiento, NUNCA al nombre de ningún establecimiento.`
+Al describir la ocupación hotelera del ${framing.etiquetaPeriodo}, además del promedio (${relevamiento.ohTotal}%), mencioná que se registraron picos de hasta ${picos.picoMaximo.ohMaximo}% en algunos alojamientos del tipo "${picos.picoMaximo.tipoCategoria}". Podés citar uno o dos máximos adicionales por tipo/categoría. REGLA ESTRICTA: referite SIEMPRE solo al tipo y la categoría del alojamiento, NUNCA al nombre de ningún establecimiento.`
   }
 
-  return `Sos el equipo de comunicación del Observatorio de Turismo Municipal de San Fernando del Valle de Catamarca (SFVC), Argentina. Redactá una gacetilla de prensa profesional sobre el desempeño turístico de un fin de semana largo, lista para enviar al área de Comunicación y derivar a diarios digitales.
+  return `Sos el equipo de comunicación del Observatorio de Turismo Municipal de San Fernando del Valle de Catamarca (SFVC), Argentina. Redactá una gacetilla de prensa profesional sobre ${framing.asunto}, lista para enviar al área de Comunicación y derivar a diarios digitales.
+
+## Naturaleza del período
+${framing.contexto}
 
 ## Tono y estilo
 - Periodístico, accesible, español argentino.
@@ -132,7 +197,7 @@ Al describir la ocupación hotelera del fin de semana, además del promedio (${r
 En el párrafo de apertura, mencionar SIEMPRE que el estudio de Ocupación Hotelera es realizado en conjunto entre el Observatorio de Turismo Municipal, dependiente de la Secretaría de Turismo y Desarrollo Económico de la Municipalidad de San Fernando del Valle de Catamarca, y la Asociación Civil de Empresarios Hoteleros y Gastronómicos de Catamarca.
 
 ## Datos del período
-- Nombre del fin de semana: "${nombre}"
+- Nombre del período: "${nombre}"
 - Fechas: ${fechaIni} al ${fechaEnd}
 - Año: ${year}
 
@@ -179,8 +244,8 @@ Redactá siguiendo EXACTAMENTE esta anatomía:
 4. **Párrafo de permanencia + gasto** — la estadía promedio como indicador de posicionamiento y el gasto diario por visitante, con sectores movilizados (alojamiento, gastronomía, comercio, servicios).
 5. **Subtítulo "Perfil del Turista"** + 1–2 párrafos — grupo de viaje, transporte, procedencia (% nacional + provincias top), motivo de visita principal (y religioso si aplica).
 6. **Párrafo de posicionamiento** — % primera vez en SFVC, % que no consideró otros destinos, % que recomendaría y volvería.
-7. **Párrafo de propuesta de actividades** (si hay datos disponibles) — a nivel general, la oferta que la Secretaría puso a disposición durante el finde, sin enumerar cada actividad.
-8. **Párrafo de cierre / comparativa** — variación respecto del finde largo anterior, en tono institucional. Sin sugerencias ni desafíos.
+7. **Párrafo de propuesta de actividades** (si hay datos disponibles) — mencioná POR NOMBRE entre 4 y 8 actividades del período, priorizando ocasionales y destacadas, integradas naturalmente en el texto (no como lista con viñetas). SOLO el nombre de cada actividad — sin días, horarios ni descripciones.
+8. **Párrafo de cierre / comparativa** — variación respecto del período comparativo anterior, en tono institucional. Sin sugerencias ni desafíos.
 9. **Línea final fija:** "Por más información, consultar en https://observatorio.sfvc.tur.ar/".
 
 ## Instrucciones de salida
@@ -263,8 +328,8 @@ async function llamarAnthropic(prompt: string, apiKey: string): Promise<{
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 3000,
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
@@ -298,7 +363,7 @@ async function llamarDeepSeek(prompt: string, apiKey: string): Promise<{
       },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        max_tokens: 3000,
+        max_tokens: 4000,
         messages: [{ role: 'user', content: prompt }],
       }),
     })

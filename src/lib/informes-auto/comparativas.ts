@@ -1,21 +1,67 @@
 /**
- * Búsqueda de períodos comparativos para informes de fines de semana largos.
- * Fuente primaria: sistema OH (datos en vivo).
- * Fallback: dashboard de indicadores históricos (planilla 191cjZK9uQTPY...).
+ * Búsqueda de períodos comparativos para informes-auto (FSL / EVENTO / MENSUAL).
+ *
+ * Fuente ÚNICA: la planilla histórica maestra (191cjZK9..., hojas
+ * `indicadores_findes` + `indicadores_mensual`), enriquecida con visitantes
+ * e impacto económico. El sistema empuja sus resultados hacia esa planilla
+ * en cada informe (ver empuje.ts), así que la serie siempre está al día.
  */
 
-import type { RelevamientoOH, PeriodoComparativo, FindeTendencia } from '@/lib/informes-auto/types'
-import { getRelevamientosEspeciales, getRelevamientoPorId } from '@/lib/ocupacion-api'
+import type {
+  RelevamientoOH,
+  PeriodoComparativo,
+  FindeTendencia,
+  RegistroMaestro,
+  TipoInforme,
+} from '@/lib/informes-auto/types'
 import { fetchGoogleSheet } from '@/lib/sheets-parser'
+
+// ── Planilla maestra ───────────────────────────────────────────────────────────
+
+const MAESTRA_SHEET_ID = '191cjZK9uQTPYARqAD9UYgvWjyZAJ_DDgAgip4ZkznGU'
+const HOJA_FINDES = 'indicadores_findes'
+const HOJA_MENSUAL = 'indicadores_mensual'
+
+const MESES = [
+  'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+  'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
+]
+
+function normalizarTexto(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+}
+
+export function slugRegistro(texto: string): string {
+  return normalizarTexto(texto)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+function mesANumero(mes: string): number | null {
+  const idx = MESES.indexOf(normalizarTexto(mes).toUpperCase())
+  return idx === -1 ? null : idx + 1
+}
+
+function capitalizarMes(mes: string): string {
+  const limpio = mes.trim().toLowerCase()
+  return limpio.charAt(0).toUpperCase() + limpio.slice(1)
+}
+
+function numeroONull(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
 
 // ── Tokenización para Jaccard ──────────────────────────────────────────────────
 
 function tokenizar(nombre: string): Set<string> {
   return new Set(
-    nombre
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '') // quitar acentos
+    normalizarTexto(nombre)
       .replace(/[^a-z0-9áéíóúüñ ]/g, ' ')
       .split(/\s+/)
       .filter(t => t.length > 1)
@@ -31,56 +77,104 @@ function jaccardSimilarity(a: string, b: string): number {
   return intersection.size / union.size
 }
 
-// ── Dashboard de findes históricos ─────────────────────────────────────────────
+// ── Lectura de la planilla maestra (con caché) ─────────────────────────────────
 
-interface FindeHistorico {
-  ano: number
-  mes: string
-  evento: string
-  oh: number
-  estadia_prom: number
-  visitantes: number
-}
-
-const DASHBOARD_SHEET_ID = '191cjZK9uQTPYARqAD9UYgvWjyZAJ_DDgAgip4ZkznGU'
-const DASHBOARD_SHEET_NAME = 'indicadores_findes'
-
-let cacheFindes: { data: FindeHistorico[]; ts: number } | null = null
+let cacheMaestros: { data: RegistroMaestro[]; ts: number } | null = null
 const CACHE_TTL = 5 * 60_000 // 5 minutos
 
-async function getFindesHistoricos(): Promise<FindeHistorico[]> {
-  if (cacheFindes && Date.now() - cacheFindes.ts < CACHE_TTL) {
-    return cacheFindes.data
+/**
+ * Lee ambas hojas de la planilla maestra y devuelve la serie completa.
+ * IDs determinísticos: `finde-<año>-<slug del evento>` / `mensual-<año>-<mm>`.
+ */
+export async function getRegistrosMaestros(): Promise<RegistroMaestro[]> {
+  if (cacheMaestros && Date.now() - cacheMaestros.ts < CACHE_TTL) {
+    return cacheMaestros.data
   }
 
+  const registros: RegistroMaestro[] = []
+
+  // Hoja de findes/eventos: A AÑO | B MES | C EVENTO | D OH | E ESTADÍA | F VISITANTES | G IMPACTO
   try {
-    const result = await fetchGoogleSheet(DASHBOARD_SHEET_ID, DASHBOARD_SHEET_NAME, 300)
-    const findes: FindeHistorico[] = (result.table?.rows ?? []).map((row: any) => ({
-      ano: row.c[0]?.v ?? 0,
-      mes: row.c[1]?.v ?? '',
-      evento: row.c[2]?.v ?? '',
-      oh: row.c[3]?.v ?? 0,
-      estadia_prom: row.c[4]?.v ?? 0,
-      visitantes: row.c[5]?.v ?? 0,
-    })).filter((f: FindeHistorico) => f.ano > 0 && f.evento)
-
-    cacheFindes = { data: findes, ts: Date.now() }
-    return findes
+    const result = await fetchGoogleSheet(MAESTRA_SHEET_ID, HOJA_FINDES, 300)
+    const rows: any[] = result.table?.rows ?? []
+    const idsVistos = new Map<string, number>()
+    rows.forEach((row: any, i: number) => {
+      const anio = Number(row.c?.[0]?.v ?? 0)
+      const evento = String(row.c?.[2]?.v ?? '').trim()
+      if (!anio || !evento) return
+      const mes = String(row.c?.[1]?.v ?? '').trim()
+      let id = `finde-${anio}-${slugRegistro(evento)}`
+      // Desambiguar eventos repetidos del mismo año (ej. semanas del receso)
+      const repeticiones = idsVistos.get(id) ?? 0
+      idsVistos.set(id, repeticiones + 1)
+      if (repeticiones > 0) id = `${id}-${repeticiones + 1}`
+      registros.push({
+        id,
+        tipoPeriodo: 'FSL',
+        anio,
+        mes,
+        mesNumero: mesANumero(mes),
+        nombre: evento,
+        oh: numeroONull(row.c?.[3]?.v),
+        estadiaProm: numeroONull(row.c?.[4]?.v),
+        visitantes: numeroONull(row.c?.[5]?.v),
+        impacto: numeroONull(row.c?.[6]?.v),
+        fila: i,
+      })
+    })
   } catch (error) {
-    console.error('Error obteniendo findes históricos:', error)
-    return cacheFindes?.data ?? []
+    console.error('Error leyendo indicadores_findes de la planilla maestra:', error)
   }
+
+  // Hoja mensual: A AÑO | B MES | C OH | D-E var (fórmulas) | F ESTADÍA | G-H var | I VISITANTES | J IMPACTO
+  try {
+    const result = await fetchGoogleSheet(MAESTRA_SHEET_ID, HOJA_MENSUAL, 300)
+    const rows: any[] = result.table?.rows ?? []
+    rows.forEach((row: any, i: number) => {
+      const anio = Number(row.c?.[0]?.v ?? 0)
+      const mes = String(row.c?.[1]?.v ?? '').trim()
+      if (!anio || !mes) return
+      const mesNumero = mesANumero(mes)
+      registros.push({
+        id: `mensual-${anio}-${String(mesNumero ?? 0).padStart(2, '0')}`,
+        tipoPeriodo: 'MENSUAL',
+        anio,
+        mes,
+        mesNumero,
+        nombre: `${capitalizarMes(mes)} ${anio}`,
+        oh: numeroONull(row.c?.[2]?.v),
+        estadiaProm: numeroONull(row.c?.[5]?.v),
+        visitantes: numeroONull(row.c?.[8]?.v),
+        impacto: numeroONull(row.c?.[9]?.v),
+        fila: i,
+      })
+    })
+  } catch (error) {
+    console.error('Error leyendo indicadores_mensual de la planilla maestra:', error)
+  }
+
+  if (registros.length > 0) {
+    cacheMaestros = { data: registros, ts: Date.now() }
+  }
+  return registros.length > 0 ? registros : (cacheMaestros?.data ?? [])
 }
 
-function findeHistoricoARelevamiento(f: FindeHistorico): RelevamientoOH {
+export async function getRegistroMaestroPorId(id: string): Promise<RegistroMaestro | null> {
+  const registros = await getRegistrosMaestros()
+  return registros.find(r => r.id === id) ?? null
+}
+
+// ── Conversión a PeriodoComparativo ────────────────────────────────────────────
+
+function registroARelevamiento(r: RegistroMaestro): RelevamientoOH {
   return {
-    id: `hist_${f.ano}_${f.evento.replace(/[^a-z0-9]/gi, '_')}`.slice(0, 40),
-    nombre: f.evento,
-    tipo: 'Especial',
+    id: r.id,
+    nombre: r.nombre,
+    tipo: r.tipoPeriodo === 'MENSUAL' ? 'Mensual' : 'Especial',
     estado: 'CERRADO',
-    fechaInicio: `${f.ano}-01-01`, // fecha placeholder (solo para ordenamiento)
-    fechaFin: `${f.ano}-12-31`,
-    ohTotal: f.oh,
+    fechaInicio: `${r.anio}-01-01`, // placeholder (solo para ordenamiento/labels)
+    fechaFin: `${r.anio}-12-31`,
+    ohTotal: r.oh ?? 0,
     ohRegistrado: 0,
     ohNoRegistrado: 0,
     ohEnTramite: 0,
@@ -91,149 +185,147 @@ function findeHistoricoARelevamiento(f: FindeHistorico): RelevamientoOH {
   }
 }
 
-// ── Comparativa A: Último finde del año en curso ──────────────────────────────
-
-export async function buscarUltimoFindeDelAnio(
-  year: number,
-  fechaLimite: string
-): Promise<PeriodoComparativo> {
-  // 1. Intentar con sistema OH
-  try {
-    const relevamientos = await getRelevamientosEspeciales(year)
-    const candidatos = relevamientos.filter(
-      r => r.estado === 'CERRADO' && r.fechaFin < fechaLimite
-    )
-    if (candidatos.length > 0) {
-      candidatos.sort((a, b) => b.fechaFin.localeCompare(a.fechaFin))
-      return { relevamiento: candidatos[0], impactoTotal: null, gastoDiarioTuristas: null }
-    }
-  } catch (error) {
-    console.error('Error buscando último finde OH:', error)
+export function registroAPeriodoComparativo(r: RegistroMaestro): PeriodoComparativo {
+  return {
+    relevamiento: registroARelevamiento(r),
+    impactoTotal: r.impacto,
+    visitantes: r.visitantes,
+    gastoDiarioTuristas: null,
+    registroMaestroId: r.id,
   }
-
-  // 2. Fallback: dashboard de findes históricos
-  // Asumimos orden cronológico en la planilla. Buscar el finde anterior al actual.
-  const findes = await getFindesHistoricos()
-  const delAnio = findes.filter(f => f.ano === year && f.visitantes > 0)
-
-  if (delAnio.length > 1) {
-    // El último cargado es probablemente el más reciente (o el actual)
-    // Devolver el penúltimo como "último finde del año antes de éste"
-    const penultimo = delAnio[delAnio.length - 2]
-    return {
-      relevamiento: findeHistoricoARelevamiento(penultimo),
-      impactoTotal: null,
-      gastoDiarioTuristas: null,
-    }
-  }
-
-  return { relevamiento: null, impactoTotal: null, gastoDiarioTuristas: null }
 }
 
-// ── Comparativa B: Mismo finde del año anterior ───────────────────────────────
+const SIN_COMPARATIVA: PeriodoComparativo = {
+  relevamiento: null,
+  impactoTotal: null,
+  gastoDiarioTuristas: null,
+}
 
-export async function buscarMismoFindeAnioAnterior(
+// ── Comparativa A: período inmediatamente anterior ─────────────────────────────
+
+/**
+ * FSL/EVENTO: último finde del año en curso cargado en la planilla (excluyendo
+ * el propio evento si ya fue empujado en una generación previa).
+ * MENSUAL: el mes calendario anterior de `indicadores_mensual`.
+ */
+export async function buscarPeriodoAnterior(
+  tipoInforme: TipoInforme,
   nombreActual: string,
-  yearActual: number
+  year: number,
+  mesNumero: number
 ): Promise<PeriodoComparativo> {
-  // 1. Intentar con sistema OH
-  try {
-    const relevamientos = await getRelevamientosEspeciales(yearActual - 1)
-    if (relevamientos.length > 0) {
-      const matches = relevamientos
-        .map(r => ({ relevamiento: r, score: jaccardSimilarity(nombreActual, r.nombre) }))
-        .sort((a, b) => b.score - a.score)
-      const best = matches[0]
-      if (best.score >= 0.4) {
-        return { relevamiento: best.relevamiento, impactoTotal: null, gastoDiarioTuristas: null }
+  const registros = await getRegistrosMaestros()
+
+  if (tipoInforme === 'MENSUAL') {
+    const anioAnterior = mesNumero === 1 ? year - 1 : year
+    const mesAnterior = mesNumero === 1 ? 12 : mesNumero - 1
+    const registro = registros.find(
+      r => r.tipoPeriodo === 'MENSUAL' && r.anio === anioAnterior && r.mesNumero === mesAnterior
+    )
+    if (!registro) {
+      return {
+        ...SIN_COMPARATIVA,
+        advertencia: `No hay registro de ${MESES[mesAnterior - 1]} ${anioAnterior} en indicadores_mensual`,
       }
     }
-  } catch (error) {
-    console.error('Error buscando finde año anterior OH:', error)
+    return registroAPeriodoComparativo(registro)
   }
 
-  // 2. Fallback: dashboard de findes históricos (Jaccard sobre evento)
-  const findes = await getFindesHistoricos()
-  const delAnioAnterior = findes.filter(f => f.ano === yearActual - 1 && f.evento)
+  // FSL / EVENTO: findes del año, en orden de carga (cronológico), sin el actual
+  const slugActual = slugRegistro(nombreActual)
+  const delAnio = registros
+    .filter(r => r.tipoPeriodo === 'FSL' && r.anio === year)
+    .filter(r => slugRegistro(r.nombre) !== slugActual)
+    .sort((a, b) => a.fila - b.fila)
+
+  if (delAnio.length === 0) {
+    return {
+      ...SIN_COMPARATIVA,
+      advertencia: `No hay otros findes de ${year} cargados en la planilla maestra`,
+    }
+  }
+  return registroAPeriodoComparativo(delAnio[delAnio.length - 1])
+}
+
+// ── Comparativa B: mismo período del año anterior ──────────────────────────────
+
+/**
+ * FSL: mismo finde del año anterior (Jaccard sobre el nombre del evento).
+ * EVENTO: misma edición del evento el año anterior (Jaccard por nombre).
+ * MENSUAL: mismo mes calendario del año anterior.
+ */
+export async function buscarMismoPeriodoAnioAnterior(
+  tipoInforme: TipoInforme,
+  nombreActual: string,
+  yearActual: number,
+  mesNumero: number
+): Promise<PeriodoComparativo> {
+  const registros = await getRegistrosMaestros()
+
+  if (tipoInforme === 'MENSUAL') {
+    const registro = registros.find(
+      r => r.tipoPeriodo === 'MENSUAL' && r.anio === yearActual - 1 && r.mesNumero === mesNumero
+    )
+    if (!registro) {
+      return {
+        ...SIN_COMPARATIVA,
+        advertencia: `No hay registro de ${MESES[mesNumero - 1]} ${yearActual - 1} en indicadores_mensual`,
+      }
+    }
+    return registroAPeriodoComparativo(registro)
+  }
+
+  const delAnioAnterior = registros.filter(
+    r => r.tipoPeriodo === 'FSL' && r.anio === yearActual - 1 && r.nombre
+  )
 
   if (delAnioAnterior.length === 0) {
     return {
-      relevamiento: null,
-      impactoTotal: null,
-      gastoDiarioTuristas: null,
-      advertencia: `No hay findes cargados para ${yearActual - 1} en el dashboard`,
+      ...SIN_COMPARATIVA,
+      advertencia: `No hay findes cargados para ${yearActual - 1} en la planilla maestra`,
     }
   }
 
   const matches = delAnioAnterior
-    .map(f => ({ finde: f, score: jaccardSimilarity(nombreActual, f.evento) }))
+    .map(r => ({ registro: r, score: jaccardSimilarity(nombreActual, r.nombre) }))
     .sort((a, b) => b.score - a.score)
 
   const best = matches[0]
-
   if (best.score < 0.4) {
     return {
-      relevamiento: null,
-      impactoTotal: null,
-      gastoDiarioTuristas: null,
-      advertencia: `No se encontró finde similar en ${yearActual - 1} (mejor match: "${best.finde.evento}" con ${Math.round(best.score * 100)}% similitud). Seleccionar manualmente.`,
+      ...SIN_COMPARATIVA,
+      advertencia: `No se encontró período similar en ${yearActual - 1} (mejor match: "${best.registro.nombre}" con ${Math.round(best.score * 100)}% similitud). Seleccionar manualmente.`,
     }
   }
-
-  return {
-    relevamiento: findeHistoricoARelevamiento(best.finde),
-    impactoTotal: null,
-    gastoDiarioTuristas: null,
-  }
-}
-
-// ── Búsqueda manual (cuando falla el automático) ──────────────────────────────
-
-export async function getRelevamientosAnteriores(
-  yearActual: number,
-  fechaLimite: string
-): Promise<RelevamientoOH[]> {
-  try {
-    const [actuales, anteriores] = await Promise.all([
-      getRelevamientosEspeciales(yearActual),
-      getRelevamientosEspeciales(yearActual - 1),
-    ])
-
-    return [...actuales, ...anteriores]
-      .filter(r => r.estado === 'CERRADO' && r.fechaFin < fechaLimite)
-      .sort((a, b) => b.fechaFin.localeCompare(a.fechaFin))
-  } catch {
-    return []
-  }
-}
-
-export async function getRelevamientoParaComparativaManual(id: string): Promise<RelevamientoOH | null> {
-  return getRelevamientoPorId(id)
+  return registroAPeriodoComparativo(best.registro)
 }
 
 // ── Tendencia del año en curso ──────────────────────────────────────────────────
 
 /**
- * Obtiene todos los findes del año en curso registrados en el dashboard de findes,
- * ordenados por orden de carga (cronológico). Se excluye el finde actual si se
- * proporciona el nombre para no compararlo contra sí mismo.
+ * Serie del año en curso para el bloque de tendencia del prompt.
+ * FSL/EVENTO: findes del año (excluyendo el actual). MENSUAL: meses del año.
  */
 export async function getTendenciaAnioEnCurso(
+  tipoInforme: TipoInforme,
   year: number,
-  excluirEvento?: string
+  excluirNombre?: string
 ): Promise<FindeTendencia[]> {
-  const findes = await getFindesHistoricos()
+  const registros = await getRegistrosMaestros()
+  const tipoPeriodo = tipoInforme === 'MENSUAL' ? 'MENSUAL' : 'FSL'
+  const slugExcluir = excluirNombre ? slugRegistro(excluirNombre) : null
 
-  return findes
-    .filter(f => {
-      if (f.ano !== year) return false
-      if (excluirEvento && f.evento === excluirEvento) return false
-      return f.oh > 0 || f.estadia_prom > 0 // solo con datos reales
+  return registros
+    .filter(r => {
+      if (r.tipoPeriodo !== tipoPeriodo || r.anio !== year) return false
+      if (slugExcluir && slugRegistro(r.nombre) === slugExcluir) return false
+      return (r.oh ?? 0) > 0 || (r.estadiaProm ?? 0) > 0 // solo con datos reales
     })
-    .map(f => ({
-      evento: f.evento,
-      oh: f.oh,
-      estadia_prom: f.estadia_prom,
-      visitantes: f.visitantes,
+    .sort((a, b) => a.fila - b.fila)
+    .map(r => ({
+      evento: r.nombre,
+      oh: r.oh ?? 0,
+      estadia_prom: r.estadiaProm ?? 0,
+      visitantes: r.visitantes ?? 0,
     }))
 }

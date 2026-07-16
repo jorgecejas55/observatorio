@@ -23,7 +23,7 @@ function setupIndicadoresOH() {
   // Crear hoja al final
   var ws = ss.insertSheet('IndicadoresOH');
 
-  // Headers (20 columnas)
+  // Headers (25 columnas: 20 originales + metadata U-Y)
   var headers = [
     'RelevamientoID',
     'FechaCalculo',
@@ -44,14 +44,19 @@ function setupIndicadoresOH() {
     'Cobertura',
     'HabRelevadas',
     'HabOcupadas',
-    'DatosJSON'
+    'DatosJSON',
+    'Origen',
+    'TipoPeriodo',
+    'Nombre',
+    'FechaInicio',
+    'FechaFin'
   ];
 
   // Escribir headers
   ws.appendRow(headers);
 
   // Formatear: negrita, fondo azul, texto blanco, frozen
-  ws.getRange(1, 1, 1, 20)
+  ws.getRange(1, 1, 1, 25)
     .setFontWeight('bold')
     .setBackground('#4285f4')
     .setFontColor('#ffffff');
@@ -59,9 +64,9 @@ function setupIndicadoresOH() {
   ws.setFrozenRows(1);
 
   // Auto-ajustar ancho de columnas (mínimo razonable)
-  ws.autoResizeColumns(1, 20);
+  ws.autoResizeColumns(1, 25);
 
-  Logger.log('✅ Hoja "IndicadoresOH" creada exitosamente con 20 columnas');
+  Logger.log('✅ Hoja "IndicadoresOH" creada exitosamente con 25 columnas');
   Logger.log('Headers: ' + headers.join(' | '));
   Logger.log('');
   Logger.log('Siguientes pasos:');

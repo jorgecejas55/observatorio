@@ -77,7 +77,7 @@ export interface InputsImpactoEconomico {
   estadiaPromedio: number
   gastoDiarioTuristas: number
   gastoDiarioExcursionistas: number
-  excursionistas: number            // número absoluto
+  porcentajeExcursionistas: number  // % sobre turistas alojados (histórico: 10%-80%)
 }
 
 export interface ResultadoImpactoEconomico {
@@ -108,12 +108,35 @@ export interface DatosPerfilVisitante {
   volveria: Record<string, number>       // claves normalizadas: 'SÍ', 'NO'
 }
 
+// ── Tipo de informe ───────────────────────────────────────────────────────────
+
+/** FSL: fin de semana largo · EVENTO: evento con nombre propio · MENSUAL: mes calendario */
+export type TipoInforme = 'FSL' | 'EVENTO' | 'MENSUAL'
+
+// ── Registro de la planilla histórica maestra (191cjZK9...) ───────────────────
+
+export interface RegistroMaestro {
+  id: string                        // determinístico: finde-<año>-<slug> | mensual-<año>-<mm>
+  tipoPeriodo: 'FSL' | 'MENSUAL'    // hoja de origen: indicadores_findes | indicadores_mensual
+  anio: number
+  mes: string                       // nombre del mes en mayúsculas (como figura en la planilla)
+  mesNumero: number | null
+  nombre: string                    // evento (findes) o "Mes Año" (mensual)
+  oh: number | null
+  estadiaProm: number | null
+  visitantes: number | null
+  impacto: number | null
+  fila: number                      // orden dentro de su hoja (cronológico)
+}
+
 // ── Comparativa ──────────────────────────────────────────────────────────────
 
 export interface PeriodoComparativo {
   relevamiento: RelevamientoOH | null
   impactoTotal: number | null
   gastoDiarioTuristas: number | null
+  visitantes?: number | null        // visitantes del registro maestro (si existen)
+  registroMaestroId?: string        // trazabilidad: contra qué registro se comparó
   advertencia?: string
 }
 
@@ -123,10 +146,11 @@ export interface InformeFindeCompleto {
   id: string
   slug: string
   nombre: string
+  tipoInforme?: TipoInforme         // ausente en informes viejos → se asume 'FSL'
   fechaInicio: string
   fechaFin: string
   fechaGeneracion: string
-  usuarioGenerador: string          // siempre 'jorgecejas55@gmail.com'
+  usuarioGenerador: string          // email del usuario que generó el informe
   estado: 'borrador' | 'publicado'
 
   // Datos del período actual
@@ -139,6 +163,9 @@ export interface InformeFindeCompleto {
   // Inputs manuales registrados
   gastoDiarioTuristas: number
   gastoDiarioExcursionistas: number
+  /** % de excursionistas sobre turistas (informes nuevos; ausente en viejos) */
+  porcentajeExcursionistas?: number
+  /** Cantidad de excursionistas: calculada (informes nuevos) o cargada a mano (viejos) */
   excursionistasManual: number
 
   // Comparativas
@@ -153,48 +180,51 @@ export interface InformeFindeCompleto {
   // Propuesta de actividades vigentes durante el finde
   actividades: ResumenActividades
 
+  // Resultado del empuje a la planilla histórica maestra (191cjZK9...)
+  empujeMaestra?: ResultadoEmpuje
+
   // Referencia al informe público (post-publicación)
   idInformePublico?: string
 }
 
-// ── Registros del historial ───────────────────────────────────────────────────
+// ── Empuje a la planilla histórica maestra ────────────────────────────────────
 
-export interface RegistroHistorial {
-  anio: number
-  tipo: string
-  evento: string
-  ohPorcentaje: number
-  estadiaPromedio: number
-  turistasAlojados: number
-  excursionistas: number
-  visitantesTotales: number
-  gastoDiarioTuristas: number
-  gastoDiarioExcursionistas: number
-  impactoTotal: number
+export interface ResultadoEmpuje {
+  ok: boolean
+  destino: 'indicadores_findes' | 'indicadores_mensual'
+  fecha: string                     // ISO
+  error?: string
 }
 
-// ── Sugerencia del historial (último registro) ─────────────────────────────────
+// ── Sugerencia (último informe del mismo tipo en DatosInformes) ────────────────
 
 export interface SugerenciaHistorial {
   evento: string
   anio: number
   gastoDiarioTuristas: number
   gastoDiarioExcursionistas: number
+  /** null en informes viejos sin el dato (se deriva de excursionistas/turistas si se puede) */
+  porcentajeExcursionistas: number | null
   excursionistas: number
   turistasAlojados: number
 }
 
 // ── Payload del formulario ────────────────────────────────────────────────────
 
+/** Valor especial de comparativa manual: omitir el bloque comparativo */
+export const COMPARATIVA_NINGUNA = 'NINGUNA'
+
 export interface GenerarInformePayload {
+  relevamientoId?: string                 // ID del relevamiento OH (preferido; fechas como fallback)
+  tipoInforme?: TipoInforme               // ausente → 'FSL' (compat)
   nombre: string
   fechaInicio: string
   fechaFin: string
   gastoDiarioTuristas: number
   gastoDiarioExcursionistas: number
-  excursionistas: number
-  comparativaManualUltimoFinde?: string   // ID de relevamiento OH para último finde del año (anula auto-detección)
-  comparativaManualAnioAnterior?: string  // ID de relevamiento OH para mismo finde año anterior (anula Jaccard)
+  porcentajeExcursionistas: number        // % sobre turistas alojados
+  comparativaManualUltimoFinde?: string   // ID de registro maestro (anula auto-detección) o 'NINGUNA'
+  comparativaManualAnioAnterior?: string  // ID de registro maestro (anula Jaccard) o 'NINGUNA'
 }
 
 // ── Actividades ──────────────────────────────────────────────────────────────
@@ -205,6 +235,8 @@ export interface ResumenActividades {
   permanentes: number
   ocasionales: number
   destacadas: string[]
+  /** Nombres de actividades vigentes, priorizados: ocasionales → destacadas → permanentes (tope ~15) */
+  nombres?: string[]
 }
 
 // ── Tendencia del año en curso ─────────────────────────────────────────────────

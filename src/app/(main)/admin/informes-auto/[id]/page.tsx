@@ -3,8 +3,15 @@
 import { useSession } from 'next-auth/react'
 import { redirect, useParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import type { InformeFindeCompleto } from '@/lib/informes-auto/types'
+import { tieneAcceso } from '@/lib/permisos'
+import type { InformeFindeCompleto, TipoInforme } from '@/lib/informes-auto/types'
 import { LABELS_CATEGORIA } from '@/lib/types'
+
+const ETIQUETAS_TIPO: Record<TipoInforme, { portada: string; header: string }> = {
+  FSL: { portada: 'Fin de Semana Largo', header: 'Informe Fin de Semana Largo' },
+  EVENTO: { portada: 'Evento Turístico', header: 'Informe de Evento' },
+  MENSUAL: { portada: 'Ocupación Hotelera Mensual', header: 'Informe Mensual' },
+}
 
 export default function InformeAutoDetallePage() {
   const { data: session, status } = useSession()
@@ -19,6 +26,8 @@ export default function InformeAutoDetallePage() {
   const [editandoReporte, setEditandoReporte] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'success' | 'error' } | null>(null)
+  const [copiado, setCopiado] = useState(false)
+  const [reintentandoEmpuje, setReintentandoEmpuje] = useState(false)
 
   useEffect(() => {
     // Intentar cargar de sessionStorage (datos de la generación)
@@ -88,9 +97,7 @@ export default function InformeAutoDetallePage() {
   }
 
   if (!session?.user) redirect('/login')
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') redirect('/sin-acceso')
-  if (session.user.email !== 'jorgecejas55@gmail.com') redirect('/sin-acceso')
+  if (!tieneAcceso(session.user, 'informes-auto')) redirect('/sin-acceso')
 
   if (cargando) {
     return (
@@ -117,15 +124,42 @@ export default function InformeAutoDetallePage() {
   }
 
   const { relevamiento, ohPorTipo, perfil, impacto, comparativaUltimoFinde, comparativaAnioAnterior } = informe
+  const etiquetaTipo = ETIQUETAS_TIPO[informe.tipoInforme ?? 'FSL']
 
   // ── Acciones ──
   const copiarReporte = () => {
     const texto = `${informe.tituloPrensa}\n\n${informe.bajadaPrensa}\n\n${informe.reportePrensa}`
     navigator.clipboard.writeText(texto)
-    setToast({ mensaje: 'Reporte de prensa copiado al portapapeles', tipo: 'success' })
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 2000)
   }
 
   const exportarPDF = () => window.print()
+
+  const reintentarEmpuje = async () => {
+    setReintentandoEmpuje(true)
+    try {
+      const res = await fetch(`/api/informes-auto/${id}/empuje`, { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (json.success && json.data) {
+        const actualizado = { ...informe, empujeMaestra: json.data }
+        setInforme(actualizado)
+        sessionStorage.setItem(`informe_${id}`, JSON.stringify(actualizado))
+        setToast({ mensaje: 'Datos empujados a la planilla histórica', tipo: 'success' })
+      } else {
+        if (json.data) {
+          const actualizado = { ...informe, empujeMaestra: json.data }
+          setInforme(actualizado)
+          sessionStorage.setItem(`informe_${id}`, JSON.stringify(actualizado))
+        }
+        setToast({ mensaje: json.data?.error ?? json.error ?? 'El empuje volvió a fallar', tipo: 'error' })
+      }
+    } catch {
+      setToast({ mensaje: 'Error de conexión al reintentar el empuje', tipo: 'error' })
+    } finally {
+      setReintentandoEmpuje(false)
+    }
+  }
 
   const guardarCambios = async () => {
     setGuardando(true)
@@ -206,8 +240,8 @@ export default function InformeAutoDetallePage() {
             onClick={copiarReporte}
             className="btn-outline text-sm flex items-center gap-1.5"
           >
-            <i className="fa-regular fa-copy" />
-            Copiar reporte
+            <i className={copiado ? 'fa-solid fa-check text-green-600' : 'fa-regular fa-copy'} />
+            {copiado ? 'Copiado' : 'Copiar reporte'}
           </button>
           <button
             onClick={exportarPDF}
@@ -236,6 +270,25 @@ export default function InformeAutoDetallePage() {
           )}
         </div>
       </div>
+
+      {/* ── Aviso: empuje a la planilla histórica falló ── */}
+      {informe.empujeMaestra && !informe.empujeMaestra.ok && (
+        <div className="no-print mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-between gap-3">
+          <p className="text-sm text-amber-700">
+            <i className="fa-solid fa-triangle-exclamation mr-1.5" />
+            Los datos de este informe no llegaron a la planilla histórica ({informe.empujeMaestra.destino}):{' '}
+            {informe.empujeMaestra.error ?? 'error desconocido'}
+          </p>
+          <button
+            onClick={reintentarEmpuje}
+            disabled={reintentandoEmpuje}
+            className="btn-outline text-xs whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <i className={`fa-solid ${reintentandoEmpuje ? 'fa-spinner fa-spin' : 'fa-rotate-right'}`} />
+            Reintentar empuje
+          </button>
+        </div>
+      )}
 
       {/* ── TOAST ── */}
       {toast && (

@@ -3,13 +3,12 @@
  * Server-side, tolerante a fallos.
  */
 
-export interface ResumenActividades {
-  total: number
-  porTematica: Array<{ nombre: string; cantidad: number }>
-  permanentes: number
-  ocasionales: number
-  destacadas: string[]
-}
+import type { ResumenActividades } from '@/lib/informes-auto/types'
+
+export type { ResumenActividades }
+
+/** Tope de nombres de actividades que viajan al prompt de prensa. */
+const MAX_NOMBRES = 15
 
 interface ActividadDirectus {
   id: number
@@ -81,6 +80,7 @@ export async function getActividadesVigentes(
     permanentes: 0,
     ocasionales: 0,
     destacadas: [],
+    nombres: [],
   }
 
   if (!directusUrl || !directusToken) return vacio
@@ -158,12 +158,27 @@ export async function getActividadesVigentes(
       .slice(0, 5)
       .map(a => a.nombre_de_la_actividad)
 
+    // Nombres para el prompt de prensa, priorizados:
+    // 1° ocasionales del período, 2° destacadas, 3° permanentes — sin duplicar
+    const nombres: string[] = []
+    const agregar = (lista: ActividadDirectus[]) => {
+      for (const a of lista) {
+        if (nombres.length >= MAX_NOMBRES) return
+        const nombre = a.nombre_de_la_actividad?.trim()
+        if (nombre && !nombres.includes(nombre)) nombres.push(nombre)
+      }
+    }
+    agregar(vigentes.filter(a => a.tipo_de_actividad === 'Ocasional'))
+    agregar(vigentes.filter(a => a.destacado))
+    agregar(vigentes.filter(a => a.tipo_de_actividad === 'Permanente' || !a.tipo_de_actividad))
+
     return {
       total: vigentes.length,
       porTematica,
       permanentes,
       ocasionales,
       destacadas,
+      nombres,
     }
   } catch (error) {
     console.warn('[actividades] Error consultando Directus:', error)

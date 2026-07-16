@@ -1,30 +1,28 @@
 /**
  * GET /api/informes-auto/relevamientos
- * Lista los relevamientos especiales del sistema OH.
- * Solo admin + jorgecejas55@gmail.com.
+ * Lista los relevamientos del sistema OH (Especiales + Mensuales) para el
+ * formulario del agente: los Especiales generan informes FSL o EVENTO,
+ * los Mensuales generan informes MENSUAL.
+ * Acceso por módulo RBAC 'informes-auto'.
  */
 
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
-import { getRelevamientosEspeciales } from '@/lib/ocupacion-api'
+import { requireAcceso } from '@/lib/permisos'
+import { getRelevamientos } from '@/lib/ocupacion-service'
+import type { RelevamientoOH } from '@/lib/informes-auto/types'
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (session.user.email !== 'jorgecejas55@gmail.com') {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireAcceso('informes-auto')
+  if (session instanceof NextResponse) return session
 
   try {
     const currentYear = new Date().getFullYear()
-    const todos: unknown[] = []
+    const todos: RelevamientoOH[] = []
 
     // Buscar en año actual y anterior (por si no hay del actual aún)
     for (const year of [currentYear, currentYear - 1]) {
       try {
-        const relevamientos = await getRelevamientosEspeciales(year)
+        const relevamientos = await getRelevamientos({ year })
         todos.push(...relevamientos)
       } catch {
         // ignorar año sin datos
@@ -32,11 +30,7 @@ export async function GET() {
     }
 
     // Ordenar por fecha descendente
-    todos.sort((a: unknown, b: unknown) => {
-      const fa = (a as Record<string, string>).fechaInicio ?? ''
-      const fb = (b as Record<string, string>).fechaInicio ?? ''
-      return fb.localeCompare(fa)
-    })
+    todos.sort((a, b) => (b.fechaInicio ?? '').localeCompare(a.fechaInicio ?? ''))
 
     return NextResponse.json({ success: true, data: todos })
   } catch (error) {

@@ -69,13 +69,25 @@ function guardarIndicadores(data) {
   row[CONFIG.COLS.INDICADORES.HAB_OCUPADAS] = data.habitacionesOcupadas || 0;
   row[CONFIG.COLS.INDICADORES.DATOS_JSON] = JSON.stringify(data);
 
+  // Metadata del período (cols 20-24), tomada del relevamiento.
+  // Filas viejas pueden traer Date en vez de texto → normalizar a yyyy-MM-dd.
+  var fechaInicio = normalizarFechaTexto(relevamiento.FechaInicio);
+  var fechaFin = normalizarFechaTexto(relevamiento.FechaFin);
+  row[CONFIG.COLS.INDICADORES.ORIGEN] = 'SISTEMA';
+  row[CONFIG.COLS.INDICADORES.TIPO_PERIODO] = relevamiento.Tipo === 'Mensual' ? 'MENSUAL' : 'ESPECIAL';
+  row[CONFIG.COLS.INDICADORES.NOMBRE] = relevamiento.Nombre || '';
+  row[CONFIG.COLS.INDICADORES.FECHA_INICIO] = fechaInicio;
+  row[CONFIG.COLS.INDICADORES.FECHA_FIN] = fechaFin;
+
   if (existingRow > 0) {
     // Actualizar fila existente
-    for (var col = 0; col < 20; col++) {
+    for (var col = 0; col < 25; col++) {
       sheet.getRange(existingRow, col + 1).setValue(row[col] !== undefined ? row[col] : '');
     }
-    // Fecha como texto
+    // Fechas como texto
     setCeldaTexto(sheet, existingRow, CONFIG.COLS.INDICADORES.FECHA_CALCULO, fechaCalculo);
+    setCeldaTexto(sheet, existingRow, CONFIG.COLS.INDICADORES.FECHA_INICIO, fechaInicio);
+    setCeldaTexto(sheet, existingRow, CONFIG.COLS.INDICADORES.FECHA_FIN, fechaFin);
 
     logAudit(usuarioEmail, 'UPDATE_INDICADORES',
       'Actualizó indicadores del relevamiento ID: ' + data.relevamientoId);
@@ -85,10 +97,15 @@ function guardarIndicadores(data) {
       message: 'Indicadores actualizados exitosamente'
     };
   } else {
-    // Insertar nueva fila
+    // Insertar nueva fila (completar huecos para que appendRow no corte el array)
+    for (var c = 0; c < 25; c++) {
+      if (row[c] === undefined) row[c] = '';
+    }
     sheet.appendRow(row);
     var newRowNum = sheet.getLastRow();
     setCeldaTexto(sheet, newRowNum, CONFIG.COLS.INDICADORES.FECHA_CALCULO, fechaCalculo);
+    setCeldaTexto(sheet, newRowNum, CONFIG.COLS.INDICADORES.FECHA_INICIO, fechaInicio);
+    setCeldaTexto(sheet, newRowNum, CONFIG.COLS.INDICADORES.FECHA_FIN, fechaFin);
 
     logAudit(usuarioEmail, 'SAVE_INDICADORES',
       'Guardó indicadores del relevamiento ID: ' + data.relevamientoId);
