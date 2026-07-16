@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { requireEscritura } from '@/lib/permisos'
 import {
   getRelevamientos,
   getCargasDeRelevamiento,
@@ -14,18 +14,12 @@ import {
   guardarIndicadoresOH,
 } from '@/lib/ocupacion-service'
 import { calcularIndicadoresRelevamiento } from '@/lib/informes-auto/calculos'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 const BATCH_SIZE = 30
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (!tieneAccesoOcupacion(session.user.email)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireEscritura('ocupacion')
+  if (session instanceof NextResponse) return session
 
   try {
     const offset = Number(req.nextUrl.searchParams.get('offset') || 0)

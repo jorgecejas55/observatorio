@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { tieneAcceso } from '@/lib/permisos'
 import type { TipoInforme, SubcategoriaInforme, CategoriaInforme, Informe } from '@/lib/types'
 import { LABELS_CATEGORIA } from '@/lib/types'
 import Toast from '@/components/shared/Toast'
@@ -123,10 +124,8 @@ export default function AdminInformesPage() {
   }
 
   if (!session?.user) redirect('/login')
+  if (!tieneAcceso(session.user, 'informes')) redirect('/sin-acceso')
   const userEmail = session.user.email!
-
-  // @ts-expect-error — rol extendido en la sesión
-  if (session.user?.rol !== 'admin') redirect('/sin-acceso')
 
   function resetForm() {
     setTipo(FORM_VACIO.tipo)

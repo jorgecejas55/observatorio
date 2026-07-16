@@ -1,9 +1,7 @@
-import { redirect } from 'next/navigation'
-import { auth } from '@/auth'
+import { requireAccesoPage } from '@/lib/permisos'
 
 export default async function ConfigAdmin() {
-  const session = await auth()
-  if (!session?.user) redirect('/login')
+  await requireAccesoPage('config')
 
   return (
     <div>

@@ -92,13 +92,16 @@ function getUsuarioByEmail(email) {
 
 /**
  * Crea o actualiza un usuario (upsert por email normalizado).
- * data: { email, nombre, rol, modulos[], activo, actorEmail }
+ * data: { email, nombre, rol, modulos[], activo, actorEmail, oldEmail? }
+ * Si oldEmail viene y difiere de email, busca la fila por oldEmail para editar.
  */
 function upsertUsuario(data) {
   var emailNorm = normalizarEmail(data.email);
   if (!emailNorm) {
     return { success: false, error: 'Email requerido' };
   }
+
+  var oldEmailNorm = normalizarEmail(data.oldEmail) || emailNorm;
 
   var rol = String(data.rol || 'operador').toLowerCase().trim();
   if (CONFIG.ROLES.indexOf(rol) === -1) {
@@ -115,10 +118,11 @@ function upsertUsuario(data) {
   var emailCol = CONFIG.COLS.USUARIOS.EMAIL;
   var dateTime = getCurrentDateTime();
 
-  // Buscar fila existente (upsert)
+  // Buscar fila existente: primero por oldEmail (si difiere), luego por email
   var existingRow = -1;
+  var searchEmail = oldEmailNorm !== emailNorm ? oldEmailNorm : emailNorm;
   for (var i = 1; i < rows.length; i++) {
-    if (normalizarEmail(String(rows[i][emailCol])) === emailNorm) {
+    if (normalizarEmail(String(rows[i][emailCol])) === searchEmail) {
       existingRow = i + 1; // 1-based
       break;
     }
@@ -126,6 +130,7 @@ function upsertUsuario(data) {
 
   if (existingRow > 0) {
     // Actualizar fila existente (conserva ID y CreatedAt)
+    sheet.getRange(existingRow, CONFIG.COLS.USUARIOS.EMAIL + 1).setValue(emailNorm);
     sheet.getRange(existingRow, CONFIG.COLS.USUARIOS.NOMBRE + 1).setValue(nombre);
     sheet.getRange(existingRow, CONFIG.COLS.USUARIOS.ROL + 1).setValue(rol);
     sheet.getRange(existingRow, CONFIG.COLS.USUARIOS.MODULOS + 1).setValue(modulosCsv);
@@ -133,7 +138,8 @@ function upsertUsuario(data) {
     sheet.getRange(existingRow, CONFIG.COLS.USUARIOS.UPDATED_AT + 1).setValue(dateTime.datetime);
 
     logAudit(actorEmail, 'usuario_actualizado',
-      'Actualizó ' + emailNorm + ' — rol: ' + rol + ', modulos: [' + modulosCsv + '], activo: ' + activo);
+      'Actualizó ' + (oldEmailNorm !== emailNorm ? oldEmailNorm + ' → ' : '') + emailNorm +
+      ' — rol: ' + rol + ', modulos: [' + modulosCsv + '], activo: ' + activo);
 
     return { success: true, email: emailNorm, message: 'Usuario actualizado exitosamente' };
   }

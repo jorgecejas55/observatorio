@@ -1,23 +1,25 @@
 /**
  * GET  /api/ocupacion/relevamientos        — listar relevamientos
  * POST /api/ocupacion/relevamientos        — crear relevamiento
- * Acceso restringido: emails autorizados (ocupacion-acceso) + rol admin.
+ * Acceso por módulo RBAC 'ocupacion'.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { requireAcceso, requireEscritura } from '@/lib/permisos'
 import { getRelevamientos } from '@/lib/ocupacion-service'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 const GAS_URL = process.env.OCUPACION_GAS_URL
 const GAS_API_KEY = process.env.OCUPACION_GAS_API_KEY
 
 async function checkAuth() {
-  const session = await auth()
-  if (!session?.user) return false
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return false
-  if (!tieneAccesoOcupacion(session.user.email)) return false
+  const session = await requireAcceso('ocupacion')
+  if (session instanceof NextResponse) return null
+  return session
+}
+
+async function checkAuthWrite() {
+  const session = await requireEscritura('ocupacion')
+  if (session instanceof NextResponse) return null
   return session
 }
 
@@ -53,7 +55,7 @@ export async function GET(req: NextRequest) {
 // ── POST ───────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const session = await checkAuth()
+  const session = await checkAuthWrite()
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   try {

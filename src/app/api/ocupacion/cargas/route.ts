@@ -1,13 +1,12 @@
 /**
  * GET  /api/ocupacion/cargas?relevamientoId=123      — listar cargas
  * POST /api/ocupacion/cargas                          — crear carga (con snapshot)
- * Acceso restringido: emails autorizados (ocupacion-acceso) + rol admin.
+ * Acceso por módulo RBAC 'ocupacion'.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { requireAcceso, requireEscritura } from '@/lib/permisos'
 import { getCargasDeRelevamiento } from '@/lib/ocupacion-service'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 const GAS_URL = process.env.OCUPACION_GAS_URL
 const GAS_API_KEY = process.env.OCUPACION_GAS_API_KEY
@@ -15,13 +14,8 @@ const GAS_API_KEY = process.env.OCUPACION_GAS_API_KEY
 // ── GET ────────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (!tieneAccesoOcupacion(session.user.email)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireAcceso('ocupacion')
+  if (session instanceof NextResponse) return session
 
   try {
     const { searchParams } = new URL(req.url)
@@ -41,13 +35,8 @@ export async function GET(req: NextRequest) {
 // ── POST ───────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (!tieneAccesoOcupacion(session.user.email)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireEscritura('ocupacion')
+  if (session instanceof NextResponse) return session
 
   try {
     if (!GAS_URL || GAS_URL.includes('PENDIENTE')) {
@@ -64,7 +53,7 @@ export async function POST(req: NextRequest) {
     // El payload incluye el snapshot completo del alojamiento
     const data = {
       ...body,
-      usuarioEmail: session.user.email,
+      usuarioEmail: session.user?.email ?? '',
     }
 
     const res = await fetch(GAS_URL, {

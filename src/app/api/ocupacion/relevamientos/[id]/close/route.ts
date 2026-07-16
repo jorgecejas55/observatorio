@@ -4,10 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { requireEscritura } from '@/lib/permisos'
 import { getCargasDeRelevamiento, getAlojamientosParaRelevamiento, guardarIndicadoresOH } from '@/lib/ocupacion-service'
 import { calcularIndicadoresRelevamiento } from '@/lib/informes-auto/calculos'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 const GAS_URL = process.env.OCUPACION_GAS_URL
 const GAS_API_KEY = process.env.OCUPACION_GAS_API_KEY
@@ -16,13 +15,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (!tieneAccesoOcupacion(session.user.email)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireEscritura('ocupacion')
+  if (session instanceof NextResponse) return session
 
   try {
     if (!GAS_URL || GAS_URL.includes('PENDIENTE')) {
@@ -37,7 +31,7 @@ export async function POST(
       body: JSON.stringify({
         apiKey: GAS_API_KEY,
         path: 'relevamientos/close',
-        data: { id, usuarioEmail: session.user.email },
+        data: { id, usuarioEmail: session.user?.email ?? '' },
       }),
     })
     const json = await res.json()
@@ -56,7 +50,7 @@ export async function POST(
       )
       await guardarIndicadoresOH({
         ...indicadores,
-        usuarioEmail: session.user.email,
+        usuarioEmail: session.user?.email ?? '',
       })
     } catch (err) {
       console.error('[ocupacion/close] Indicadores pendientes:', err)

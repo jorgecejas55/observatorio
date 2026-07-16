@@ -4,19 +4,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { requireAcceso, requireEscritura } from '@/lib/permisos'
 import { getIndicadoresOH, guardarIndicadoresOH, getCargasDeRelevamiento, getAlojamientosParaRelevamiento } from '@/lib/ocupacion-service'
 import { calcularIndicadoresRelevamiento } from '@/lib/informes-auto/calculos'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 async function checkAuth() {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (!tieneAccesoOcupacion(session.user.email)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireAcceso('ocupacion')
+  if (session instanceof NextResponse) return session
+  return session
+}
+
+async function checkAuthWrite() {
+  const session = await requireEscritura('ocupacion')
+  if (session instanceof NextResponse) return session
   return session
 }
 
@@ -41,7 +41,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await checkAuth()
+  const authResult = await checkAuthWrite()
   if (authResult instanceof NextResponse) return authResult
   const session = authResult
 

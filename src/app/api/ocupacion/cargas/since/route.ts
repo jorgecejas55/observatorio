@@ -4,18 +4,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { requireAcceso } from '@/lib/permisos'
 import { getCargasSince } from '@/lib/ocupacion-service'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
 
 export async function GET(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  // @ts-expect-error
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  if (!tieneAccesoOcupacion(session.user.email)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const session = await requireAcceso('ocupacion')
+  if (session instanceof NextResponse) return session
 
   try {
     const { searchParams } = new URL(req.url)

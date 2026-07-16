@@ -6,7 +6,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { tituloRelevamiento, formatearRango } from '@/lib/formato-fechas'
+import { puedeEscribir } from '@/lib/permisos'
+import type { SessionUser } from '@/lib/permisos'
 
 interface Relevamiento {
   id: string
@@ -24,6 +27,9 @@ interface RelevamientoActivo extends Relevamiento {
 }
 
 export default function RelevamientosPage() {
+  const { data: session } = useSession()
+  const escribir = puedeEscribir(session?.user as SessionUser)
+
   const [relevamientos, setRelevamientos] = useState<Relevamiento[]>([])
   const [activo, setActivo] = useState<RelevamientoActivo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -179,17 +185,21 @@ export default function RelevamientosPage() {
             <a href={`/admin/ocupacion/relevamientos/${activo.id}`} className="btn-primary text-xs px-3 py-1.5">
               <i className="fas fa-eye mr-1" />Ver detalle
             </a>
-            <a href="/admin/ocupacion/carga" className="btn-primary text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700">
-              <i className="fas fa-plus mr-1" />Cargar OH
-            </a>
-            <button
-              onClick={() => handleClose(activo.id)}
-              disabled={closingId === activo.id}
-              className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 disabled:opacity-50 transition-colors"
-            >
-              <i className="fas fa-lock mr-1" />
-              {closingId === activo.id ? 'Cerrando...' : 'Cerrar'}
-            </button>
+            {escribir && (
+              <>
+                <a href="/admin/ocupacion/carga" className="btn-primary text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700">
+                  <i className="fas fa-plus mr-1" />Cargar OH
+                </a>
+                <button
+                  onClick={() => handleClose(activo.id)}
+                  disabled={closingId === activo.id}
+                  className="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-600 border border-red-200 rounded-md hover:bg-red-100 disabled:opacity-50 transition-colors"
+                >
+                  <i className="fas fa-lock mr-1" />
+                  {closingId === activo.id ? 'Cerrando...' : 'Cerrar'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -207,18 +217,20 @@ export default function RelevamientosPage() {
           <option value="CERRADO">Cerrado</option>
         </select>
         <div className="flex-1" />
-        <button
-          onClick={() => setShowForm(!showForm)}
-          disabled={!!activo}
-          className="btn-primary text-sm disabled:opacity-50"
-          title={activo ? 'Ya existe un relevamiento activo' : undefined}
-        >
-          <i className="fas fa-plus mr-1" />Nuevo relevamiento
-        </button>
+        {escribir && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            disabled={!!activo}
+            className="btn-primary text-sm disabled:opacity-50"
+            title={activo ? 'Ya existe un relevamiento activo' : undefined}
+          >
+            <i className="fas fa-plus mr-1" />Nuevo relevamiento
+          </button>
+        )}
       </div>
 
       {/* Formulario crear */}
-      {showForm && (
+      {escribir && showForm && (
         <form onSubmit={handleCreate} className="card p-5 space-y-3 bg-gray-50 border border-gray-200">
           <h3 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
             <i className="fas fa-calendar-plus text-accent" /> Nuevo relevamiento

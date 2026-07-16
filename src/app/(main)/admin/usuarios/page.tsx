@@ -1,24 +1,20 @@
-import { redirect } from 'next/navigation'
-import { auth } from '@/auth'
+import { requireAccesoPage } from '@/lib/permisos'
+import UsuariosClient from './UsuariosClient'
 
 export default async function UsuariosAdmin() {
-  const session = await auth()
-  if (!session?.user) redirect('/login')
-  // @ts-expect-error — rol extendido en la sesión
-  if (session.user?.rol !== 'admin') redirect('/sin-acceso')
-  if (session.user.email !== 'jorgecejas55@gmail.com') redirect('/sin-acceso')
+  await requireAccesoPage('usuarios')
 
   return (
     <div>
-      <h2 className="section-title">Gestión de Usuarios</h2>
-      <div className="card p-8 text-center text-text-secondary">
-        <i className="fa-solid fa-users-gear text-4xl text-primary/30 mb-4 block" />
-        <p className="font-semibold text-text-primary mb-1">Panel en desarrollo</p>
-        <p className="text-sm">
-          Aquí se administrarán los roles de usuario cargados en la hoja{' '}
-          <code className="bg-gray-100 px-1 rounded text-xs">OBS_Admin</code> de Google Sheets.
-        </p>
-      </div>
+      <h2 className="section-title mb-1">
+        <i className="fa-solid fa-users-gear text-primary mr-2" />
+        Gestión de Usuarios
+      </h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Administrá quién accede a cada módulo del Observatorio. Los cambios aplican en la
+        próxima sesión o en menos de 10 minutos.
+      </p>
+      <UsuariosClient />
     </div>
   )
 }

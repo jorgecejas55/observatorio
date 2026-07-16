@@ -4,12 +4,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
+import { tieneAcceso } from '@/lib/permisos'
+import type { ModuloKey } from '@/lib/permisos/modulos'
 
 interface NavItem {
   href: string
   label: string
   icon: string
+  /** Módulo requerido para ver este item (si no se especifica, visible para todos los logueados) */
+  modulo?: ModuloKey
 }
 
 interface NavGroup {
@@ -45,7 +48,7 @@ const NAV: NavGroup[] = [
     color: 'text-teal-600',
     items: [
       { href: '/casa-catamarca/encuesta', label: 'Cargar encuesta', icon: 'fa-clipboard-list' },
-      { href: '/casa-catamarca/dashboard', label: 'Panel operativo', icon: 'fa-chart-pie' },
+      { href: '/casa-catamarca/dashboard', label: 'Panel operativo', icon: 'fa-chart-pie', modulo: 'casa-catamarca' },
     ],
   },
   {
@@ -99,6 +102,16 @@ const NAV: NavGroup[] = [
   },
 ]
 
+/** Items de la sección Admin (siempre visibles para logueados, salvo los que tienen módulo) */
+const ADMIN_ITEMS: NavItem[] = [
+  { href: '/admin/ocupacion', label: 'Ocupación Hotelera', icon: 'fa-hotel', modulo: 'ocupacion' },
+  { href: '/admin/informes-auto', label: 'Agente informes', icon: 'fa-robot', modulo: 'informes-auto' },
+  { href: '/admin/informes', label: 'Cargar informe', icon: 'fa-file-arrow-up', modulo: 'informes' },
+  { href: '/admin/metricas', label: 'Métricas', icon: 'fa-chart-simple', modulo: 'metricas' },
+  { href: '/admin/usuarios', label: 'Usuarios', icon: 'fa-users-gear', modulo: 'usuarios' },
+  { href: '/admin/config', label: 'Configuración', icon: 'fa-gear', modulo: 'config' },
+]
+
 function NavLink({ href, label, icon, onNavigate }: NavItem & { onNavigate?: () => void }) {
   const pathname = usePathname()
   const active = pathname === href
@@ -127,8 +140,6 @@ interface SidebarProps {
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const { data: session } = useSession()
   const estaLogueado = !!session?.user
-  const esJorge = session?.user?.email === 'jorgecejas55@gmail.com'
-  const accedeOcupacion = tieneAccesoOcupacion(session?.user?.email)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'Turismo de Ocio': true,
     'Turismo de Eventos': true,
@@ -143,6 +154,20 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const toggle = (label: string) =>
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }))
 
+  /** Filtra items según los permisos del usuario */
+  const visibleItems = (items: NavItem[]) =>
+    items.filter((item) => {
+      if (!item.modulo) return true // sin módulo → visible para todos
+      if (!session?.user) return false // requiere módulo pero no hay sesión
+      return tieneAcceso(session.user, item.modulo)
+    })
+
+  /** Filtra grupos: solo se muestran si tienen al menos un item visible */
+  const visibleGroups = NAV.filter((group) => visibleItems(group.items).length > 0)
+
+  /** Items admin visibles */
+  const adminVisibles = estaLogueado ? visibleItems(ADMIN_ITEMS) : []
+
   return (
     <>
       <aside data-app-sidebar className={`flex flex-col fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-gray-100 overflow-y-auto z-40 transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -152,7 +177,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
           <div className="my-2 border-t border-gray-100" />
 
-          {NAV.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.label} className="mb-1">
               <button
                 onClick={() => toggle(group.label)}
@@ -169,7 +194,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
               {openGroups[group.label] && (
                 <div className="ml-3 pl-3 border-l border-gray-100 flex flex-col gap-0.5 mt-0.5">
-                  {group.items.map((item) => (
+                  {visibleItems(group.items).map((item) => (
                     <NavLink key={item.href} {...item} onNavigate={onClose} />
                   ))}
                 </div>
@@ -177,29 +202,33 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             </div>
           ))}
 
-          {accedeOcupacion && (
+          {adminVisibles.length > 0 && (
             <>
               <div className="my-2 border-t border-gray-100" />
 
-              {/* Ocupación Hotelera — emails autorizados (ocupacion-acceso) */}
-              <NavLink href="/admin/ocupacion" label="Ocupación Hotelera" icon="fa-hotel" onNavigate={onClose} />
-            </>
-          )}
+              {/* Admin — solo usuarios con al menos un módulo admin */}
+              <div className="mb-1">
+                <button
+                  onClick={() => toggle('admin')}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider text-text-secondary hover:text-primary transition-colors"
+                >
+                  <i className="fa-solid fa-shield-halved text-primary text-sm w-4 text-center" />
+                  <span className="flex-1 text-left">Administración</span>
+                  <i
+                    className={`fa-solid fa-chevron-down text-xs transition-transform duration-200 ${
+                      openGroups['admin'] ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
 
-          {estaLogueado && (
-            <>
-              <div className="my-2 border-t border-gray-100" />
-
-              {/* Admin — oculto para público no logueado */}
-              {esJorge && (
-                <NavLink href="/admin/informes-auto" label="Agente informes" icon="fa-robot" onNavigate={onClose} />
-              )}
-              <NavLink href="/admin/informes" label="Cargar informe" icon="fa-file-arrow-up" onNavigate={onClose} />
-              <NavLink href="/admin/metricas" label="Métricas" icon="fa-chart-simple" onNavigate={onClose} />
-              {esJorge && (
-                <NavLink href="/admin/usuarios" label="Usuarios" icon="fa-users-gear" onNavigate={onClose} />
-              )}
-              <NavLink href="/admin/config" label="Configuración" icon="fa-gear" onNavigate={onClose} />
+                {openGroups['admin'] && (
+                  <div className="ml-3 pl-3 border-l border-gray-100 flex flex-col gap-0.5 mt-0.5">
+                    {adminVisibles.map((item) => (
+                      <NavLink key={item.href} {...item} onNavigate={onClose} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </nav>

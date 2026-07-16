@@ -1,12 +1,12 @@
 /**
  * Layout de la sección Ocupación Hotelera.
- * Acceso restringido a emails autorizados (ocupacion-acceso).
+ * Acceso por módulo RBAC 'ocupacion'.
  */
 
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
+import { requireAccesoPage, puedeEscribir } from '@/lib/permisos'
+import type { SessionUser } from '@/lib/permisos'
 
 export const metadata: Metadata = {
   title: 'Ocupación Hotelera — Observatorio',
@@ -14,11 +14,9 @@ export const metadata: Metadata = {
 }
 
 export default async function OcupacionLayout({ children }: { children: React.ReactNode }) {
+  await requireAccesoPage('ocupacion')
   const session = await auth()
-  if (!session?.user) redirect('/login')
-  // @ts-expect-error — rol extendido en la sesión
-  if (session.user?.rol !== 'admin') redirect('/sin-acceso')
-  if (!tieneAccesoOcupacion(session.user.email)) redirect('/sin-acceso')
+  const escribir = puedeEscribir(session?.user as SessionUser)
 
   return (
     <div className="space-y-6">
@@ -35,9 +33,11 @@ export default async function OcupacionLayout({ children }: { children: React.Re
           <a href="/admin/ocupacion/relevamientos" className="px-3 py-1.5 rounded-md hover:bg-gray-100 text-gray-700 font-medium transition-colors">
             <i className="fas fa-list-check mr-1.5 opacity-60" />Relevamientos
           </a>
-          <a href="/admin/ocupacion/carga" className="px-3 py-1.5 rounded-md hover:bg-gray-100 text-gray-700 font-medium transition-colors">
-            <i className="fas fa-cloud-upload-alt mr-1.5 opacity-60" />Carga OH
-          </a>
+          {escribir && (
+            <a href="/admin/ocupacion/carga" className="px-3 py-1.5 rounded-md hover:bg-gray-100 text-gray-700 font-medium transition-colors">
+              <i className="fas fa-cloud-upload-alt mr-1.5 opacity-60" />Carga OH
+            </a>
+          )}
         </nav>
       </div>
 

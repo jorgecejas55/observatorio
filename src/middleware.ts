@@ -16,10 +16,10 @@
 //   /api/ocio/dashboard             — API que alimenta el dashboard público
 // const PUBLIC_PATHS = ['/estadisticas/perfil-visitante', '/login']
 
-// ── Protección de Ocupación Hotelera ─────────────────────────────────────────
-// /admin/ocupacion, /admin/informes-auto y /admin/usuarios ya están protegidas
-// a nivel de layout/página (sesión + rol admin + email jorgecejas55@gmail.com),
-// más las API routes (/api/ocupacion/*) con el mismo chequeo.
+// ── Protección de módulos ────────────────────────────────────────────────────
+// Todas las secciones admin están protegidas por requireAcceso / requireAccesoPage
+// (RBAC por módulo vía OBS_Admin GAS). El middleware no redirige — los gates
+// están en layouts, páginas y API routes.
 
 export default function middleware() {
   // sin redirecciones — todas las rutas accesibles

@@ -1,11 +1,10 @@
 /**
  * Proxy al Sistema de Ocupación Hotelera.
- * Solo accesible con sesión NextAuth + rol admin + email autorizado (ocupacion-acceso).
+ * Acceso por módulo RBAC 'ocupacion'.
  */
 
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
-import { tieneAccesoOcupacion } from '@/lib/ocupacion-acceso'
+import { requireAcceso } from '@/lib/permisos'
 import {
   loginOcupacion,
   getRelevamientosEspeciales,
@@ -17,24 +16,10 @@ import {
 } from '@/lib/ocupacion-api'
 
 export async function GET() {
-  // 1. Verificar sesión NextAuth
-  const session = await auth()
-  if (!session?.user) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  }
+  const session = await requireAcceso('ocupacion')
+  if (session instanceof NextResponse) return session
 
-  // 2. Solo admin
-  // @ts-expect-error — rol extendido en la sesión
-  if (session.user?.rol !== 'admin') {
-    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
-  }
-
-  // 3. Solo emails autorizados para Ocupación Hotelera
-  if (!tieneAccesoOcupacion(session.user.email)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
-
-  // 4. Ejecutar operaciones
+  // Ejecutar operaciones
   try {
     const token = await loginOcupacion()
     const currentYear = new Date().getFullYear()

@@ -1,6 +1,6 @@
 // ─── Roles ────────────────────────────────────────────────────────────────────
 
-export type Rol = 'operador' | 'tecnico' | 'admin'
+export type Rol = 'operador' | 'tecnico' | 'lector' | 'admin'
 
 export interface Usuario {
   id: string

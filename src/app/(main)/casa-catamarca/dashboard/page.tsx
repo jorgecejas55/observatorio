@@ -1,10 +1,10 @@
 import { auth } from '@/auth'
-import { tieneAccesoCasaCatamarca } from '@/lib/casa-catamarca-acceso'
+import { tieneAcceso } from '@/lib/permisos'
 import { DashboardClient } from './DashboardClient'
 
 /**
  * Server Component — gate de autenticación para el dashboard de Casa de Catamarca.
- * Solo emails en la allowlist pueden ver estadísticas.
+ * Acceso regulado por el módulo 'casa-catamarca' del sistema RBAC.
  */
 export default async function CasaCatamarcaDashboardPage() {
   const session = await auth()
@@ -23,7 +23,7 @@ export default async function CasaCatamarcaDashboardPage() {
     )
   }
 
-  if (!tieneAccesoCasaCatamarca(session.user.email)) {
+  if (!tieneAcceso(session.user, 'casa-catamarca')) {
     return (
       <div className="card p-12 text-center">
         <i className="fa-solid fa-shield-halved text-4xl text-gray-300 mb-4 block" />

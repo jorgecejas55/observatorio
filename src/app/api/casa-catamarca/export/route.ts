@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
-import { tieneAccesoCasaCatamarca } from '@/lib/casa-catamarca-acceso'
+import { requireAcceso } from '@/lib/permisos'
 
 const GAS = process.env.CASA_CATAMARCA_DASHBOARD_SCRIPT_URL ?? ''
 const API_KEY = process.env.CASA_CATAMARCA_API_KEY ?? ''
@@ -8,13 +7,8 @@ const API_KEY = process.env.CASA_CATAMARCA_API_KEY ?? ''
 export async function GET(req: Request) {
   try {
     // Gate de autenticación (defensa en profundidad)
-    const session = await auth()
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tieneAccesoCasaCatamarca(session.user.email)) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
-    }
+    const session = await requireAcceso('casa-catamarca')
+    if (session instanceof NextResponse) return session
 
     if (!GAS) {
       return NextResponse.json(

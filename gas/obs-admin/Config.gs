@@ -13,11 +13,13 @@ const CONFIG = {
     AUDITORIA: 'Auditoria'
   },
 
-  // API Key compartida con Next.js para proteger el endpoint
-  API_KEY: 'obsadmin_338da0a5bf9cb7382dbd54905ef78aecff2854b807fa90f2',
+  // API Key compartida con Next.js para proteger el endpoint.
+  // NO commitear la key real: pegarla acá solo en el editor de Apps Script,
+  // y en Next.js va en OBS_ADMIN_GAS_API_KEY (.env.local / Vercel).
+  API_KEY: 'PENDIENTE_API_KEY',
 
   // Roles válidos del sistema
-  ROLES: ['admin', 'operador'],
+  ROLES: ['admin', 'operador', 'lector'],
 
   // Columnas de cada hoja (índice empezando en 0)
   //
