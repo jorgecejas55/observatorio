@@ -19,10 +19,12 @@ export default function MainLayoutClient({ children }: { children: React.ReactNo
     <div className="min-h-screen bg-gray-50 print:bg-white print:min-h-0">
       <Header sidebarOpen={open} onToggle={toggle} />
 
-      {/* Backdrop mobile — clic fuera cierra el sidebar */}
+      {/* Backdrop mobile — clic fuera cierra el sidebar.
+          print:hidden: al imprimir en vertical el "viewport" del papel (~794px)
+          no alcanza el breakpoint lg y esta capa se imprimía sobre el contenido. */}
       {open && (
         <div
-          className="fixed inset-0 bg-black/30 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/30 z-30 lg:hidden print:hidden"
           onClick={close}
         />
       )}

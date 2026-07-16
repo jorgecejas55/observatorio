@@ -20,8 +20,8 @@ export default async function OcupacionLayout({ children }: { children: React.Re
 
   return (
     <div className="space-y-6">
-      {/* Sub-nav interno de la sección */}
-      <div className="flex flex-wrap gap-2 items-center border-b border-gray-200 pb-3">
+      {/* Sub-nav interno de la sección (nunca se imprime) */}
+      <div className="print:hidden flex flex-wrap gap-2 items-center border-b border-gray-200 pb-3">
         <h2 className="text-xl font-bold text-gray-800 mr-4">
           <i className="fas fa-hotel text-accent mr-2" />
           Ocupación Hotelera

@@ -1,7 +1,9 @@
 'use client'
 
 /**
- * Ficha técnica de ocupación hotelera — página print-friendly A4 vertical.
+ * Ficha técnica de ocupación hotelera — print-friendly A4 APAISADO,
+ * con el mismo formato editorial que los informes-auto: portada de hoja
+ * completa + páginas de datos con encabezado reducido.
  * Se abre desde el detalle de relevamiento. Usar Ctrl+P para exportar PDF.
  */
 
@@ -79,27 +81,34 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
   }
 
   const hoy = new Date().toLocaleDateString('es-AR')
+  const titulo = tituloRelevamiento(rel.tipo, rel.nombre, rel.fechaInicio)
+
+  // Encabezado reducido de las páginas de datos (solo impresión)
+  const EncabezadoReducido = () => (
+    <div className="hidden print:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 gap-3">
+      <img src="/logos/secretaria.png" alt="Secretaría" className="h-6 w-auto" />
+      <span className="text-xs font-semibold text-gray-800">
+        Ficha Técnica de Ocupación Hotelera — {titulo}
+      </span>
+      <div className="flex items-center gap-2">
+        <img src="/logos/asociacion-hoteles.jpg" alt="Asociación de Hoteles" className="h-7 w-auto" />
+        <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
+        <img src="/logos/observatorio.png" alt="Observatorio" className="h-7 w-auto" />
+      </div>
+    </div>
+  )
 
   return (
     <>
-      {/* Print styles */}
+      {/* Estilos locales de impresión (el chrome de la app y la paginación
+          los maneja globals.css: A4 landscape, .portada-informe, .pagina-*) */}
       <style>{`
         @media print {
-          html, body, main, #__next, [data-app-root] { background: white !important; }
-          header[data-app-header], aside[data-app-sidebar], nav[data-app-nav],
-          .no-print, nav, .sidebar, [class*="sidebar"], [class*="Sidebar"] { display: none !important; }
-          main { margin-left: 0 !important; padding-top: 0 !important; background: white !important; }
           .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
-          .page-break { page-break-after: always; }
-          .bg-amber-50 { background-color: #fffbeb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .bg-green-50 { background-color: #f0fdf4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .bg-red-50 { background-color: #fef2f2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .bg-gray-50, .bg-gray-100, [class*="bg-gray-"] { background: white !important; }
-          @page { size: A4 portrait; margin: 1.5cm; }
         }
       `}</style>
 
-      {/* Botón imprimir (solo pantalla) */}
+      {/* Botones (solo pantalla) */}
       <div className="no-print fixed top-4 right-4 z-50 flex gap-2">
         <a
           href={`/admin/ocupacion/relevamientos/${id}`}
@@ -116,25 +125,79 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
         </button>
       </div>
 
-      {/* ── PÁGINA 1 ─────────────────────────────────────────────────────── */}
-      <div className="max-w-3xl mx-auto py-8 print:py-0">
-        {/* Encabezado institucional */}
-        <div className="text-center mb-6 pb-4 border-b-2 border-gray-300">
+      {/* ── 0. PORTADA (solo impresión) ────────────────────────────────────── */}
+      <div className="portada-informe">
+        {/* Fila superior de logos */}
+        <div className="flex items-start justify-between">
+          <img
+            src="/logos/secretaria.png"
+            alt="Secretaría de Turismo y Desarrollo Económico"
+            className="h-12 w-auto"
+          />
+          <div className="flex items-center gap-4">
+            <img
+              src="/logos/asociacion-hoteles.jpg"
+              alt="Asociación de Hoteles, Bares, Confiterías, Restaurantes y Afines de Catamarca"
+              className="h-14 w-auto"
+            />
+            <img
+              src="/logos/observatorio.png"
+              alt="Observatorio de Turismo Municipal"
+              className="h-16 w-auto"
+            />
+          </div>
+        </div>
+
+        {/* Bloque central: marca del destino + título */}
+        <div className="text-center">
+          <img
+            src="/logos/marca-destino.png"
+            alt="San Fernando del Valle de Catamarca"
+            className="h-20 w-auto mx-auto mb-8"
+          />
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-gray-500 mb-4">
+            Ficha Técnica
+          </p>
+          <h1 className="text-4xl font-bold text-gray-800 mb-3">
+            Ocupación Hotelera
+          </h1>
+          <h2 className="text-3xl font-bold text-accent mb-6">
+            {titulo}
+          </h2>
+          <div className="w-24 h-1 bg-accent mx-auto mb-6 rounded-full" />
+          <p className="text-lg text-gray-500">
+            {formatearRango(rel.fechaInicio, rel.fechaFin)}
+          </p>
+        </div>
+
+        {/* Pie institucional */}
+        <div className="text-center text-sm text-gray-500 space-y-0.5">
+          <p className="font-semibold text-gray-800">Observatorio de Turismo Municipal</p>
+          <p>Secretaría de Turismo y Desarrollo Económico - Municipalidad de la Capital</p>
+          <p>San Fernando del Valle de Catamarca</p>
+        </div>
+      </div>
+
+      {/* ── PÁGINA 1: identificación + indicadores globales ────────────────── */}
+      <div className="pagina-1 max-w-4xl mx-auto py-8 print:py-0 print:max-w-none">
+        <EncabezadoReducido />
+
+        {/* Encabezado institucional (solo pantalla; en el PDF lo reemplaza la portada) */}
+        <div className="print:hidden text-center mb-6 pb-4 border-b-2 border-gray-300">
           <div className="flex items-center justify-between mb-4">
-            <img src="/logos/secretaria.png" alt="Secretaría" className="h-12 print:h-16 object-contain" />
-            <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-12 print:h-16 object-contain" />
-            <img src="/logos/observatorio.png" alt="Observatorio" className="h-12 print:h-16 object-contain" />
+            <img src="/logos/secretaria.png" alt="Secretaría" className="h-12 object-contain" />
+            <img src="/logos/asociacion-hoteles.jpg" alt="Asociación de Hoteles" className="h-12 object-contain" />
+            <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-12 object-contain" />
+            <img src="/logos/observatorio.png" alt="Observatorio" className="h-12 object-contain" />
           </div>
           <h1 className="text-lg font-bold text-gray-800">Ficha Técnica de Ocupación Hotelera</h1>
           <p className="text-xs text-gray-500 mt-1">Municipalidad de la Capital — Secretaría de Turismo y Desarrollo Económico</p>
         </div>
 
         {/* Identificación */}
-        <div className="mb-5">
-          <h2 className="text-base font-bold text-gray-800 mb-2">
-            {tituloRelevamiento(rel.tipo, rel.nombre, rel.fechaInicio)}
-          </h2>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+        <div className="mb-5 evitar-corte">
+          <h2 className="text-base font-bold text-gray-800 mb-2">{titulo}</h2>
+          <div className="grid grid-cols-2 print:grid-cols-3 gap-x-6 gap-y-1 text-sm">
             <p><span className="text-gray-500">Tipo:</span> {rel.tipo}</p>
             <p><span className="text-gray-500">Período:</span> {formatearRango(rel.fechaInicio, rel.fechaFin)}</p>
             <p><span className="text-gray-500">Estado:</span> CERRADO</p>
@@ -146,7 +209,7 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
 
         {/* KPIs globales */}
         <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Indicadores globales</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-6 gap-3 mb-5 evitar-corte">
           <KpiFicha label="OH ponderada (oficial)" valor={`${ind.global.mediaPonderada}%`} />
           <KpiFicha label="Media simple" valor={`${ind.global.mediaSimple}%`} />
           <KpiFicha label="Mediana" valor={`${ind.global.mediana}%`} />
@@ -164,7 +227,7 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
         </div>
 
         {/* Baja actividad */}
-        <div className={`p-4 rounded-lg border mb-5 ${
+        <div className={`p-4 rounded-lg border mb-5 evitar-corte ${
           ind.bajaActividad.porcentaje > 30 ? 'bg-red-50 border-red-200' :
           ind.bajaActividad.porcentaje > 0 ? 'bg-amber-50 border-amber-200' :
           'bg-green-50 border-green-200'
@@ -176,13 +239,12 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
           </p>
           <p className="text-xs text-gray-500 mt-1">
             Indicador de diagnóstico de gestión para la Asociación de Hoteles. No revela identidades.
-            Indicador de diagnóstico de gestión. No revela identidades.
           </p>
         </div>
 
         {/* Tabla por grupo */}
         <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">OH por grupo tipo-categoría</h3>
-        <table className="w-full text-sm mb-5">
+        <table className="w-full text-sm mb-2">
           <thead>
             <tr className="border-b-2 border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
               <th className="pb-1 font-medium">Grupo</th>
@@ -211,75 +273,78 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
         <p className="text-xs text-gray-400 italic">Solo se muestran los grupos con datos. Sin datos ≠ 0%.</p>
       </div>
 
-      {/* ── SALTO DE PÁGINA ──────────────────────────────────────────────── */}
-      <div className="page-break" />
+      {/* ── PÁGINA 2: distribución + picos | nota metodológica ─────────────── */}
+      <div className="pagina-2 max-w-4xl mx-auto py-8 print:py-0 print:max-w-none">
+        <EncabezadoReducido />
 
-      {/* ── PÁGINA 2 ─────────────────────────────────────────────────────── */}
-      <div className="max-w-3xl mx-auto py-8 print:py-0">
-        {/* Distribución por rangos */}
-        <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Distribución por rangos de ocupación</h3>
-        <div className="space-y-2 mb-5">
-          {ind.distribucionRangos.rangos.map((r) => (
-            <div key={r.etiqueta} className="flex items-center gap-3">
-              <span className="text-sm text-gray-600 w-20">{r.etiqueta}</span>
-              <div className="flex-1 bg-gray-200 h-5 rounded">
-                <div
-                  className={`h-full rounded ${
-                    r.desde >= 75 ? 'bg-green-500' :
-                    r.desde >= 50 ? 'bg-blue-500' :
-                    r.desde >= 25 ? 'bg-amber-500' :
-                    'bg-red-400'
-                  }`}
-                  style={{ width: `${Math.max(r.porcentaje, 2)}%`, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
-                />
-              </div>
-              <span className="text-sm text-gray-700 w-24 text-right">{r.cantidad} ({r.porcentaje}%)</span>
+        <div className="print:grid print:grid-cols-2 print:gap-10">
+          <div>
+            {/* Distribución por rangos */}
+            <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Distribución por rangos de ocupación</h3>
+            <div className="space-y-2 mb-5 evitar-corte">
+              {ind.distribucionRangos.rangos.map((r) => (
+                <div key={r.etiqueta} className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600 w-20">{r.etiqueta}</span>
+                  <div className="flex-1 bg-gray-200 h-5 rounded">
+                    <div
+                      className={`h-full rounded ${
+                        r.desde >= 75 ? 'bg-green-500' :
+                        r.desde >= 50 ? 'bg-blue-500' :
+                        r.desde >= 25 ? 'bg-amber-500' :
+                        'bg-red-400'
+                      }`}
+                      style={{ width: `${Math.max(r.porcentaje, 2)}%`, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+                    />
+                  </div>
+                  <span className="text-sm text-gray-700 w-24 text-right">{r.cantidad} ({r.porcentaje}%)</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Picos */}
-        {ind.picos.porTipo.length > 0 && (
-          <>
-            <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Picos de ocupación por grupo</h3>
-            {ind.picos.picoMaximo && (
-              <p className="text-xs text-gray-500 mb-2">
-                Máximo global: <strong>{ind.picos.picoMaximo.tipoCategoria}</strong> ({ind.picos.picoMaximo.ohMaximo}%)
-              </p>
+            {/* Picos */}
+            {ind.picos.porTipo.length > 0 && (
+              <div className="evitar-corte">
+                <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Picos de ocupación por grupo</h3>
+                {ind.picos.picoMaximo && (
+                  <p className="text-xs text-gray-500 mb-2">
+                    Máximo global: <strong>{ind.picos.picoMaximo.tipoCategoria}</strong> ({ind.picos.picoMaximo.ohMaximo}%)
+                  </p>
+                )}
+                <table className="w-full text-sm mb-5">
+                  <thead>
+                    <tr className="border-b-2 border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
+                      <th className="pb-1 font-medium">Grupo</th>
+                      <th className="pb-1 font-medium text-right">OH máximo</th>
+                      <th className="pb-1 font-medium text-right">Establecimientos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ind.picos.porTipo.map((p) => (
+                      <tr key={p.tipoCategoria} className="border-b border-gray-100">
+                        <td className="py-1.5 text-gray-700">{p.tipoCategoria}</td>
+                        <td className="py-1.5 text-right font-semibold text-gray-800">{p.ohMaximo}%</td>
+                        <td className="py-1.5 text-right text-gray-600">{p.cantidadAlojamientos}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-            <table className="w-full text-sm mb-5">
-              <thead>
-                <tr className="border-b-2 border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
-                  <th className="pb-1 font-medium">Grupo</th>
-                  <th className="pb-1 font-medium text-right">OH máximo</th>
-                  <th className="pb-1 font-medium text-right">Establecimientos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ind.picos.porTipo.map((p) => (
-                  <tr key={p.tipoCategoria} className="border-b border-gray-100">
-                    <td className="py-1.5 text-gray-700">{p.tipoCategoria}</td>
-                    <td className="py-1.5 text-right font-semibold text-gray-800">{p.ohMaximo}%</td>
-                    <td className="py-1.5 text-right text-gray-600">{p.cantidadAlojamientos}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
+          </div>
 
-        {/* Nota metodológica */}
-        <div className="mt-6 pt-4 border-t border-gray-300">
-          <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Nota metodológica</h3>
-          <div className="text-xs text-gray-600 space-y-1.5 leading-relaxed">
-            <p><strong>OH ponderada (oficial):</strong> porcentaje de habitaciones ocupadas sobre el total de habitaciones relevadas, ponderado por la capacidad de cada establecimiento. Incluye todos los datos registrados.</p>
-            <p><strong>Media simple:</strong> promedio aritmético de los porcentajes de ocupación de cada establecimiento, sin ponderar por capacidad.</p>
-            <p><strong>Mediana:</strong> percentil 50 de los porcentajes de ocupación. Robusta ante valores extremos.</p>
-            <p><strong>Media recortada:</strong> media excluyendo valores fuera del rango media ± 2,5 desvíos estándar (criterio simétrico y automático, consistente con el cálculo de estadía promedio). El número de excluidos se informa entre paréntesis. Si el recorte excluye todas las observaciones, se reporta la media simple.</p>
-            <p><strong>Baja actividad comercial:</strong> indicador propio del Observatorio. Porcentaje de establecimientos relevados cuya ocupación es estrictamente inferior al umbral del {ind.bajaActividad.umbral}%. Refleja establecimientos con actividad comercial reducida. Este indicador no revela la identidad de los establecimientos.</p>
-            <p><strong>Sin datos ≠ 0%:</strong> los establecimientos sin carga explícita no participan en los cálculos. La ausencia de carga no se interpreta como ocupación 0%.</p>
-            <p><strong>Anonimato:</strong> por regla del Observatorio, los indicadores desagregados por grupo no exponen nombres de establecimientos individuales.</p>
-            <p className="mt-2 text-gray-400">Documento generado el {hoy} por el Observatorio de Turismo Municipal de San Fernando del Valle de Catamarca. Uso interno y para la Asociación de Hoteles.</p>
+          {/* Nota metodológica */}
+          <div className="mt-6 pt-4 border-t border-gray-300 print:mt-0 print:pt-0 print:border-t-0 print:border-l print:pl-8">
+            <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Nota metodológica</h3>
+            <div className="text-xs text-gray-600 space-y-1.5 leading-relaxed">
+              <p><strong>OH ponderada (oficial):</strong> porcentaje de habitaciones ocupadas sobre el total de habitaciones relevadas, ponderado por la capacidad de cada establecimiento. Incluye todos los datos registrados.</p>
+              <p><strong>Media simple:</strong> promedio aritmético de los porcentajes de ocupación de cada establecimiento, sin ponderar por capacidad.</p>
+              <p><strong>Mediana:</strong> percentil 50 de los porcentajes de ocupación. Robusta ante valores extremos.</p>
+              <p><strong>Media recortada:</strong> media excluyendo valores fuera del rango media ± 2,5 desvíos estándar (criterio simétrico y automático, consistente con el cálculo de estadía promedio). El número de excluidos se informa entre paréntesis. Si el recorte excluye todas las observaciones, se reporta la media simple.</p>
+              <p><strong>Baja actividad comercial:</strong> indicador propio del Observatorio. Porcentaje de establecimientos relevados cuya ocupación es estrictamente inferior al umbral del {ind.bajaActividad.umbral}%. Refleja establecimientos con actividad comercial reducida. Este indicador no revela la identidad de los establecimientos.</p>
+              <p><strong>Sin datos ≠ 0%:</strong> los establecimientos sin carga explícita no participan en los cálculos. La ausencia de carga no se interpreta como ocupación 0%.</p>
+              <p><strong>Anonimato:</strong> por regla del Observatorio, los indicadores desagregados por grupo no exponen nombres de establecimientos individuales.</p>
+              <p className="mt-2 text-gray-400">Documento generado el {hoy} por el Observatorio de Turismo Municipal de San Fernando del Valle de Catamarca. Uso interno y para la Asociación de Hoteles.</p>
+            </div>
           </div>
         </div>
       </div>
