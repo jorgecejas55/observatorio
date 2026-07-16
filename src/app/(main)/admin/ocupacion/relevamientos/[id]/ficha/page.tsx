@@ -91,7 +91,6 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
         Ficha Técnica de Ocupación Hotelera — {titulo}
       </span>
       <div className="flex items-center gap-2">
-        <img src="/logos/asociacion-hoteles.jpg" alt="Asociación de Hoteles" className="h-7 w-auto" />
         <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
         <img src="/logos/observatorio.png" alt="Observatorio" className="h-7 w-auto" />
       </div>
@@ -127,25 +126,23 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
 
       {/* ── 0. PORTADA (solo impresión) ────────────────────────────────────── */}
       <div className="portada-informe">
-        {/* Fila superior de logos */}
-        <div className="flex items-start justify-between">
+        {/* Fila superior de logos: Secretaría | Asociación (centrada) | Observatorio */}
+        <div className="grid grid-cols-3 items-start">
           <img
             src="/logos/secretaria.png"
             alt="Secretaría de Turismo y Desarrollo Económico"
-            className="h-12 w-auto"
+            className="h-12 w-auto justify-self-start"
           />
-          <div className="flex items-center gap-4">
-            <img
-              src="/logos/asociacion-hoteles.jpg"
-              alt="Asociación de Hoteles, Bares, Confiterías, Restaurantes y Afines de Catamarca"
-              className="h-14 w-auto"
-            />
-            <img
-              src="/logos/observatorio.png"
-              alt="Observatorio de Turismo Municipal"
-              className="h-16 w-auto"
-            />
-          </div>
+          <img
+            src="/logos/asociacion-hoteles.jpg"
+            alt="Asociación de Hoteles, Bares, Confiterías, Restaurantes y Afines de Catamarca"
+            className="h-[4.5rem] w-auto justify-self-center"
+          />
+          <img
+            src="/logos/observatorio.png"
+            alt="Observatorio de Turismo Municipal"
+            className="h-16 w-auto justify-self-end"
+          />
         </div>
 
         {/* Bloque central: marca del destino + título */}
@@ -186,7 +183,6 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
         <div className="print:hidden text-center mb-6 pb-4 border-b-2 border-gray-300">
           <div className="flex items-center justify-between mb-4">
             <img src="/logos/secretaria.png" alt="Secretaría" className="h-12 object-contain" />
-            <img src="/logos/asociacion-hoteles.jpg" alt="Asociación de Hoteles" className="h-12 object-contain" />
             <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-12 object-contain" />
             <img src="/logos/observatorio.png" alt="Observatorio" className="h-12 object-contain" />
           </div>

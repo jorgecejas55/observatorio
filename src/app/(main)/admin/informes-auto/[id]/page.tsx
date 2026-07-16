@@ -310,25 +310,23 @@ export default function InformeAutoDetallePage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8 print:shadow-none print:border-0 print:rounded-none print:p-0 print:m-0 print:max-w-none print:w-full">
         {/* ── 0. PORTADA (solo impresión) ── */}
         <div className="portada-informe">
-          {/* Fila superior de logos: Secretaría a la izquierda; Asociación + Observatorio a la derecha */}
-          <div className="flex items-start justify-between">
+          {/* Fila superior de logos: Secretaría | Asociación (centrada) | Observatorio */}
+          <div className="grid grid-cols-3 items-start">
             <img
               src="/logos/secretaria.png"
               alt="Secretaría de Turismo y Desarrollo Económico"
-              className="h-12 w-auto"
+              className="h-12 w-auto justify-self-start"
             />
-            <div className="flex items-center gap-4">
-              <img
-                src="/logos/asociacion-hoteles.jpg"
-                alt="Asociación de Hoteles, Bares, Confiterías, Restaurantes y Afines de Catamarca"
-                className="h-14 w-auto"
-              />
-              <img
-                src="/logos/observatorio.png"
-                alt="Observatorio de Turismo Municipal"
-                className="h-16 w-auto"
-              />
-            </div>
+            <img
+              src="/logos/asociacion-hoteles.jpg"
+              alt="Asociación de Hoteles, Bares, Confiterías, Restaurantes y Afines de Catamarca"
+              className="h-[4.5rem] w-auto justify-self-center"
+            />
+            <img
+              src="/logos/observatorio.png"
+              alt="Observatorio de Turismo Municipal"
+              className="h-16 w-auto justify-self-end"
+            />
           </div>
 
           {/* Bloque central: marca del destino + título */}
@@ -369,7 +367,6 @@ export default function InformeAutoDetallePage() {
             {etiquetaTipo.header} — {informe.nombre}
           </span>
           <div className="flex items-center gap-2">
-            <img src="/logos/asociacion-hoteles.jpg" alt="Asociación de Hoteles" className="h-7 w-auto" />
             <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
             <img src="/logos/observatorio.png" alt="Observatorio" className="h-7 w-auto" />
           </div>
@@ -394,13 +391,8 @@ export default function InformeAutoDetallePage() {
               Observatorio de Turismo Municipal — San Fernando del Valle de Catamarca
             </p>
           </div>
-          {/* Derecha: asociación + marca destino + logo observatorio */}
+          {/* Derecha: marca destino + logo observatorio */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <img
-              src="/logos/asociacion-hoteles.jpg"
-              alt="Asociación de Hoteles, Bares, Confiterías, Restaurantes y Afines de Catamarca"
-              className="h-11 w-auto print:h-12"
-            />
             <img
               src="/logos/marca-destino.png"
               alt="Marca del Destino"
@@ -549,7 +541,6 @@ export default function InformeAutoDetallePage() {
             {etiquetaTipo.header} — {informe.nombre}
           </span>
           <div className="flex items-center gap-2">
-            <img src="/logos/asociacion-hoteles.jpg" alt="Asociación de Hoteles" className="h-7 w-auto" />
             <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
             <img src="/logos/observatorio.png" alt="Observatorio" className="h-7 w-auto" />
           </div>
