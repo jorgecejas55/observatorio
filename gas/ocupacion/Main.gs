@@ -23,7 +23,7 @@ function doGet(e) {
     const routes = {
       'relevamientos': function () { return getRelevamientos(params); },
       'relevamientos/get': function () { return getRelevamiento(params.id); },
-      'relevamientos/activo': function () { return getRelevamientoActivo(); },
+      'relevamientos/activo': function () { return getRelevamientoActivo(params.tipo); },
       'relevamientos/mensuales': function () { return getRelevamientosMensuales(params.year); },
       'relevamientos/especiales': function () { return getRelevamientosEspeciales(params.year); },
 

@@ -31,7 +31,7 @@ export default function RelevamientosPage() {
   const escribir = puedeEscribir(session?.user as SessionUser)
 
   const [relevamientos, setRelevamientos] = useState<Relevamiento[]>([])
-  const [activo, setActivo] = useState<RelevamientoActivo | null>(null)
+  const [activos, setActivos] = useState<RelevamientoActivo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -57,9 +57,9 @@ export default function RelevamientosPage() {
       if (filtroTipo) params.set('tipo', filtroTipo)
       if (filtroEstado) params.set('estado', filtroEstado)
 
-      const [resRel, resActivo] = await Promise.all([
+      const [resRel, resActivos] = await Promise.all([
         fetch(`/api/ocupacion/relevamientos?${params.toString()}`),
-        fetch('/api/ocupacion/relevamientos/activo'),
+        fetch('/api/ocupacion/relevamientos?estado=EN_CURSO'),
       ])
 
       if (!resRel.ok) throw new Error(`Error ${resRel.status}`)
@@ -67,10 +67,9 @@ export default function RelevamientosPage() {
       const jsonRel = await resRel.json()
       setRelevamientos(jsonRel.data || [])
 
-      if (resActivo.ok) {
-        const jsonA = await resActivo.json()
-        if (jsonA.success && jsonA.data) setActivo(jsonA.data)
-        else setActivo(null)
+      if (resActivos.ok) {
+        const jsonA = await resActivos.json()
+        setActivos(jsonA.data || [])
       }
     } catch (err: any) {
       setError(err.message || 'Error al cargar relevamientos')
@@ -166,12 +165,14 @@ export default function RelevamientosPage() {
     )
   }
 
+  const ambosTiposActivos = activos.some(a => a.tipo === 'Mensual') && activos.some(a => a.tipo === 'Especial')
+
   // ── UI ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Relevamiento activo (banner) */}
-      {activo && (
-        <div className="card p-4 bg-accent/5 border-accent/30 flex flex-wrap items-center justify-between gap-3">
+      {/* Relevamientos activos (banner) — puede haber uno Mensual y uno Especial en paralelo */}
+      {activos.map((activo) => (
+        <div key={activo.id} className="card p-4 bg-accent/5 border-accent/30 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <i className="fas fa-play-circle text-accent text-lg" />
             <div>
@@ -187,7 +188,7 @@ export default function RelevamientosPage() {
             </a>
             {escribir && (
               <>
-                <a href="/admin/ocupacion/carga" className="btn-primary text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700">
+                <a href={`/admin/ocupacion/carga?relevamientoId=${activo.id}`} className="btn-primary text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700">
                   <i className="fas fa-plus mr-1" />Cargar OH
                 </a>
                 <button
@@ -202,7 +203,7 @@ export default function RelevamientosPage() {
             )}
           </div>
         </div>
-      )}
+      ))}
 
       {/* Controles: filtros + botón crear */}
       <div className="flex flex-wrap items-center gap-3">
@@ -220,9 +221,9 @@ export default function RelevamientosPage() {
         {escribir && (
           <button
             onClick={() => setShowForm(!showForm)}
-            disabled={!!activo}
+            disabled={ambosTiposActivos}
             className="btn-primary text-sm disabled:opacity-50"
-            title={activo ? 'Ya existe un relevamiento activo' : undefined}
+            title={ambosTiposActivos ? 'Ya hay un relevamiento Mensual y uno Especial activos' : undefined}
           >
             <i className="fas fa-plus mr-1" />Nuevo relevamiento
           </button>

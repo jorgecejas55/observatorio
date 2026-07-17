@@ -99,12 +99,15 @@ function createCargaOH(carga) {
     setCeldaTexto(sheet, rowNumCarga, CONFIG.COLS.CARGAS.FECHA_CARGA, dateTime.date);
     setCeldaTexto(sheet, rowNumCarga, CONFIG.COLS.CARGAS.HORA_CARGA, dateTime.time);
 
-    // Actualizar metadatos de versión para polling adaptativo
+    // Actualizar metadatos de versión para polling adaptativo.
+    // Se usa el ID (secuencial) como cursor en vez de un timestamp: FechaCarga/HoraCarga
+    // se guardan con precisión de segundo, así que dos cargas en el mismo segundo
+    // podían quedar fuera de un delta "since=timestamp" y no llegar por polling.
     const props = PropertiesService.getScriptProperties();
     const countKey = 'cargas_count_' + carga.relevamientoId;
     const prevCount = Number(props.getProperty(countKey)) || 0;
     props.setProperties({
-      ['cargas_lastmod_' + carga.relevamientoId]: String(Date.now()),
+      ['cargas_lastid_' + carga.relevamientoId]: String(newId),
       [countKey]: String(prevCount + 1)
     });
   } finally {
@@ -152,38 +155,49 @@ function getCargasByRelevamiento(relevamientoId) {
 }
 
 /**
- * Devuelve {count, lastModified} sin leer la hoja (salvo primer warmup).
+ * Devuelve {count, lastId} sin leer la hoja (salvo primer warmup).
  * Usado por el frontend para saber si hay cargas nuevas antes de hacer un delta fetch.
+ * `lastId` es el ID (secuencial) más alto entre las cargas del relevamiento — más
+ * confiable que un timestamp, porque FechaCarga/HoraCarga se guardan con precisión
+ * de segundo y dos cargas en el mismo segundo podían perderse en un delta por tiempo.
  */
 function getCargasVersion(relevamientoId) {
   if (!relevamientoId) return { success: false, error: 'relevamientoId requerido' };
 
   const props = PropertiesService.getScriptProperties();
-  const lastmod = Number(props.getProperty('cargas_lastmod_' + relevamientoId)) || 0;
   let count = Number(props.getProperty('cargas_count_' + relevamientoId));
+  let lastId = Number(props.getProperty('cargas_lastid_' + relevamientoId));
 
-  if (isNaN(count) || count < 0) {
-    // Warmup: contar desde la hoja y persistir
+  if (isNaN(count) || count < 0 || isNaN(lastId)) {
+    // Warmup: recalcular desde la hoja y persistir
     const sheet = getSheet(CONFIG.SHEETS.CARGAS);
     const data = sheet.getDataRange().getValues();
     count = 0;
+    lastId = 0;
     for (let i = 1; i < data.length; i++) {
-      if (data[i][CONFIG.COLS.CARGAS.RELEVAMIENTO_ID] == relevamientoId) count++;
+      if (data[i][CONFIG.COLS.CARGAS.RELEVAMIENTO_ID] == relevamientoId) {
+        count++;
+        const id = Number(data[i][CONFIG.COLS.CARGAS.ID]) || 0;
+        if (id > lastId) lastId = id;
+      }
     }
-    props.setProperty('cargas_count_' + relevamientoId, String(count));
+    props.setProperties({
+      ['cargas_count_' + relevamientoId]: String(count),
+      ['cargas_lastid_' + relevamientoId]: String(lastId)
+    });
   }
 
-  return { success: true, count: count, lastModified: lastmod };
+  return { success: true, count: count, lastId: lastId };
 }
 
 /**
- * Devuelve solo las cargas del relevamiento creadas después de `since` (epoch ms).
+ * Devuelve solo las cargas del relevamiento con ID mayor a `sinceId`.
  * Permite al frontend hacer deltas en vez de bajar el listado completo.
  */
-function getCargasSince(relevamientoId, since) {
+function getCargasSince(relevamientoId, sinceId) {
   if (!relevamientoId) return { success: false, error: 'relevamientoId requerido' };
 
-  const sinceTs = Number(since) || 0;
+  const sinceIdNum = Number(sinceId) || 0;
   const sheet = getSheet(CONFIG.SHEETS.CARGAS);
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
@@ -193,28 +207,10 @@ function getCargasSince(relevamientoId, since) {
     const row = data[i];
     if (!row[CONFIG.COLS.CARGAS.ID]) continue;
     if (row[CONFIG.COLS.CARGAS.RELEVAMIENTO_ID] != relevamientoId) continue;
-    const ts = combinarFechaHora(row[CONFIG.COLS.CARGAS.FECHA_CARGA], row[CONFIG.COLS.CARGAS.HORA_CARGA]);
-    if (ts > sinceTs) result.push(rowToObject(headers, row));
+    if (Number(row[CONFIG.COLS.CARGAS.ID]) > sinceIdNum) result.push(rowToObject(headers, row));
   }
 
   return { success: true, data: result, serverTime: Date.now() };
-}
-
-/**
- * Combina fecha (yyyy-MM-dd o Date) y hora (HH:mm:ss) en epoch ms UTC.
- */
-function combinarFechaHora(fecha, hora) {
-  if (!fecha) return 0;
-  try {
-    var tz = Session.getScriptTimeZone();
-    var fechaStr = fecha instanceof Date
-      ? Utilities.formatDate(fecha, tz, 'yyyy-MM-dd')
-      : String(fecha).substring(0, 10);
-    var horaStr = hora ? String(hora).substring(0, 8) : '00:00:00';
-    return Utilities.parseDate(fechaStr + ' ' + horaStr, tz, 'yyyy-MM-dd HH:mm:ss').getTime();
-  } catch (e) {
-    return 0;
-  }
 }
 
 /**

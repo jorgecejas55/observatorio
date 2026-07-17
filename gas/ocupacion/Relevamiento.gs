@@ -74,15 +74,21 @@ function getRelevamiento(id) {
 }
 
 /**
- * Obtiene el relevamiento activo actual
+ * Obtiene el relevamiento activo actual.
+ * Con `tipo` filtra solo ese tipo (Mensual/Especial) — necesario porque
+ * puede haber un Mensual y un Especial EN_CURSO en paralelo.
+ * Sin `tipo`, devuelve el más reciente entre todos los activos.
  */
-function getRelevamientoActivo() {
-  const relevamientos = getRelevamientos({ estado: CONFIG.ESTADOS_RELEVAMIENTO.EN_CURSO });
+function getRelevamientoActivo(tipo) {
+  const filtro = { estado: CONFIG.ESTADOS_RELEVAMIENTO.EN_CURSO };
+  if (tipo) filtro.tipo = tipo;
+
+  const relevamientos = getRelevamientos(filtro);
 
   if (relevamientos.data.length === 0) {
     return {
       success: false,
-      error: 'No hay relevamientos activos'
+      error: tipo ? ('No hay relevamiento ' + tipo + ' activo') : 'No hay relevamientos activos'
     };
   }
 
@@ -115,12 +121,14 @@ function createRelevamiento(relevamiento, usuarioEmail) {
     };
   }
 
-  // Verificar que no haya otro relevamiento activo
-  const activoCheck = getRelevamientoActivo();
+  // Verificar que no haya otro relevamiento activo del MISMO tipo.
+  // Mensual y Especial pueden convivir en paralelo (ej: relevamiento mensual
+  // de junio abierto junto a un especial de un finde largo).
+  const activoCheck = getRelevamientoActivo(relevamiento.tipo);
   if (activoCheck.success) {
     return {
       success: false,
-      error: 'Ya existe un relevamiento activo. Ciérrelo antes de crear uno nuevo.'
+      error: 'Ya existe un relevamiento ' + relevamiento.tipo + ' activo (' + activoCheck.data.Nombre + '). Ciérrelo antes de crear uno nuevo del mismo tipo.'
     };
   }
 
@@ -149,7 +157,11 @@ function createRelevamiento(relevamiento, usuarioEmail) {
 
   // Guardar las fechas como TEXTO 'yyyy-MM-dd' (evita que Sheets las convierta a
   // serial/Date y que al leerlas vuelvan como ISO con timezone).
+  // Nombre también se fuerza a texto: nombres tipo "Junio 2026" o "Diciembre 2026"
+  // son mes+año válidos para el parser de fechas de Sheets (locale es-AR) y si no
+  // se fuerza, la celda queda como Date y después vuelve como "2026-06-01T03:00:00.000Z".
   var rowNum = sheet.getLastRow();
+  setCeldaTexto(sheet, rowNum, CONFIG.COLS.RELEVAMIENTOS.NOMBRE, relevamiento.nombre);
   setCeldaTexto(sheet, rowNum, CONFIG.COLS.RELEVAMIENTOS.FECHA_INICIO, relevamiento.fechaInicio);
   setCeldaTexto(sheet, rowNum, CONFIG.COLS.RELEVAMIENTOS.FECHA_FIN, relevamiento.fechaFin);
   setCeldaTexto(sheet, rowNum, CONFIG.COLS.RELEVAMIENTOS.FECHA_CREACION, dateTime.date);
@@ -218,7 +230,7 @@ function closeRelevamiento(id, usuarioEmail) {
       sheet.getRange(rowNum, CONFIG.COLS.RELEVAMIENTOS.USUARIO_CIERRE + 1).setValue(usuarioEmail);
 
       // Limpiar metadatos de polling del relevamiento cerrado
-      PropertiesService.getScriptProperties().deleteProperty('cargas_lastmod_' + id);
+      PropertiesService.getScriptProperties().deleteProperty('cargas_lastid_' + id);
       PropertiesService.getScriptProperties().deleteProperty('cargas_count_' + id);
 
       logAudit(usuarioEmail, 'CLOSE_RELEVAMIENTO', 'Cerró relevamiento ID: ' + id + ', OH Total: ' + ohData.data.ohTotal + '%');

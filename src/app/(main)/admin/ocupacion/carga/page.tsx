@@ -63,6 +63,9 @@ interface Carga {
 
 export default function CargaOHPage() {
   // ── Estado ─────────────────────────────────────────────────────────────
+  // Puede haber un relevamiento Mensual y uno Especial EN_CURSO en paralelo.
+  // `activos` guarda todos; `relevamiento` es el que el operador eligió cargar.
+  const [activos, setActivos] = useState<RelevamientoActivo[]>([])
   const [relevamiento, setRelevamiento] = useState<RelevamientoActivo | null>(null)
   const [alojamientos, setAlojamientos] = useState<Alojamiento[]>([])
   const [cargas, setCargas] = useState<Carga[]>([])
@@ -80,9 +83,12 @@ export default function CargaOHPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroTipo, setFiltroTipo] = useState('')
 
-  // Polling
+  // Polling — cursor por ID de carga (no por timestamp: FechaCarga/HoraCarga
+  // se guardan con precisión de segundo y dos cargas en el mismo segundo
+  // podían perderse en un delta por tiempo)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const lastModifiedRef = useRef(0)
+  const lastIdRef = useRef(0)
+  const baselineListoRef = useRef(false)
 
   // ── Carga inicial ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -94,22 +100,26 @@ export default function CargaOHPage() {
     setLoading(true)
     setError('')
     try {
-      const [resActivo, resAloj] = await Promise.all([
-        fetch('/api/ocupacion/relevamientos/activo'),
+      const [resActivos, resAloj] = await Promise.all([
+        fetch('/api/ocupacion/relevamientos?estado=EN_CURSO'),
         fetch('/api/ocupacion/alojamientos'),
       ])
 
-      // Relevamiento activo
-      if (resActivo.ok) {
-        const json = await resActivo.json()
-        if (json.success && json.data && json.data.estado === 'EN_CURSO') {
-          setRelevamiento(json.data)
-          // Iniciar polling
-          startPolling(json.data.id)
-          // Cargar cargas existentes
-          loadCargas(json.data.id)
-        } else {
+      // Relevamientos activos (puede haber Mensual + Especial en paralelo)
+      if (resActivos.ok) {
+        const json = await resActivos.json()
+        const lista: RelevamientoActivo[] = json.data || []
+        setActivos(lista)
+
+        if (lista.length === 0) {
           setError('No hay un relevamiento activo en este momento. Creá uno en la sección Relevamientos.')
+        } else if (lista.length === 1) {
+          seleccionarRelevamiento(lista[0])
+        } else {
+          // Con 2+ activos, preseleccionar si vino por link (?relevamientoId=), si no, mostrar selector
+          const preId = new URLSearchParams(window.location.search).get('relevamientoId')
+          const preseleccionado = preId ? lista.find(r => String(r.id) === preId) : undefined
+          if (preseleccionado) seleccionarRelevamiento(preseleccionado)
         }
       } else {
         setError('No se pudo verificar el relevamiento activo.')
@@ -129,8 +139,35 @@ export default function CargaOHPage() {
     }
   }
 
+  function seleccionarRelevamiento(r: RelevamientoActivo) {
+    setRelevamiento(r)
+    setCargas([])
+    lastIdRef.current = 0
+    baselineListoRef.current = false
+    startPolling(r.id)
+    loadCargas(r.id)
+  }
+
+  function cambiarRelevamiento() {
+    if (pollingRef.current) clearInterval(pollingRef.current)
+    setRelevamiento(null)
+  }
+
+  function idDe(c: any) {
+    return String(c.ID ?? c.id ?? '')
+  }
+
+  // Dedup defensivo por ID — nunca deja que el estado tenga dos cargas con el mismo ID,
+  // sin importar de dónde vino la duplicación (carga completa vs. delta de polling)
+  function mergeCargas(prev: Carga[], incoming: Carga[]) {
+    const porId = new Map(prev.map((c: any) => [idDe(c), c]))
+    for (const c of incoming) porId.set(idDe(c), c)
+    return Array.from(porId.values())
+  }
+
   // ── Polling adaptativo ──────────────────────────────────────────────────
   function startPolling(relevamientoId: string) {
+    if (pollingRef.current) clearInterval(pollingRef.current)
     // Polling: cada 3 segundos verificamos versión, si hay cambios traemos delta
     pollingRef.current = setInterval(async () => {
       try {
@@ -140,23 +177,19 @@ export default function CargaOHPage() {
         const ver = await verRes.json()
         if (!ver.success) return
 
-        // 2. Si hay cambios, traer delta
-        if (ver.lastModified > lastModifiedRef.current && lastModifiedRef.current > 0) {
-          const deltaRes = await fetch(`/api/ocupacion/cargas/since?relevamientoId=${relevamientoId}&since=${lastModifiedRef.current}`)
+        // 2. Si hay cambios, traer delta (solo una vez establecida la base tras loadCargas)
+        if (baselineListoRef.current && ver.lastId > lastIdRef.current) {
+          const deltaRes = await fetch(`/api/ocupacion/cargas/since?relevamientoId=${relevamientoId}&since=${lastIdRef.current}`)
           if (deltaRes.ok) {
             const delta = await deltaRes.json()
             if (delta.success && delta.data?.length > 0) {
-              setCargas(prev => {
-                const existingIds = new Set(prev.map((c: any) => c.ID || c.id))
-                const newCargas = delta.data.filter((c: any) => !existingIds.has(c.ID || c.id))
-                return [...prev, ...newCargas]
-              })
+              setCargas(prev => mergeCargas(prev, delta.data))
             }
           }
         }
 
-        if (ver.lastModified > 0) {
-          lastModifiedRef.current = ver.lastModified
+        if (ver.lastId > lastIdRef.current) {
+          lastIdRef.current = ver.lastId
         }
       } catch {
         // silencioso — el polling es secundario
@@ -169,14 +202,15 @@ export default function CargaOHPage() {
       const res = await fetch(`/api/ocupacion/cargas?relevamientoId=${relevamientoId}`)
       if (res.ok) {
         const json = await res.json()
-        if (json.success) setCargas(json.data || [])
+        if (json.success) setCargas(mergeCargas([], json.data || []))
       }
-      // Actualizar timestamp para polling
+      // Actualizar cursor para polling
       const verRes = await fetch(`/api/ocupacion/cargas/version?relevamientoId=${relevamientoId}`)
       if (verRes.ok) {
         const ver = await verRes.json()
-        if (ver.lastModified) lastModifiedRef.current = ver.lastModified
+        if (ver.success) lastIdRef.current = ver.lastId || 0
       }
+      baselineListoRef.current = true
     } catch { /* silencioso */ }
   }
 
@@ -297,6 +331,32 @@ export default function CargaOHPage() {
     )
   }
 
+  // ── Selector: 2+ relevamientos activos en paralelo, elegir a cuál cargar ──
+  if (!relevamiento && activos.length > 1) {
+    return (
+      <div className="card p-8 max-w-lg mx-auto text-center">
+        <i className="fas fa-list-check text-4xl text-accent mb-3 block" />
+        <p className="text-gray-700 font-semibold mb-1">Hay {activos.length} relevamientos activos</p>
+        <p className="text-gray-400 text-sm mb-5">Elegí a cuál cargar</p>
+        <div className="space-y-2 text-left">
+          {activos.map(a => (
+            <button
+              key={a.id}
+              onClick={() => seleccionarRelevamiento(a)}
+              className="w-full card p-3 hover:border-accent hover:bg-accent/5 transition-colors flex items-center justify-between"
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{tituloRelevamiento(a.tipo, a.nombre, a.fechaInicio)}</p>
+                <p className="text-xs text-gray-500">{a.tipo} • {formatearRango(a.fechaInicio, a.fechaFin)} • {a.cantidadRelevados} cargas</p>
+              </div>
+              <i className="fas fa-chevron-right text-gray-300" />
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   // ── UI Principal ────────────────────────────────────────────────────────
   const cargadosCount = cargas.length
   const pendientesCount = alojamientos.length - cargadosCount
@@ -314,6 +374,11 @@ export default function CargaOHPage() {
           <p className="text-xs text-gray-500 mt-0.5">
             {relevamiento!.tipo} • {formatearRango(relevamiento!.fechaInicio, relevamiento!.fechaFin)}
           </p>
+          {activos.length > 1 && (
+            <button onClick={cambiarRelevamiento} className="text-xs text-accent hover:underline mt-1">
+              <i className="fas fa-right-left mr-1" />Cambiar relevamiento
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-4 text-sm">
           <div className="text-center">

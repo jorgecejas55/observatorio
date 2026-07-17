@@ -3,16 +3,18 @@
  * Devuelve el relevamiento EN_CURSO más reciente.
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireAcceso } from '@/lib/permisos'
 import { getRelevamientoActivo } from '@/lib/ocupacion-service'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await requireAcceso('ocupacion')
   if (session instanceof NextResponse) return session
 
   try {
-    const activo = await getRelevamientoActivo()
+    const { searchParams } = new URL(req.url)
+    const tipo = searchParams.get('tipo') || undefined
+    const activo = await getRelevamientoActivo(tipo)
     if (!activo) {
       return NextResponse.json({ success: false, error: 'No hay relevamientos activos' })
     }

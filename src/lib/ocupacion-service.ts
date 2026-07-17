@@ -166,8 +166,8 @@ export async function getRelevamientos(params?: {
   }))
 }
 
-export async function getRelevamientoActivo(): Promise<RelevamientoOH | null> {
-  const json = await gasGet('relevamientos/activo')
+export async function getRelevamientoActivo(tipo?: string): Promise<RelevamientoOH | null> {
+  const json = await gasGet('relevamientos/activo', tipo ? { tipo } : {})
   if (!json.success || !json.data) return null
   const r = json.data
   return {
