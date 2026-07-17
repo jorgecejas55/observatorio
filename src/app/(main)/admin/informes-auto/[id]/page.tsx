@@ -11,7 +11,7 @@ import { LABELS_CATEGORIA } from '@/lib/types'
 const ETIQUETAS_TIPO: Record<TipoInforme, { portada: string; header: string }> = {
   FSL: { portada: 'Fin de Semana Largo', header: 'Informe Fin de Semana Largo' },
   EVENTO: { portada: 'Evento Turístico', header: 'Informe de Evento' },
-  MENSUAL: { portada: 'Ocupación Hotelera Mensual', header: 'Informe Mensual' },
+  MENSUAL: { portada: 'Informe Estadístico Mensual', header: 'Informe Mensual' },
 }
 
 export default function InformeAutoDetallePage() {
@@ -479,8 +479,12 @@ export default function InformeAutoDetallePage() {
                   <td className="text-center py-2 px-3 font-bold text-text-primary">
                     {impacto.visitantesTotales.toLocaleString('es-AR')}
                   </td>
-                  <td className="text-center py-2 px-3 text-text-secondary">—</td>
-                  <td className="text-center py-2 px-3 text-text-secondary">—</td>
+                  <td className="text-center py-2 px-3 text-text-secondary">
+                    {comparativaUltimoFinde.visitantes ? comparativaUltimoFinde.visitantes.toLocaleString('es-AR') : '—'}
+                  </td>
+                  <td className="text-center py-2 px-3 text-text-secondary">
+                    {comparativaAnioAnterior.visitantes ? comparativaAnioAnterior.visitantes.toLocaleString('es-AR') : '—'}
+                  </td>
                 </tr>
                 <tr>
                   <td className="py-2 px-3 font-medium text-text-secondary">Impacto económico</td>

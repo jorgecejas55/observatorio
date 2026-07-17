@@ -18,6 +18,15 @@
  *   POST { action:'guardar', secret, data }
  *   POST { action:'actualizarReporte', secret, id, tituloPrensa, bajadaPrensa, reportePrensa }
  *   POST { action:'publicar', secret, id, idInformePublico }
+ *
+ * Hoja "HistoricoImpacto" (se crea sola en el primer guardado): centraliza en
+ * formato plano TODOS los campos que antes vivían en la "Planilla cálculo del
+ * gasto" (año, plazas disponibles, pernoctes, estadía, turistas/excursionistas,
+ * gasto diario, impacto económico — no solo el gasto), que hoy quedan enterrados
+ * dentro del JSON de "DatosInformes" y no se ven en ningún lado. Se actualiza
+ * automáticamente en cada guardar(); para poblarla con los informes que ya
+ * existían, correr backfillHistoricoGasto() una vez a mano desde el editor de
+ * Apps Script (menú "Ejecutar" → seleccionar la función → Ejecutar).
  */
 
 const SECRET = 'e7a3f1c89b2d4e6a8f0c1d2e3a4b5c6d7e8f9a0b1c2d'
@@ -148,7 +157,7 @@ function guardar(data) {
     // Actualizar metadatos
     sheetMeta.getRange(actualRow, 1).setValue(data.id)           // id (nuevo)
     sheetMeta.getRange(actualRow, 2).setValue(data.slug)
-    sheetMeta.getRange(actualRow, 3).setValue(data.nombre)
+    setCeldaTexto_(sheetMeta, actualRow, 2, data.nombre)          // forzar texto: "Junio 2026" no debe leerse como fecha
     sheetMeta.getRange(actualRow, 4).setValue(data.fechaInicio)
     sheetMeta.getRange(actualRow, 5).setValue(data.fechaFin)
     sheetMeta.getRange(actualRow, 6).setValue(data.fechaGeneracion)
@@ -166,6 +175,7 @@ function guardar(data) {
       sheetDatos.getRange(datosRowIdx + 2, 2).setValue(JSON.stringify(data))
     }
 
+    upsertHistoricoGasto_(data)
     return responder({ success: true, data: { id: data.id, slug, actualizado: true } })
   }
 
@@ -183,12 +193,16 @@ function guardar(data) {
     data.estado || 'borrador',
     data.idInformePublico || '',
   ])
+  // Forzar nombre a texto: "Junio 2026" recién agregado, Sheets lo pudo convertir a fecha
+  setCeldaTexto_(sheetMeta, sheetMeta.getLastRow(), 2, data.nombre)
 
   // Guardar datos completos
   sheetDatos.appendRow([
     data.id,
     JSON.stringify(data),
   ])
+
+  upsertHistoricoGasto_(data)
 
   return responder({ success: true, data: { id, slug, actualizado: false } })
 }
@@ -258,7 +272,146 @@ function publicar(body) {
   return responder({ success: true })
 }
 
+// ── HistoricoImpacto — centraliza en formato plano todos los datos que antes
+// vivían en la "Planilla cálculo del gasto" (plazas, pernoctes, estadía,
+// turistas/excursionistas, gasto diario, impacto económico) ───────────────────
+
+const HOJA_HISTORICO_GASTO = 'HistoricoImpacto'
+const HISTORICO_GASTO_HEADERS = [
+  'id', 'slug', 'tipoInforme', 'nombre', 'anio', 'fechaInicio', 'fechaFin', 'fechaGeneracion',
+  'usuarioGenerador', 'estado', 'duracionPeriodo', 'ohTotal', 'estadiaPromedio', 'totalEncuestas',
+  'plazasDisponibles', 'pernoctesEnOferta', 'pernoctesConsumidos',
+  'gastoDiarioTuristas', 'gastoDiarioExcursionistas', 'porcentajeExcursionistas',
+  'turistasAlojados', 'excursionistas', 'visitantesTotales',
+  'impactoTuristas', 'impactoExcursionistas', 'impactoTotal',
+]
+
+function getOCrearHojaHistoricoGasto_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet()
+  let sheet = ss.getSheetByName(HOJA_HISTORICO_GASTO)
+  if (!sheet) {
+    sheet = ss.insertSheet(HOJA_HISTORICO_GASTO)
+    sheet.appendRow(HISTORICO_GASTO_HEADERS)
+  }
+  return sheet
+}
+
+function diasEntreFechas_(inicio, fin) {
+  try {
+    const a = new Date(inicio)
+    const b = new Date(fin)
+    const dias = Math.round((b.getTime() - a.getTime()) / 86400000) + 1
+    return isNaN(dias) ? '' : dias
+  } catch (e) {
+    return ''
+  }
+}
+
+/**
+ * Aplana un informe completo (mismo shape que datosJSON) a la fila de HistoricoImpacto.
+ * plazasDisponibles no viene como campo directo: se deriva de
+ * pernoctesEnOferta ÷ duracionPeriodo (pernoctesEnOferta = plazas × días).
+ */
+function filaHistoricoGasto_(data) {
+  const impacto = data.impacto || {}
+  const perfil = data.perfil || {}
+  const estadia = perfil.estadiaSinOutliers || {}
+  const relevamiento = data.relevamiento || {}
+  const duracion = diasEntreFechas_(data.fechaInicio, data.fechaFin)
+  const plazasDisponibles = (impacto.pernoctesEnOferta && duracion)
+    ? Math.round(impacto.pernoctesEnOferta / duracion)
+    : ''
+  const anio = data.fechaInicio ? Number(String(data.fechaInicio).slice(0, 4)) : ''
+
+  return [
+    data.id,
+    data.slug,
+    data.tipoInforme || 'FSL',
+    data.nombre,
+    anio,
+    data.fechaInicio,
+    data.fechaFin,
+    data.fechaGeneracion,
+    data.usuarioGenerador,
+    data.estado || 'borrador',
+    duracion,
+    relevamiento.ohTotal ?? '',
+    estadia.estadiaPromedio ?? '',
+    perfil.totalEncuestas ?? '',
+    plazasDisponibles,
+    impacto.pernoctesEnOferta ?? '',
+    impacto.pernoctesConsumidos ?? '',
+    data.gastoDiarioTuristas ?? '',
+    data.gastoDiarioExcursionistas ?? '',
+    data.porcentajeExcursionistas ?? '',
+    impacto.turistasAlojados ?? '',
+    impacto.excursionistas ?? '',
+    impacto.visitantesTotales ?? '',
+    impacto.impactoTuristas ?? '',
+    impacto.impactoExcursionistas ?? '',
+    impacto.impactoTotal ?? '',
+  ]
+}
+
+/** Upsert por slug (mismo criterio que InformesAuto/DatosInformes). */
+function upsertHistoricoGasto_(data) {
+  if (!data || !data.slug) return
+  const sheet = getOCrearHojaHistoricoGasto_()
+  const values = sheet.getDataRange().getValues()
+  const idx = values.slice(1).findIndex(row => String(row[1]) === String(data.slug))
+  const fila = filaHistoricoGasto_(data)
+
+  let rowNum
+  if (idx !== -1) {
+    rowNum = idx + 2
+    sheet.getRange(rowNum, 1, 1, fila.length).setValues([fila])
+  } else {
+    sheet.appendRow(fila)
+    rowNum = sheet.getLastRow()
+  }
+
+  // Forzar nombre a texto (col índice 3 en HISTORICO_GASTO_HEADERS): mismo
+  // riesgo que en InformesAuto — "Junio 2026" se puede leer como fecha.
+  setCeldaTexto_(sheet, rowNum, 3, data.nombre)
+}
+
+/**
+ * Backfill único: puebla HistoricoGasto con los informes que ya existían en
+ * DatosInformes antes de que esta hoja existiera. Correr una sola vez a mano
+ * desde el editor de Apps Script (no se llama automáticamente).
+ */
+function backfillHistoricoGasto() {
+  const sheetDatos = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('DatosInformes')
+  if (!sheetDatos) throw new Error('Hoja DatosInformes no encontrada')
+
+  const rows = sheetDatos.getDataRange().getValues().slice(1)
+  let n = 0
+  rows.forEach(row => {
+    if (!row[0] || !row[1]) return
+    try {
+      const data = JSON.parse(row[1])
+      upsertHistoricoGasto_(data)
+      n++
+    } catch (e) {
+      Logger.log('Error parseando informe ' + row[0] + ': ' + e)
+    }
+  })
+  Logger.log('Backfill completo: ' + n + ' informes procesados')
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+/**
+ * Fuerza una celda a texto plano antes de escribirla. Sin esto, valores tipo
+ * "Junio 2026" / "Mayo 2026" (mes + año) son reconocidos por el parser de
+ * fechas de Sheets (locale es-AR) y la celda queda como Date — al leerla
+ * vuelve como "2026-06-01T03:00:00.000Z" en vez del texto original.
+ */
+function setCeldaTexto_(sheet, rowNum, col0, valor) {
+  var cell = sheet.getRange(rowNum, col0 + 1)
+  cell.setNumberFormat('@')
+  cell.setValue(String(valor == null ? '' : valor))
+}
 
 function responder(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))

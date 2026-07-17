@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { tieneAcceso } from '@/lib/permisos'
-import { formatearFechaLarga } from '@/lib/formato-fechas'
+import { formatearFechaLarga, tituloRelevamiento } from '@/lib/formato-fechas'
 import type {
   SugerenciaHistorial,
   RelevamientoOH,
@@ -190,7 +190,7 @@ export default function InformesAutoPage() {
     setRelevamientoId(id)
     const rel = relevamientos.find(r => r.id === id)
     if (rel) {
-      setNombre(rel.nombre)
+      setNombre(tituloRelevamiento(rel.tipo, rel.nombre, rel.fechaInicio))
       setFechaInicio(rel.fechaInicio)
       setFechaFin(rel.fechaFin)
       // Relevamiento Mensual → informe MENSUAL (automático); Especial → FSL o EVENTO (elige el usuario)
@@ -365,7 +365,7 @@ export default function InformesAutoPage() {
               <option value="">— Seleccionar un relevamiento —</option>
               {relevamientos.map(r => (
                 <option key={r.id} value={r.id}>
-                  [{r.tipo}] {r.nombre} — {formatearFecha(r.fechaInicio)} al {formatearFecha(r.fechaFin)} — OH: {r.ohTotal}% — {r.estado}
+                  [{r.tipo}] {tituloRelevamiento(r.tipo, r.nombre, r.fechaInicio)} — {formatearFecha(r.fechaInicio)} al {formatearFecha(r.fechaFin)} — OH: {r.ohTotal}% — {r.estado}
                 </option>
               ))}
             </select>
@@ -374,7 +374,7 @@ export default function InformesAutoPage() {
               <div className="mt-4 p-4 rounded-lg bg-green-50 border border-green-200">
                 <div className="flex items-center gap-2 text-green-700 font-semibold text-sm">
                   <i className="fa-solid fa-circle-check" />
-                  Relevamiento: {relevamientoSeleccionado.nombre}
+                  Relevamiento: {tituloRelevamiento(relevamientoSeleccionado.tipo, relevamientoSeleccionado.nombre, relevamientoSeleccionado.fechaInicio)}
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-xs text-green-600">
                   <span>OH Total: <strong>{relevamientoSeleccionado.ohTotal}%</strong></span>
