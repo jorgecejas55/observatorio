@@ -455,7 +455,9 @@ export default function InformeAutoDetallePage() {
                   <th className="text-center py-2 px-3 text-text-secondary font-medium">
                     <span className="whitespace-normal text-xs print:text-[10px]">
                       {comparativaAnioAnterior.relevamiento
-                        ? `${informe.nombre} ${comparativaAnioAnterior.relevamiento.fechaFin.slice(0, 4)}`
+                        ? (informe.tipoInforme === 'MENSUAL'
+                            ? comparativaAnioAnterior.relevamiento.nombre
+                            : `${comparativaAnioAnterior.relevamiento.nombre} ${comparativaAnioAnterior.relevamiento.fechaFin.slice(0, 4)}`)
                         : 'Año anterior'}
                     </span>
                   </th>
