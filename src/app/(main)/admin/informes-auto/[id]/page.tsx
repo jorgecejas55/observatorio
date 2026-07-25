@@ -29,6 +29,7 @@ export default function InformeAutoDetallePage() {
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'success' | 'error' } | null>(null)
   const [copiado, setCopiado] = useState(false)
   const [reintentandoEmpuje, setReintentandoEmpuje] = useState(false)
+  const [recalculando, setRecalculando] = useState(false)
 
   useEffect(() => {
     // Intentar cargar de sessionStorage (datos de la generación)
@@ -162,6 +163,25 @@ export default function InformeAutoDetallePage() {
     }
   }
 
+  const recalcularDatos = async () => {
+    setRecalculando(true)
+    try {
+      const res = await fetch(`/api/informes-auto/${id}/recalcular`, { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (json.success && json.data) {
+        setInforme(json.data)
+        sessionStorage.setItem(`informe_${id}`, JSON.stringify(json.data))
+        setToast({ mensaje: 'Datos recalculados desde el sistema OH', tipo: 'success' })
+      } else {
+        setToast({ mensaje: json.error ?? 'No se pudo recalcular', tipo: 'error' })
+      }
+    } catch {
+      setToast({ mensaje: 'Error de conexión al recalcular', tipo: 'error' })
+    } finally {
+      setRecalculando(false)
+    }
+  }
+
   const guardarCambios = async () => {
     setGuardando(true)
     try {
@@ -237,6 +257,15 @@ export default function InformeAutoDetallePage() {
         </button>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={recalcularDatos}
+            disabled={recalculando}
+            title="Recalcula OH por tipo, picos, perfil, impacto y comparativas desde el sistema OH. No toca el reporte de prensa ni el estado de publicación."
+            className="btn-outline text-sm flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <i className={`fa-solid ${recalculando ? 'fa-spinner fa-spin' : 'fa-rotate'}`} />
+            {recalculando ? 'Recalculando...' : 'Recalcular datos'}
+          </button>
           <button
             onClick={copiarReporte}
             className="btn-outline text-sm flex items-center gap-1.5"

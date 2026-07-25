@@ -238,6 +238,11 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
             Indicador de diagnóstico de gestión para la Asociación de Hoteles. No revela identidades.
           </p>
         </div>
+      </div>
+
+      {/* ── PÁGINA 2: OH por grupo tipo-categoría ───────────────────────────── */}
+      <div className="pagina-2 max-w-4xl mx-auto py-8 print:py-0 print:max-w-none">
+        <EncabezadoReducido />
 
         {/* Tabla por grupo */}
         <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">OH por grupo tipo-categoría</h3>
@@ -270,8 +275,8 @@ export default function FichaTecnicaPage({ params }: { params: Promise<{ id: str
         <p className="text-xs text-gray-400 italic">Solo se muestran los grupos con datos. Sin datos ≠ 0%.</p>
       </div>
 
-      {/* ── PÁGINA 2: distribución + picos | nota metodológica ─────────────── */}
-      <div className="pagina-2 max-w-4xl mx-auto py-8 print:py-0 print:max-w-none">
+      {/* ── PÁGINA 3: distribución + picos | nota metodológica ─────────────── */}
+      <div className="pagina-3 max-w-4xl mx-auto py-8 print:py-0 print:max-w-none">
         <EncabezadoReducido />
 
         <div className="print:grid print:grid-cols-2 print:gap-10">

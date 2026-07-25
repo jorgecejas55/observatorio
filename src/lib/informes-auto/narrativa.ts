@@ -349,38 +349,57 @@ async function llamarAnthropic(prompt: string, apiKey: string): Promise<{
   }
 }
 
+const REINTENTOS_DEEPSEEK = 3
+
+function esperar(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 async function llamarDeepSeek(prompt: string, apiKey: string): Promise<{
   titulo: string
   bajada: string
   reportePrensa: string
 } | null> {
-  try {
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
+  for (let intento = 1; intento <= REINTENTOS_DEEPSEEK; intento++) {
+    try {
+      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-v4-flash',
+          max_tokens: 12000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      })
 
-    if (!response.ok) {
-      const errText = await response.text()
-      console.error('DeepSeek API error:', response.status, errText.slice(0, 300))
-      return null
+      if (!response.ok) {
+        const errText = await response.text()
+        console.error('DeepSeek API error:', response.status, errText.slice(0, 500))
+        return null // error real de la API (400/401/etc.) — no tiene sentido reintentar
+      }
+
+      const json = await response.json()
+      const finishReason = json.choices?.[0]?.finish_reason
+      if (finishReason && finishReason !== 'stop') {
+        console.error('DeepSeek finish_reason inesperado:', finishReason, 'usage:', JSON.stringify(json.usage))
+      }
+      const texto = json.choices?.[0]?.message?.content ?? ''
+      if (!texto) {
+        console.error('DeepSeek devolvió contenido vacío. usage:', JSON.stringify(json.usage))
+        return null
+      }
+      return parsearReporteIA(texto)
+    } catch (error) {
+      console.error(`Error llamando a DeepSeek API (intento ${intento}/${REINTENTOS_DEEPSEEK}):`, error)
+      if (intento < REINTENTOS_DEEPSEEK) {
+        await esperar(1000 * intento) // fallas de conexión (DNS/TCP) suelen ser pasajeras — reintenta con backoff
+      }
     }
-
-    const json = await response.json()
-    const texto = json.choices?.[0]?.message?.content ?? ''
-    return parsearReporteIA(texto)
-  } catch (error) {
-    console.error('Error llamando a DeepSeek API:', error)
-    return null
   }
+  return null
 }
 
 function generarPlaceholder(informe: InformeFindeCompleto): {

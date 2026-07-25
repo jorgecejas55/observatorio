@@ -362,6 +362,21 @@ export default function CargaOHPage() {
   const pendientesCount = alojamientos.length - cargadosCount
   const pctCargado = alojamientos.length > 0 ? Math.round((cargadosCount / alojamientos.length) * 100) : 0
 
+  // OH media parcial — simple y ponderada por capacidadHab (misma fórmula que informes-auto/calculos.ts)
+  const pctCargas = cargas.map((c: any) => c.PorcentajeOH ?? c.porcentajeOH ?? 0)
+  const ohMediaSimple = cargadosCount > 0
+    ? Math.round((pctCargas.reduce((a: number, b: number) => a + b, 0) / cargadosCount) * 10) / 10
+    : 0
+  const totalHabCargado = cargas.reduce((s: number, c: any) => s + (c.CapacidadHab ?? c.capacidadHab ?? 0), 0)
+  const totalHabOcupadas = cargas.reduce((s: number, c: any) => {
+    const hab = c.CapacidadHab ?? c.capacidadHab ?? 0
+    const pct = c.PorcentajeOH ?? c.porcentajeOH ?? 0
+    return s + (hab * pct / 100)
+  }, 0)
+  const ohMediaPonderada = totalHabCargado > 0
+    ? Math.round((totalHabOcupadas / totalHabCargado) * 1000) / 10
+    : 0
+
   return (
     <div className="space-y-6">
       {/* Header con progreso */}
@@ -396,6 +411,14 @@ export default function CargaOHPage() {
           <div className="text-center">
             <p className="text-2xl font-bold text-green-600">{pctCargado}%</p>
             <p className="text-xs text-gray-400">Cargado</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-accent">{ohMediaPonderada}%</p>
+            <p className="text-xs text-gray-400">OH media (pond.)</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-gray-600">{ohMediaSimple}%</p>
+            <p className="text-xs text-gray-400">OH media (simple)</p>
           </div>
           {/* Barra de progreso simple */}
           <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">

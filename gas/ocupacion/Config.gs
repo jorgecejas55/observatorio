@@ -158,8 +158,18 @@ function getNextId(sheetName) {
     return 1;
   }
 
-  const lastId = sheet.getRange(lastRow, 1).getValue();
-  return parseInt(lastId) + 1;
+  // Usamos el MAX de toda la columna ID, no solo la última fila: si se borra
+  // o reordena una fila a mano en el Sheet, la última fila deja de tener
+  // necesariamente el ID más alto y "lastRow + 1" puede repetir un ID
+  // existente (colisión → filas con ID duplicado, ver bug de key duplicada
+  // '93' en la tabla de cargas).
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  let maxId = 0;
+  for (let i = 0; i < ids.length; i++) {
+    const id = parseInt(ids[i][0]);
+    if (!isNaN(id) && id > maxId) maxId = id;
+  }
+  return maxId + 1;
 }
 
 /**

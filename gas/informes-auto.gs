@@ -151,11 +151,13 @@ function guardar(data) {
 
   if (existenteIdx !== -1) {
     // ── Upsert: actualizar fila existente ──
+    // El id se PRESERVA (no se pisa con el nuevo generado en cada regeneración):
+    // así el link /admin/informes-auto/<id> ya compartido/publicado sigue vivo.
     const existenteId = String(metaData[existenteIdx + 1][0])
     const actualRow = existenteIdx + 2 // +2: slice(1) + filas empiezan en 1
+    data.id = existenteId
 
     // Actualizar metadatos
-    sheetMeta.getRange(actualRow, 1).setValue(data.id)           // id (nuevo)
     sheetMeta.getRange(actualRow, 2).setValue(data.slug)
     setCeldaTexto_(sheetMeta, actualRow, 2, data.nombre)          // forzar texto: "Junio 2026" no debe leerse como fecha
     sheetMeta.getRange(actualRow, 4).setValue(data.fechaInicio)
@@ -171,12 +173,11 @@ function guardar(data) {
     const datosData = sheetDatos.getDataRange().getValues()
     const datosRowIdx = datosData.slice(1).findIndex(row => String(row[0]) === String(existenteId))
     if (datosRowIdx !== -1) {
-      sheetDatos.getRange(datosRowIdx + 2, 1).setValue(data.id)  // actualizar ID también
       sheetDatos.getRange(datosRowIdx + 2, 2).setValue(JSON.stringify(data))
     }
 
     upsertHistoricoGasto_(data)
-    return responder({ success: true, data: { id: data.id, slug, actualizado: true } })
+    return responder({ success: true, data: { id: existenteId, slug, actualizado: true } })
   }
 
   // Guardar metadatos nuevos

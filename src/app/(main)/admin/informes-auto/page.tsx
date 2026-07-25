@@ -633,6 +633,60 @@ export default function InformesAutoPage() {
         </div>
       )}
 
+      {/* ── Sección 4 — Generación ── */}
+      <div className="card p-6 mb-6">
+        <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
+          <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center font-bold">4</span>
+          Generar informe
+        </h3>
+
+        {paso === 'generando' ? (
+          <div className="flex flex-col items-center py-8">
+            <div className="flex items-center gap-3 mb-4">
+              <i className="fa-solid fa-spinner fa-spin text-2xl text-primary" />
+              <span className="text-sm font-semibold text-text-primary">Generando informe...</span>
+            </div>
+            <div className="w-full max-w-sm bg-gray-100 rounded-full h-2 mb-4">
+              <div className="bg-primary h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
+            </div>
+            <p className="text-xs text-text-secondary">{mensajeProgreso}</p>
+          </div>
+        ) : (
+          <div>
+            <button
+              onClick={handleGenerar}
+              disabled={
+                paso !== 'seleccionado' ||
+                !nombre ||
+                !gastoDiarioTuristas ||
+                !gastoDiarioExcursionistas
+              }
+              className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <i className="fa-solid fa-wand-magic-sparkles" />
+              Generar informe {ETIQUETAS_TIPO[tipoInforme].toLowerCase()}
+            </button>
+
+            {paso !== 'seleccionado' && (
+              <p className="text-xs text-text-secondary mt-2">
+                {cargandoRelevamientos ? 'Cargando datos del sistema OH...' :
+                 !relevamientoId ? 'Seleccioná un relevamiento para continuar.' :
+                 'Completá los datos manuales para continuar.'}
+              </p>
+            )}
+
+            {errorMsg && paso === 'error' && (
+              <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
+                <p className="text-sm text-red-600">
+                  <i className="fa-solid fa-circle-exclamation mr-1.5" />
+                  {errorMsg}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── Informes generados ── */}
       <div className="card p-6 mb-6">
         <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
@@ -691,60 +745,6 @@ export default function InformesAutoPage() {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
-
-      {/* ── Sección 4 — Generación ── */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
-          <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center font-bold">4</span>
-          Generar informe
-        </h3>
-
-        {paso === 'generando' ? (
-          <div className="flex flex-col items-center py-8">
-            <div className="flex items-center gap-3 mb-4">
-              <i className="fa-solid fa-spinner fa-spin text-2xl text-primary" />
-              <span className="text-sm font-semibold text-text-primary">Generando informe...</span>
-            </div>
-            <div className="w-full max-w-sm bg-gray-100 rounded-full h-2 mb-4">
-              <div className="bg-primary h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
-            </div>
-            <p className="text-xs text-text-secondary">{mensajeProgreso}</p>
-          </div>
-        ) : (
-          <div>
-            <button
-              onClick={handleGenerar}
-              disabled={
-                paso !== 'seleccionado' ||
-                !nombre ||
-                !gastoDiarioTuristas ||
-                !gastoDiarioExcursionistas
-              }
-              className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <i className="fa-solid fa-wand-magic-sparkles" />
-              Generar informe {ETIQUETAS_TIPO[tipoInforme].toLowerCase()}
-            </button>
-
-            {paso !== 'seleccionado' && (
-              <p className="text-xs text-text-secondary mt-2">
-                {cargandoRelevamientos ? 'Cargando datos del sistema OH...' :
-                 !relevamientoId ? 'Seleccioná un relevamiento para continuar.' :
-                 'Completá los datos manuales para continuar.'}
-              </p>
-            )}
-
-            {errorMsg && paso === 'error' && (
-              <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
-                <p className="text-sm text-red-600">
-                  <i className="fa-solid fa-circle-exclamation mr-1.5" />
-                  {errorMsg}
-                </p>
-              </div>
-            )}
           </div>
         )}
       </div>

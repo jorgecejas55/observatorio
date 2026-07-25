@@ -512,7 +512,7 @@ export default function RelevamientoDetalle({ params }: { params: Promise<{ id: 
               </thead>
               <tbody>
                 {cargas.map((c: any, idx: number) => (
-                  <tr key={c.ID || c.id || idx} className="border-b border-gray-50">
+                  <tr key={`${c.AlojamientoID ?? c.alojamientoId ?? ''}-${c.ID ?? c.id ?? idx}-${idx}`} className="border-b border-gray-50">
                     <td className="py-2 font-medium text-gray-800">{c.AlojamientoNombre || c.alojamientoNombre}</td>
                     <td className="py-2 text-gray-600">{c.Tipo || c.tipo || '—'}</td>
                     <td className="py-2 text-gray-600">{c.Categoria || c.categoria || '—'}</td>
