@@ -39,23 +39,40 @@ async function parseGasResponse(res: Response, ctx: string) {
 }
 
 export interface GasClient {
-  get(path: string, params?: Record<string, string>): Promise<any>
+  get(path: string, params?: Record<string, string | undefined>): Promise<any>
   post(path: string, data: Record<string, unknown>): Promise<any>
 }
 
-export function createGasClient(baseUrl: string, apiKey: string): GasClient {
+export interface GasClientTimeouts {
+  /** Timeout de lectura GET en ms. Default 3500. */
+  getTimeoutMs?: number
+  /** Timeout del POST en ms. Default 5000. Módulos con tryLock largo usan más. */
+  postTimeoutMs?: number
+}
+
+export function createGasClient(
+  baseUrl: string,
+  apiKey: string,
+  timeouts?: GasClientTimeouts,
+): GasClient {
   if (!baseUrl || baseUrl.includes('PENDIENTE')) {
     throw new Error('GAS URL no configurada')
   }
 
-  async function gasGet(path: string, params: Record<string, string> = {}) {
+  const { getTimeoutMs = 3500, postTimeoutMs = 5000 } = timeouts || {}
+
+  async function gasGet(path: string, params: Record<string, string | undefined> = {}) {
     const url = new URL(baseUrl)
     url.searchParams.set('path', path)
     url.searchParams.set('apiKey', apiKey)
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
+    // Los params sin valor se omiten: `set(k, undefined)` los serializaría como
+    // la cadena "undefined" y el GAS los tomaría como filtro real.
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v)
+    })
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 3500)
+    const timeout = setTimeout(() => controller.abort(), getTimeoutMs)
 
     try {
       const res = await fetch(url.toString(), {
@@ -70,7 +87,7 @@ export function createGasClient(baseUrl: string, apiKey: string): GasClient {
 
   async function gasPost(path: string, data: Record<string, unknown>) {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
+    const timeout = setTimeout(() => controller.abort(), postTimeoutMs)
 
     try {
       const res = await fetch(baseUrl, {

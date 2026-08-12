@@ -77,6 +77,24 @@ export function formatearRango(inicio: unknown, fin: unknown): string {
   return `${formatearFecha(fi)} al ${formatearFecha(ff)}`
 }
 
+// ── Sello de tiempo local del dispositivo ───────────────────────────────────
+// `toISOString()` devuelve UTC: en Catamarca (UTC−3) todo lo registrado después
+// de las 21:00 quedaría fechado al día siguiente y se contaría en el día (o el
+// mes) equivocado. Estas dos funciones sellan la hora del reloj local.
+
+const dosDigitos = (n: number) => String(n).padStart(2, '0')
+
+/** Fecha local del dispositivo en formato 'YYYY-MM-DD'. */
+export function fechaLocalISO(fecha: Date = new Date()): string {
+  return `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`
+}
+
+/** Fecha y hora locales del dispositivo en formato 'YYYY-MM-DDTHH:mm:ss'. */
+export function fechaHoraLocalISO(fecha: Date = new Date()): string {
+  const hora = `${dosDigitos(fecha.getHours())}:${dosDigitos(fecha.getMinutes())}:${dosDigitos(fecha.getSeconds())}`
+  return `${fechaLocalISO(fecha)}T${hora}`
+}
+
 const RE_ISO = /^\d{4}-\d{2}-\d{2}([T ]|$)/
 
 /**

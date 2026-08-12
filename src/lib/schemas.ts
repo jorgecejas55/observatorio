@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  TIPOS_VISITANTE,
+  PROCEDENCIAS_INGRESO,
+} from '@/lib/atractivos-config'
 
 export function esObjectoValido(data: unknown): boolean {
   return (
@@ -104,6 +108,39 @@ export const EventoSchema = z.object({
   recaudacion: campo,
   observaciones: campoLargo,
 })
+
+// ─── Ingresos a Atractivos (Casa de la Puna / Pueblo Perdido) ────────────────
+// Las claves son snake_case e idénticas a los headers de las hojas nuevas.
+
+const MAX_PERSONAS_INGRESO = 10000
+
+export const IngresoAtractivoSchema = z.object({
+  fecha_hora_registro: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, 'fecha_hora_registro debe ser ISO (del dispositivo)'),
+  tipo_visitante: z.enum(TIPOS_VISITANTE),
+  procedencia: z.enum(PROCEDENCIAS_INGRESO).optional(),
+  cantidad_personas: z.number().int().min(1).max(MAX_PERSONAS_INGRESO),
+  motivo: z.string().min(1).max(100),
+  id_local: z.string().max(100).optional(),
+}).refine(
+  (d) => d.tipo_visitante !== 'Turista' || !!d.procedencia,
+  { message: 'procedencia es obligatoria si el visitante es turista', path: ['procedencia'] },
+)
+
+export const ActividadEspecialAtractivoSchema = z.object({
+  fecha_actividad: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'fecha_actividad debe ser YYYY-MM-DD'),
+  nombre_actividad: z.string().min(1).max(200),
+  cantidad_total: z.number().int().min(1).max(MAX_PERSONAS_INGRESO),
+  cantidad_turistas: z.number().int().min(0).max(MAX_PERSONAS_INGRESO),
+  cantidad_residentes: z.number().int().min(0).max(MAX_PERSONAS_INGRESO),
+  observaciones: z.string().max(500).optional().default(''),
+  fecha_hora_registro: z.string().max(40).optional(),
+  id_local: z.string().max(100).optional(),
+}).refine(
+  (d) => d.cantidad_total >= d.cantidad_turistas + d.cantidad_residentes,
+  { message: 'cantidad_total debe ser mayor o igual a turistas + residentes', path: ['cantidad_total'] },
+)
 
 // ─── Percepción Social del Residente ─────────────────────────────────────────
 

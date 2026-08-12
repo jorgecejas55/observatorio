@@ -8,6 +8,14 @@ export const MODULOS = {
     label: 'Ocupación Hotelera',
     rutas: ['/admin/ocupacion', '/api/ocupacion'],
   },
+  'atractivos-casa-puna': {
+    label: 'Atractivo Casa de la Puna',
+    rutas: ['/ocio/ingresos/casa-la-puna', '/api/ocio/ingresos/atractivos/casa-la-puna'],
+  },
+  'atractivos-pueblo-perdido': {
+    label: 'Atractivo Pueblo Perdido',
+    rutas: ['/ocio/ingresos/pueblo-perdido', '/api/ocio/ingresos/atractivos/pueblo-perdido'],
+  },
   'informes-auto': {
     label: 'Agente de informes',
     rutas: ['/admin/informes-auto', '/api/informes-auto'],

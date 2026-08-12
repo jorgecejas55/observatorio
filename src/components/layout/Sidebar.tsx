@@ -30,6 +30,8 @@ const NAV: NavGroup[] = [
     items: [
       { href: '/ocio/encuesta', label: 'Encuesta turista', icon: 'fa-clipboard-list' },
       { href: '/ocio/ingresos', label: 'Ingresos atractivos', icon: 'fa-ticket' },
+      { href: '/ocio/ingresos/casa-la-puna', label: 'Casa de la Puna', icon: 'fa-mountain-sun', modulo: 'atractivos-casa-puna' },
+      { href: '/ocio/ingresos/pueblo-perdido', label: 'Pueblo Perdido', icon: 'fa-archway', modulo: 'atractivos-pueblo-perdido' },
       { href: '/ocio/camping', label: 'Camping municipal', icon: 'fa-campground' },
     ],
   },

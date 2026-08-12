@@ -31,16 +31,75 @@ export const ATRACTIVOS: Record<AtractivoId, string> = {
   'museo-casa-caravati': 'Museo de la Ciudad - Casa Caravati',
 }
 
-// ─── Ocio / Demanda ───────────────────────────────────────────────────────────
+// ─── Ingresos a Atractivos (Casa de la Puna / Pueblo Perdido) ────────────────
+// Nota: los enums TipoVisitante / ProcedenciaIngreso viven en atractivos-config.ts.
+// Claves snake_case = headers de la hoja (1:1).
 
-export interface RegistroIngreso {
-  fecha: string
-  atractivo: AtractivoId
-  cantidad: number
-  observaciones?: string
-  usuario: string
-  timestamp: string
+export interface IngresoAtractivo {
+  id: string
+  fecha_hora_registro: string
+  fecha_hora_sync?: string
+  tipo_visitante: string
+  procedencia?: string
+  cantidad_personas: number
+  motivo: string
+  usuario_registro?: string
+  activo?: string
+  usuario_modificacion?: string
+  fecha_hora_modificacion?: string
+  id_local?: string
 }
+
+export interface ActividadEspecialAtractivo {
+  id: string
+  fecha_actividad: string
+  nombre_actividad: string
+  cantidad_total: number
+  cantidad_turistas: number
+  cantidad_residentes: number
+  observaciones?: string
+  usuario_registro?: string
+  fecha_hora_registro?: string
+  fecha_hora_sync?: string
+  activo?: string
+  usuario_modificacion?: string
+  fecha_hora_modificacion?: string
+  id_local?: string
+}
+
+export interface SerieMesAtractivo {
+  anio: number
+  mes: number
+  ingresos: number
+  personas: number
+  actividades: number
+  personasActividades: number
+}
+
+export interface ResumenAtractivo {
+  anio: number
+  hoy: { fecha: string; ingresos: number; personas: number }
+  mesEnCurso: {
+    anio: number
+    mes: number
+    ingresos: number
+    personas: number
+    actividades: number
+    personasActividades: number
+  }
+  serieAnual: SerieMesAtractivo[]
+  porTipoVisitante: { tipo_visitante: string; personas: number }[]
+  porMotivo: { motivo: string; personas: number }[]
+  totalAnio: {
+    ingresos: number
+    personas: number
+    actividades: number
+    personasActividades: number
+  }
+  historico: { personas: number }
+}
+
+// ─── Ocio / Demanda ───────────────────────────────────────────────────────────
 
 export interface RegistroCamping {
   fecha: string
