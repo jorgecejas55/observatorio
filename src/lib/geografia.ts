@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // Constantes geográficas compartidas entre módulos de encuestas
 // ═══════════════════════════════════════════════════════════════════════════════
-// Todas en MAYÚSCULAS para coincidir con valores almacenados en Google Sheets.
 //
 // Consumido por:
 //   - Encuesta Perfil del Turista   (/ocio/encuesta)
