@@ -39,11 +39,20 @@ export async function PUT(
     return NextResponse.json({ error: 'Motivo inválido para este atractivo' }, { status: 400 })
   }
 
+  // fecha_hora_registro solo se actualiza si lo pide un admin: el resto de los
+  // roles siempre reenvía el valor original sin tocar (form no editable para
+  // ellos), pero igual lo sacamos acá — el server, no el cliente, es el límite
+  // de confianza real.
+  const datosActualizar: Record<string, unknown> = {
+    ...parsed.data,
+    usuario_modificacion: g.userEmail ?? '',
+  }
+  if (!g.esAdmin) {
+    delete datosActualizar.fecha_hora_registro
+  }
+
   try {
-    await actualizarIngreso(g.atractivo, id, {
-      ...parsed.data,
-      usuario_modificacion: g.userEmail ?? '',
-    })
+    await actualizarIngreso(g.atractivo, id, datosActualizar)
     return NextResponse.json({ success: true, data: { id } })
   } catch (error) {
     console.error(`[atractivos/${atractivo}/ingresos/${id} PUT]`, error)

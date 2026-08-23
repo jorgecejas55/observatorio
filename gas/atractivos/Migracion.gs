@@ -283,6 +283,146 @@ function migrarActividadesHistorico() {
   return { success: true, data: { migradas: total } };
 }
 
+/**
+ * Migra el histórico de actividades especiales a la hoja "Actividades Especiales"
+ * de cada atractivo, CON el detalle real (nombre, turistas, residentes,
+ * observaciones) — a diferencia de migrarActividadesHistorico(), que solo
+ * vuelca fecha+total a la hoja "Histórico" (3 columnas, sin detalle).
+ *
+ * Reemplaza (por tag `usuario_registro = 'Migración histórica'`) SOLO las
+ * filas que puso una corrida anterior de esta función: idempotente, no toca
+ * las actividades reales cargadas por el responsable.
+ *
+ * Misma fuente que migrarActividadesHistorico() (planilla 1iIO6ko…, por gid) y
+ * mismo ruteo por la columna 'Atractivo' vía ATRACTIVO_LEGACY_NOMBRES.
+ * ⚠️ Confirmar MAPEO_LEGACY_ACTIVIDADES con verificarActividadesLegacy() antes.
+ */
+function migrarActividadesHistoricoDetallado() {
+  var hojaLegacy = abrirHojaLegacyPorGid(LEGACY_ACTIVIDADES);
+  if (!hojaLegacy) throw new Error('hoja_actividades_legacy_no_encontrada');
+
+  var headersLegacy = hojaLegacy.getRange(1, 1, 1, hojaLegacy.getLastColumn()).getValues()[0];
+  var map = mapeoLegacyNormalizado(MAPEO_LEGACY_ACTIVIDADES, headersLegacy);
+  var idx = {
+    fecha: map['fecha'],
+    total: map['cantidad_personas'],
+    atractivo: map['atractivo'],
+    nombre: map['nombre_actividad'],
+    turistas: map['cantidad_turistas'],
+    residentes: map['cantidad_residentes'],
+    observaciones: map['observaciones']
+  };
+
+  if (idx.fecha < 0 || idx.total < 0 || idx.atractivo < 0) {
+    throw new Error(
+      'No se encontraron las columnas esperadas (fecha=' + idx.fecha +
+      ', total=' + idx.total + ', atractivo=' + idx.atractivo +
+      '). Headers reales: ' + JSON.stringify(headersLegacy) +
+      ' — ajustar MAPEO_LEGACY_ACTIVIDADES en Config.gs.'
+    );
+  }
+
+  var ultimaFila = hojaLegacy.getLastRow();
+  if (ultimaFila <= 1) {
+    Logger.log('⚠️ [migrarActividadesHistoricoDetallado] sin datos que migrar.');
+    return { success: true, data: { migradas: 0 } };
+  }
+
+  var valores = hojaLegacy.getRange(2, 1, ultimaFila - 1, headersLegacy.length).getValues();
+  var porAtractivo = {};
+  var descartadas = { fecha: 0, cantidad: 0, otroAtractivo: {} };
+
+  for (var r = 0; r < valores.length; r++) {
+    var fecha = fechaLegacyISO(valores[r][idx.fecha]);
+    if (!fecha) { descartadas.fecha++; continue; }
+
+    var total = enteroLegacy(valores[r][idx.total]);
+    if (isNaN(total) || total < 1) { descartadas.cantidad++; continue; }
+
+    var nombreAtr = String(valores[r][idx.atractivo] || '').trim().toLowerCase();
+    var atractivo = ATRACTIVO_LEGACY_NOMBRES[nombreAtr];
+    if (!atractivo) {
+      descartadas.otroAtractivo[nombreAtr] = (descartadas.otroAtractivo[nombreAtr] || 0) + 1;
+      continue;
+    }
+
+    // turistas/residentes: si faltan o no cierran contra el total, se dejan en 0
+    // en vez de inventar un reparto — total es el único dato confiable acá.
+    var turistas = idx.turistas >= 0 ? enteroLegacy(valores[r][idx.turistas]) : NaN;
+    var residentes = idx.residentes >= 0 ? enteroLegacy(valores[r][idx.residentes]) : NaN;
+    if (isNaN(turistas) || isNaN(residentes) || turistas + residentes > total) {
+      turistas = 0;
+      residentes = 0;
+    }
+
+    var nombreActividad = idx.nombre >= 0 ? String(valores[r][idx.nombre] || '').trim() : '';
+    var observaciones = idx.observaciones >= 0 ? String(valores[r][idx.observaciones] || '').trim() : '';
+
+    if (!porAtractivo[atractivo]) porAtractivo[atractivo] = [];
+    porAtractivo[atractivo].push({
+      id: Utilities.getUuid(),
+      fecha_actividad: fecha,
+      nombre_actividad: nombreActividad || 'Actividad especial (histórico)',
+      cantidad_total: total,
+      cantidad_turistas: turistas,
+      cantidad_residentes: residentes,
+      observaciones: observaciones,
+      usuario_registro: MARCA_CONSOLIDACION,
+      fecha_hora_registro: fecha + ' 00:00:00',
+      fecha_hora_sync: fecha + ' 00:00:00',
+      activo: 'TRUE',
+      usuario_modificacion: '',
+      fecha_hora_modificacion: '',
+      id_local: ''
+    });
+  }
+
+  var total = 0;
+  Object.keys(porAtractivo).forEach(function (atractivo) {
+    var hoja = getSheetDe(atractivo, SHEETS.ACTIVIDADES);
+    var headers = getHeaders(hoja);
+    var idxUsuarioRegistro = indiceDeHeader(headers, 'usuario_registro');
+    if (idxUsuarioRegistro < 0) throw new Error('cabecera no encontrada en Actividades Especiales: usuario_registro');
+
+    var nuevas = porAtractivo[atractivo].map(function (obj) {
+      return headers.map(function (h) { return obj[h] === undefined ? '' : obj[h]; });
+    });
+
+    // Conservar todo lo que NO sea una migración previa (actividades reales).
+    var conservadas = [];
+    var ultimaFilaHoja = hoja.getLastRow();
+    if (ultimaFilaHoja > 1) {
+      var existentes = hoja.getRange(2, 1, ultimaFilaHoja - 1, headers.length).getValues();
+      for (var e = 0; e < existentes.length; e++) {
+        if (String(existentes[e][idxUsuarioRegistro]) === MARCA_CONSOLIDACION) continue;
+        conservadas.push(existentes[e]);
+      }
+      hoja.getRange(2, 1, ultimaFilaHoja - 1, headers.length).clearContent();
+    }
+
+    var todas = conservadas.concat(nuevas);
+    var CHUNK = 2000;
+    for (var i = 0; i < todas.length; i += CHUNK) {
+      var bloque = todas.slice(i, i + CHUNK);
+      var rango = hoja.getRange(2 + i, 1, bloque.length, headers.length);
+      rango.setNumberFormat('@');
+      rango.setValues(bloque);
+    }
+
+    total += nuevas.length;
+    invalidarResumen(atractivo);
+    Logger.log('✅ [migrarActividadesHistoricoDetallado] ' + atractivo + ': ' + nuevas.length + ' actividades · ' + conservadas.length + ' reales conservadas');
+  });
+
+  Logger.log(
+    'Descartadas → sin fecha válida: ' + descartadas.fecha +
+    ' · sin total válido: ' + descartadas.cantidad +
+    ' · de otros espacios: ' + JSON.stringify(descartadas.otroAtractivo)
+  );
+  Logger.log('✅ [migrarActividadesHistoricoDetallado] total migrado: ' + total);
+  return { success: true, data: { migradas: total } };
+}
+
 // ── Wrappers sin argumentos (para correr desde el editor) ────────────────────
 // El dropdown de Apps Script ejecuta la función seleccionada SIN argumentos,
 // por eso migrarHistorico('casa-la-puna') no se puede correr directo con "Ejecutar".
@@ -294,4 +434,116 @@ function migrarHistoricoCasaPuna() {
 
 function migrarHistoricoPuebloPerdido() {
   return migrarHistorico('pueblo-perdido');
+}
+
+// ==============================================================================
+// CONSOLIDACIÓN — vuelca la hoja "Histórico" (ya poblada por migrarHistorico /
+// migrarActividadesHistorico) dentro de "Ingresos", para que los registros
+// históricos participen de los mismos listados, filtros y series por
+// año/mes/día que los ingresos cargados por la app. Se ejecuta a mano desde
+// el editor, DESPUÉS de correr las migraciones de arriba.
+//
+// Campos que Histórico no tiene se completan con un valor explícito, nunca
+// vacío ni inventado como si fuera un dato real:
+//   tipo_visitante   → 'Sin especificar' (el Form legacy no lo pedía)
+//   procedencia      → '' (solo aplica a tipo_visitante = 'Turista')
+//   motivo           → 'Histórico'
+//   usuario_registro → 'Migración histórica' — además es la marca que usa
+//                       esta función para reconocer sus propias filas.
+//
+// Idempotente: cada corrida borra SOLO las filas con
+// usuario_registro = 'Migración histórica' antes de reescribir; los ingresos
+// reales (cargados por guías) nunca tienen ese valor y quedan intactos.
+// ==============================================================================
+
+var MARCA_CONSOLIDACION = 'Migración histórica';
+
+/** Construye una fila de Ingresos (en el orden de `headers`) a partir de una fila de Histórico. */
+function filaIngresoDesdeHistorico(headers, fecha, cantidad) {
+  var porCampo = {
+    id: Utilities.getUuid(),
+    fecha_hora_registro: fecha + ' 00:00:00',
+    fecha_hora_sync: fecha + ' 00:00:00',
+    tipo_visitante: 'Sin especificar',
+    procedencia: '',
+    cantidad_personas: cantidad,
+    motivo: 'Histórico',
+    usuario_registro: MARCA_CONSOLIDACION,
+    activo: 'TRUE',
+    usuario_modificacion: '',
+    fecha_hora_modificacion: '',
+    id_local: ''
+  };
+  var fila = [];
+  for (var c = 0; c < headers.length; c++) {
+    var v = porCampo[headers[c]];
+    fila.push(v === undefined ? '' : v);
+  }
+  return fila;
+}
+
+/** Vuelca Histórico → Ingresos para un atractivo. Ver cabecera de esta sección. */
+function consolidarHistoricoEnIngresos(atractivo) {
+  if (!atractivoValido(atractivo)) throw new Error('atractivo_invalido: ' + atractivo);
+
+  var hojaHistorico = getSheetDe(atractivo, SHEETS.HISTORICO);
+  var ultimaFilaHist = hojaHistorico.getLastRow();
+  if (ultimaFilaHist <= 1) {
+    Logger.log('⚠️ [consolidarHistoricoEnIngresos ' + atractivo + '] Histórico está vacío — correr primero migrarHistorico*() / migrarActividadesHistorico().');
+    return { success: true, data: { migradas: 0 } };
+  }
+
+  var hojaIngresos = getSheetDe(atractivo, SHEETS.INGRESOS);
+  var headersIngresos = getHeaders(hojaIngresos);
+  var idxUsuarioRegistro = indiceDeHeader(headersIngresos, 'usuario_registro');
+  if (idxUsuarioRegistro < 0) throw new Error('cabecera no encontrada en Ingresos: usuario_registro');
+
+  // Histórico: fecha | cantidad_personas | origen.
+  // Las filas de origen "actividades especiales" se EXCLUYEN acá: esas viven en
+  // la hoja Actividades Especiales (migrarActividadesHistoricoDetallado), y
+  // traerlas también a Ingresos las contaría dos veces (una como visita, otra
+  // como actividad).
+  var valoresHist = hojaHistorico.getRange(2, 1, ultimaFilaHist - 1, 3).getValues();
+  var nuevas = [];
+  for (var h = 0; h < valoresHist.length; h++) {
+    var fecha = String(valoresHist[h][0] || '').trim();
+    var cantidad = Number(valoresHist[h][1]);
+    var origen = String(valoresHist[h][2] || '').trim();
+    if (!fecha || isNaN(cantidad) || cantidad < 1) continue;
+    if (origen === LEGACY_ACTIVIDADES.origen) continue;
+    nuevas.push(filaIngresoDesdeHistorico(headersIngresos, fecha, cantidad));
+  }
+
+  // Conservar todo lo que NO sea una consolidación previa (ingresos reales).
+  var conservadas = [];
+  var ultimaFilaIng = hojaIngresos.getLastRow();
+  if (ultimaFilaIng > 1) {
+    var existentes = hojaIngresos.getRange(2, 1, ultimaFilaIng - 1, headersIngresos.length).getValues();
+    for (var e = 0; e < existentes.length; e++) {
+      if (String(existentes[e][idxUsuarioRegistro]) === MARCA_CONSOLIDACION) continue;
+      conservadas.push(existentes[e]);
+    }
+    hojaIngresos.getRange(2, 1, ultimaFilaIng - 1, headersIngresos.length).clearContent();
+  }
+
+  var todas = conservadas.concat(nuevas);
+  var CHUNK = 2000; // 2000 filas × 12 cols = 24000 celdas por escritura
+  for (var i = 0; i < todas.length; i += CHUNK) {
+    var bloque = todas.slice(i, i + CHUNK);
+    var rango = hojaIngresos.getRange(2 + i, 1, bloque.length, headersIngresos.length);
+    rango.setNumberFormat('@');
+    rango.setValues(bloque);
+  }
+
+  invalidarResumen(atractivo);
+  Logger.log('✅ [consolidarHistoricoEnIngresos ' + atractivo + '] filas históricas consolidadas: ' + nuevas.length + ' · ingresos reales conservados: ' + conservadas.length);
+  return { success: true, data: { migradas: nuevas.length, conservadas: conservadas.length } };
+}
+
+function consolidarHistoricoEnIngresosCasaPuna() {
+  return consolidarHistoricoEnIngresos('casa-la-puna');
+}
+
+function consolidarHistoricoEnIngresosPuebloPerdido() {
+  return consolidarHistoricoEnIngresos('pueblo-perdido');
 }

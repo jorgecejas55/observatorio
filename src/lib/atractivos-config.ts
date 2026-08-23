@@ -14,12 +14,16 @@ export const MODULO_DE_ATRACTIVO: Record<AtractivoConIngresos, ModuloKey> = {
   'pueblo-perdido': 'atractivos-pueblo-perdido',
 }
 
+// 'Histórico' es el motivo que asigna la consolidación (gas/atractivos/Migracion.gs)
+// a las visitas volcadas desde la hoja Histórico; no aparece en las hojas legacy.
 export const MOTIVOS_INGRESOS: Record<AtractivoConIngresos, readonly string[]> = {
-  'casa-la-puna': ['Visita guiada', 'Peña', 'Feria'],
-  'pueblo-perdido': ['Visita guiada', 'Actividad especial'],
+  'casa-la-puna': ['Visita guiada', 'Peña', 'Feria', 'Histórico'],
+  'pueblo-perdido': ['Visita guiada', 'Actividad especial', 'Histórico'],
 }
 
-export const TIPOS_VISITANTE = ['Residente', 'Turista', 'Institución'] as const
+// 'Sin especificar' cubre los registros históricos consolidados: el Form legacy
+// no capturaba tipo de visitante.
+export const TIPOS_VISITANTE = ['Residente', 'Turista', 'Institución', 'Sin especificar'] as const
 export type TipoVisitante = typeof TIPOS_VISITANTE[number]
 
 export const PROCEDENCIAS_INGRESO = ['Internacional', 'Nacional', 'Provincial'] as const

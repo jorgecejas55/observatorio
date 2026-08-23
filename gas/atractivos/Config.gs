@@ -84,7 +84,11 @@ var MAPEO_LEGACY = {
 var MAPEO_LEGACY_ACTIVIDADES = {
   'fecha': 'Fecha',
   'cantidad_personas': 'Total de asistentes',
-  'atractivo': 'Atractivo'
+  'atractivo': 'Atractivo',
+  'nombre_actividad': 'Actividad',
+  'cantidad_turistas': 'Cantidad de turistas',
+  'cantidad_residentes': 'Cantidad de residentes',
+  'observaciones': 'Observaciones'
 };
 
 // La planilla de actividades mezcla varios espacios en la columna 'Atractivo':

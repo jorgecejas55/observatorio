@@ -28,7 +28,8 @@ function doGet(e) {
     var routes = {
       'ingresos/list': function () { return getIngresos(atractivo, params); },
       'actividades/list': function () { return getActividades(atractivo, params); },
-      'resumen': function () { return getResumen(atractivo); }
+      'resumen': function () { return getResumen(atractivo); },
+      'serie': function () { return getSerie(atractivo, params.anio, params.mes); }
     };
 
     var handler = routes[path];

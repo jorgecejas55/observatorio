@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { puedeEscribir } from '@/lib/permisos'
 import Toast from '@/components/shared/Toast'
 import FormIngreso from './FormIngreso'
 import FormActividadEspecial from './FormActividadEspecial'
+import { formatearFechaCorta } from '@/lib/formato-fechas'
 import type { AtractivoConIngresos } from '@/lib/atractivos-config'
 import type { IngresoAtractivo, ActividadEspecialAtractivo } from '@/lib/types'
 
@@ -23,7 +24,6 @@ const NOMBRE_REGISTRO: Record<TipoRegistro, string> = {
   actividad: 'actividad especial',
 }
 
-const formatearFecha = (v: string | undefined) => (v ? String(v).substring(0, 10) : '')
 const formatearHora = (v: string | undefined) => (v ? String(v).substring(11, 16) : '')
 const emailCorto = (v: string | undefined) => (v ? v.split('@')[0] : '—')
 
@@ -40,8 +40,6 @@ export default function TablaRegistros({ atractivo, tipo }: TablaRegistrosProps)
   const [modalAbierto, setModalAbierto] = useState(false)
   const [editando, setEditando] = useState<IngresoAtractivo | ActividadEspecialAtractivo | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
-
-  const formRef = useRef<HTMLDivElement>(null)
 
   const mensajeLista = tipo === 'ingreso' ? 'ingresos' : 'actividades'
   const endpointBase = `/api/ocio/ingresos/atractivos/${atractivo}/${tipo === 'ingreso' ? 'ingresos' : 'actividades'}`
@@ -76,19 +74,24 @@ export default function TablaRegistros({ atractivo, tipo }: TablaRegistrosProps)
     cargar()
   }, [cargar])
 
-  useEffect(() => {
-    if (modalAbierto && formRef.current) {
-      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }, [modalAbierto])
+  // ── Orden descendente (más reciente primero) + paginación (client) ──────────
+  // Campo de fecha en texto ISO: comparar como string alcanza (mismo criterio
+  // que los filtros/agregaciones del GAS).
+  const campoFecha = tipo === 'ingreso' ? 'fecha_hora_registro' : 'fecha_actividad'
+  const ordenados = useMemo(() => {
+    return [...registros].sort((a, b) => {
+      const fa = String((a as unknown as Record<string, unknown>)[campoFecha] || '')
+      const fb = String((b as unknown as Record<string, unknown>)[campoFecha] || '')
+      return fb.localeCompare(fa)
+    })
+  }, [registros, campoFecha])
 
-  // ── Paginación (client) ──────────────────────────────────────────────────────
-  const totalPages = useMemo(() => Math.ceil(registros.length / ITEMS_PER_PAGE), [registros.length])
+  const totalPages = useMemo(() => Math.ceil(ordenados.length / ITEMS_PER_PAGE), [ordenados.length])
   const paginaActualSegura = Math.min(currentPage, Math.max(1, totalPages))
   const paginados = useMemo(() => {
     const start = (paginaActualSegura - 1) * ITEMS_PER_PAGE
-    return registros.slice(start, start + ITEMS_PER_PAGE)
-  }, [registros, paginaActualSegura])
+    return ordenados.slice(start, start + ITEMS_PER_PAGE)
+  }, [ordenados, paginaActualSegura])
 
   // ── Acciones ─────────────────────────────────────────────────────────────────
   const abrirCrear = () => {
@@ -138,7 +141,7 @@ export default function TablaRegistros({ atractivo, tipo }: TablaRegistrosProps)
   const renderIngreso = (r: IngresoAtractivo) => (
     <>
       <td className="px-4 py-3 text-sm text-text-primary whitespace-nowrap">
-        <span className="font-medium">{formatearFecha(r.fecha_hora_registro)}</span>
+        <span className="font-medium">{formatearFechaCorta(r.fecha_hora_registro)}</span>
         <span className="ml-2 text-text-secondary">{formatearHora(r.fecha_hora_registro)}</span>
       </td>
       <td className="px-4 py-3 text-sm text-text-primary">{r.tipo_visitante}</td>
@@ -151,7 +154,7 @@ export default function TablaRegistros({ atractivo, tipo }: TablaRegistrosProps)
 
   const renderActividad = (r: ActividadEspecialAtractivo) => (
     <>
-      <td className="px-4 py-3 text-sm text-text-primary whitespace-nowrap">{formatearFecha(r.fecha_actividad)}</td>
+      <td className="px-4 py-3 text-sm text-text-primary whitespace-nowrap">{formatearFechaCorta(r.fecha_actividad)}</td>
       <td className="px-4 py-3 text-sm font-medium text-text-primary">{r.nombre_actividad}</td>
       <td className="px-4 py-3 text-sm font-bold text-text-primary text-center">{r.cantidad_total}</td>
       <td className="px-4 py-3 text-sm text-text-secondary text-center">{r.cantidad_turistas}</td>
@@ -288,30 +291,30 @@ export default function TablaRegistros({ atractivo, tipo }: TablaRegistrosProps)
         )}
       </div>
 
-      {/* Modal-embed del form. `key` fuerza el remonte al cambiar de registro:
-          los forms inicializan su estado solo al montar, y sin esto pasar de un
-          registro a otro (o de "nuevo" a editar) dejaría los valores anteriores
-          y los guardaría sobre el registro recién seleccionado. */}
+      {/* Modal. `key` fuerza el remonte al cambiar de registro: los forms
+          inicializan su estado solo al montar, y sin esto pasar de un registro
+          a otro (o de "nuevo" a editar) dejaría los valores anteriores y los
+          guardaría sobre el registro recién seleccionado. */}
       {modalAbierto && (
-        <div ref={formRef}>
-          {tipo === 'ingreso' ? (
-            <FormIngreso
-              key={editando?.id ?? 'nuevo'}
-              atractivo={atractivo}
-              registro={editando as IngresoAtractivo | null}
-              onGuardado={handleGuardado}
-              onCancelar={cerrarModal}
-            />
-          ) : (
-            <FormActividadEspecial
-              key={editando?.id ?? 'nuevo'}
-              atractivo={atractivo}
-              actividad={editando as ActividadEspecialAtractivo | null}
-              onGuardado={handleGuardado}
-              onCancelar={cerrarModal}
-            />
-          )}
-        </div>
+        tipo === 'ingreso' ? (
+          <FormIngreso
+            key={editando?.id ?? 'nuevo'}
+            atractivo={atractivo}
+            registro={editando as IngresoAtractivo | null}
+            onGuardado={handleGuardado}
+            onCancelar={cerrarModal}
+            variante="modal"
+          />
+        ) : (
+          <FormActividadEspecial
+            key={editando?.id ?? 'nuevo'}
+            atractivo={atractivo}
+            actividad={editando as ActividadEspecialAtractivo | null}
+            onGuardado={handleGuardado}
+            onCancelar={cerrarModal}
+            variante="modal"
+          />
+        )
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

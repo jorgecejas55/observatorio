@@ -12,6 +12,7 @@ import type {
   IngresoAtractivo,
   ActividadEspecialAtractivo,
   ResumenAtractivo,
+  SerieAtractivo,
   ApiResponse,
 } from '@/lib/types'
 import type { AtractivoConIngresos } from '@/lib/atractivos-config'
@@ -176,4 +177,16 @@ export async function getResumen(
 ): Promise<ApiResponse<ResumenAtractivo>> {
   const client = getClient()
   return client.get('resumen', { atractivo })
+}
+
+/** Drill-down bajo demanda: sin `mes` agrega por mes de `anio`; con `mes`, por día. */
+export async function getSerie(
+  atractivo: AtractivoConIngresos,
+  anio: number,
+  mes?: number,
+): Promise<ApiResponse<SerieAtractivo>> {
+  const client = getClient()
+  const params: Record<string, string> = { atractivo, anio: String(anio) }
+  if (mes) params.mes = String(mes)
+  return client.get('serie', params)
 }

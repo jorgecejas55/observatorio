@@ -11,19 +11,19 @@ const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'O
 const formatearNumero = (n: number) => new Intl.NumberFormat('es-AR').format(n || 0)
 
 export default function KpisAtractivo({ resumen }: KpisAtractivoProps) {
-  const { hoy, mesEnCurso, totalAnio, historico } = resumen
+  const { hoy, mesEnCurso, totalAnio } = resumen
   const mesLabel = MESES[mesEnCurso.mes - 1] ?? ''
 
   const cards = [
     {
       label: 'Hoy',
-      value: formatearNumero(hoy.personas),
-      sub: `${formatearNumero(hoy.ingresos)} registro(s)`,
+      value: formatearNumero(hoy.personasTotal),
+      sub: `${formatearNumero(hoy.personas)} visitas · ${formatearNumero(hoy.personasActividades)} actividades`,
       icon: 'fa-calendar-day',
       color: 'bg-orange-100 text-orange-500',
     },
     {
-      label: `${mesLabel} · personas`,
+      label: `${mesLabel} · visitas`,
       value: formatearNumero(mesEnCurso.personas),
       sub: `${formatearNumero(mesEnCurso.ingresos)} ingresos`,
       icon: 'fa-users',
@@ -38,22 +38,15 @@ export default function KpisAtractivo({ resumen }: KpisAtractivoProps) {
     },
     {
       label: `${resumen.anio} · total`,
-      value: formatearNumero(totalAnio.personas),
-      sub: `${formatearNumero(totalAnio.ingresos)} ingresos · ${formatearNumero(totalAnio.actividades)} actividades`,
+      value: formatearNumero(totalAnio.personasTotal),
+      sub: `${formatearNumero(totalAnio.personas)} visitas · ${formatearNumero(totalAnio.personasActividades)} actividades`,
       icon: 'fa-chart-line',
       color: 'bg-green-100 text-green-600',
-    },
-    {
-      label: 'Histórico',
-      value: formatearNumero(historico.personas),
-      sub: 'personas migradas',
-      icon: 'fa-book',
-      color: 'bg-amber-100 text-amber-600',
     },
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {cards.map((card) => (
         <div key={card.label} className="card p-5">
           <div className="flex items-center gap-2 mb-3">
@@ -64,7 +57,9 @@ export default function KpisAtractivo({ resumen }: KpisAtractivoProps) {
               {card.label}
             </p>
           </div>
-          <p className="text-3xl font-bold text-text-primary">{card.value}</p>
+          <p className="text-3xl font-bold text-text-primary">
+            {card.value} <span className="text-sm font-medium text-text-secondary">personas</span>
+          </p>
           <p className="text-xs text-text-secondary mt-1">{card.sub}</p>
         </div>
       ))}

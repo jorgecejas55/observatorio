@@ -21,7 +21,12 @@ import KpisAtractivo from './KpisAtractivo'
 import { useSession } from 'next-auth/react'
 import { puedeEscribir } from '@/lib/permisos'
 import type { AtractivoConIngresos } from '@/lib/atractivos-config'
-import type { ResumenAtractivo } from '@/lib/types'
+import type { ResumenAtractivo, SerieAtractivo } from '@/lib/types'
+
+const MESES_LARGOS = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
 
 const COLORS_PIE = ['#f97316', '#0ea5e9', '#10b981', '#8b5cf6', '#eab308', '#ef4444', '#64748b']
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -72,6 +77,46 @@ export default function DashboardAtractivo({ atractivo }: DashboardAtractivoProp
     () => (resumen?.porTipoVisitante || []).slice().sort((a, b) => b.personas - a.personas),
     [resumen],
   )
+
+  // ── Serie histórica: selector de año/mes con drill-down bajo demanda ────────
+  const [anioSeleccionado, setAnioSeleccionado] = useState<number | null>(null)
+  const [mesSeleccionado, setMesSeleccionado] = useState<number | null>(null)
+  const [serieHistorica, setSerieHistorica] = useState<SerieAtractivo | null>(null)
+  const [cargandoSerie, setCargandoSerie] = useState(false)
+
+  useEffect(() => {
+    if (resumen && anioSeleccionado === null) {
+      setAnioSeleccionado(resumen.anio)
+    }
+  }, [resumen, anioSeleccionado])
+
+  useEffect(() => {
+    if (anioSeleccionado === null) return
+    let cancelado = false
+    setCargandoSerie(true)
+    const params = new URLSearchParams({ anio: String(anioSeleccionado) })
+    if (mesSeleccionado) params.set('mes', String(mesSeleccionado))
+    fetch(`/api/ocio/ingresos/atractivos/${atractivo}/serie?${params}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelado) return
+        if (data.success) setSerieHistorica(data.data)
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoSerie(false)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [atractivo, anioSeleccionado, mesSeleccionado])
+
+  const datosSerieHistorica = useMemo(() => {
+    if (!serieHistorica) return []
+    return serieHistorica.serie.map((p) => ({
+      etiqueta: serieHistorica.granularidad === 'mes' ? MESES_CORTOS[p.periodo - 1] : String(p.periodo),
+      personas: p.personas,
+    }))
+  }, [serieHistorica])
 
   if (loading) {
     return (
@@ -131,6 +176,61 @@ export default function DashboardAtractivo({ atractivo }: DashboardAtractivoProp
               <Line type="monotone" dataKey="personas" name="Visitas" stroke="#f97316" strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="actividades" name="Actividades" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Serie histórica: año/mes con drill-down */}
+      <div className="card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h3 className="text-base font-semibold text-text-primary">
+            <i className="fa-solid fa-timeline text-primary mr-2" />
+            Serie histórica
+          </h3>
+          <div className="flex gap-2">
+            <select
+              value={anioSeleccionado ?? ''}
+              onChange={(e) => {
+                setAnioSeleccionado(Number(e.target.value))
+                setMesSeleccionado(null)
+              }}
+              className="input py-1.5 text-sm w-auto"
+            >
+              {(resumen?.aniosDisponibles || []).map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+            <select
+              value={mesSeleccionado ?? ''}
+              onChange={(e) => setMesSeleccionado(e.target.value ? Number(e.target.value) : null)}
+              className="input py-1.5 text-sm w-auto"
+            >
+              <option value="">Todo el año</option>
+              {MESES_LARGOS.map((m, i) => (
+                <option key={m} value={i + 1}>{m}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <p className="text-xs text-text-secondary mb-3">
+          {mesSeleccionado
+            ? `Personas por día · ${MESES_LARGOS[mesSeleccionado - 1]} ${anioSeleccionado}`
+            : `Personas por mes · ${anioSeleccionado ?? ''}`}
+        </p>
+        <div className="h-64 relative">
+          {cargandoSerie && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={datosSerieHistorica} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="etiqueta" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="personas" name="Personas" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>

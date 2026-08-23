@@ -11,6 +11,8 @@ interface FormActividadEspecialProps {
   actividad?: ActividadEspecialAtractivo | null
   onGuardado: () => void
   onCancelar: () => void
+  /** 'pagina' (default, sin overlay) o 'modal' (overlay tipo museos) — ver FormIngreso. */
+  variante?: 'pagina' | 'modal'
 }
 
 function generadorIdLocal(): string {
@@ -102,7 +104,9 @@ export default function FormActividadEspecial({
   actividad,
   onGuardado,
   onCancelar,
+  variante = 'pagina',
 }: FormActividadEspecialProps) {
+  const modal = variante === 'modal'
   // Fecha/hora del reloj LOCAL del dispositivo: en UTC (toISOString) todo lo
   // cargado después de las 21:00 en Catamarca se fecharía al día siguiente.
   const [fechaActividad, setFechaActividad] = useState<string>(
@@ -183,16 +187,18 @@ export default function FormActividadEspecial({
   const inputBase =
     'input bg-white min-h-16 text-base touch-manipulation w-full py-3'
 
-  return (
-    <form onSubmit={handleSubmit} className="card p-6 space-y-6 max-w-2xl">
-      <div>
-        <h3 className="text-lg font-bold text-text-primary">
-          {actividad ? 'Editar actividad especial' : 'Nueva actividad especial'}
-        </h3>
-        <p className="text-sm text-text-secondary">
-          Se carga al terminar la actividad (puede ser de días anteriores).
-        </p>
-      </div>
+  const contenido = (
+    <form onSubmit={handleSubmit} className={modal ? 'space-y-6' : 'card p-6 space-y-6 max-w-2xl'}>
+      {!modal && (
+        <div>
+          <h3 className="text-lg font-bold text-text-primary">
+            {actividad ? 'Editar actividad especial' : 'Nueva actividad especial'}
+          </h3>
+          <p className="text-sm text-text-secondary">
+            Se carga al terminar la actividad (puede ser de días anteriores).
+          </p>
+        </div>
+      )}
 
       <div>
         <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2">
@@ -249,7 +255,13 @@ export default function FormActividadEspecial({
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t border-gray-100 flex gap-3">
+      <div
+        className={
+          modal
+            ? 'sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-white border-t border-gray-100 flex gap-3'
+            : 'sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t border-gray-100 flex gap-3'
+        }
+      >
         <button
           type="submit"
           disabled={guardando}
@@ -277,5 +289,28 @@ export default function FormActividadEspecial({
         </button>
       </div>
     </form>
+  )
+
+  if (!modal) return contenido
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+          <h3 className="text-xl font-bold text-text-primary">
+            {actividad ? 'Editar actividad especial' : 'Nueva actividad especial'}
+          </h3>
+          <button
+            type="button"
+            onClick={onCancelar}
+            disabled={guardando}
+            className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+          >
+            <i className="fa-solid fa-times text-text-secondary" />
+          </button>
+        </div>
+        <div className="p-6">{contenido}</div>
+      </div>
+    </div>
   )
 }

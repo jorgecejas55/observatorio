@@ -53,6 +53,21 @@ export function formatearFecha(valor: unknown): string {
   return `${f.getUTCDate()} ${MESES_ES_MIN[f.getUTCMonth()]} ${f.getUTCFullYear()}`
 }
 
+/**
+ * "22/08/2026" — formato de fecha corta para toda la UI.
+ * Parsea el texto ISO ('YYYY-MM-DD...') directo, sin pasar por Date: evita
+ * corrimientos de timezone y sigue funcionando si el valor no es ISO estricto
+ * ('YYYY-MM-DD HH:mm:ss' no es parseable de forma confiable por `new Date()`
+ * en todos los navegadores). El dato en la planilla NO cambia — esto es solo
+ * para mostrar.
+ */
+export function formatearFechaCorta(valor: unknown): string {
+  const texto = String(valor ?? '').trim()
+  const m = texto.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return '—'
+  return `${m[3]}/${m[2]}/${m[1]}`
+}
+
 /** "1 de enero de 2026" */
 export function formatearFechaLarga(valor: unknown): string {
   const f = aFecha(valor)

@@ -39,65 +39,12 @@ function invalidarResumen(atractivo) {
   }
 }
 
-// ── Total histórico: caché propia de 6 h ──────────────────────────────────────
-// La hoja Histórico la escribe la migración y después no cambia nunca, pero
-// pesa miles de filas (5.129 en Pueblo Perdido). Sumarla dentro del resumen
-// hacía que CADA expiración del TTL de 300 s releyera toda la hoja: con la
-// caché fría eso llegó a pasarse del timeout del cliente. Se cachea aparte con
-// el TTL máximo que admite CacheService (6 h) y se invalida a mano desde la
-// migración, que es lo único que la modifica.
-
-var HISTORICO_CACHE_TTL = 21600; // 6 h — máximo permitido por CacheService
-
-function HISTORICO_CACHE_KEY(atractivo) {
-  return 'historico_total_' + atractivo;
-}
-
-/** Suma de `cantidad_personas` de la hoja Histórico (cacheada 6 h). */
-function getTotalHistorico(atractivo) {
-  var cache = CacheService.getScriptCache();
-  var key = HISTORICO_CACHE_KEY(atractivo);
-  var cacheado = cache.get(key);
-  if (cacheado !== null && cacheado !== '') {
-    var previo = Number(cacheado);
-    if (!isNaN(previo)) return previo;
-  }
-
-  var total = 0;
-  try {
-    var sheet = getSheetDe(atractivo, SHEETS.HISTORICO);
-    var ultimaFila = sheet.getLastRow();
-    if (ultimaFila > 1) {
-      // Solo la columna de cantidades: leer las 3 columnas de miles de filas es
-      // desperdicio (el resto del Histórico no participa del cálculo).
-      var col = getHeaders(sheet).indexOf('cantidad_personas');
-      if (col < 0) throw new Error('cabecera no encontrada: cantidad_personas');
-      var valores = sheet.getRange(2, col + 1, ultimaFila - 1, 1).getValues();
-      for (var i = 0; i < valores.length; i++) {
-        total += numero(valores[i][0]);
-      }
-    }
-  } catch (e) {
-    Logger.log('[resumen] hoja Histórico no disponible: ' + e.toString());
-    return 0; // sin cachear: un fallo transitorio no debe fijarse por 6 h
-  }
-
-  try {
-    cache.put(key, String(total), HISTORICO_CACHE_TTL);
-  } catch (e) {
-    Logger.log('[resumen] no se pudo cachear el histórico: ' + e.toString());
-  }
-  return total;
-}
-
-/** Invalida el total histórico. La llama la migración tras reescribir la hoja. */
-function invalidarHistorico(atractivo) {
-  try {
-    CacheService.getScriptCache().remove(HISTORICO_CACHE_KEY(atractivo));
-  } catch (e) {
-    // ignorar: el TTL corrige solo
-  }
-}
+// ── Total histórico (hoja Histórico, solo lectura de migración) ───────────────
+// Ya no participa del resumen: tras consolidarHistoricoEnIngresos() (Migracion.gs)
+// los mismos datos viven en Ingresos y entran a totalAnio/serieAnual/serie como
+// cualquier otro registro. invalidarHistorico() queda como no-op por si algún
+// caller viejo la sigue llamando.
+function invalidarHistorico(atractivo) {}
 
 function numero(valor) {
   var n = Number(valor);
@@ -127,9 +74,12 @@ function calcularResumen(atractivo) {
 
   var porTipo = {};   // tipo_visitante → personas
   var porMotivo = {}; // motivo → personas
+  var aniosSet = {};  // año (string) → true — para el selector del frontend
 
   var hoyIngresos = 0;
   var hoyPersonas = 0;
+  var hoyActividades = 0;
+  var hoyPersonasActividades = 0;
   var mesIngresos = 0;
   var mesPersonas = 0;
   var mesActividades = 0;
@@ -150,6 +100,7 @@ function calcularResumen(atractivo) {
     var mesKey = fecha.substring(0, 7);
     var personas = numero(ing.cantidad_personas);
 
+    if (fecha) aniosSet[fecha.substring(0, 4)] = true;
     if (!fecha || fecha.substring(0, 4) !== String(anioActual)) continue;
 
     totalIngresos++;
@@ -185,11 +136,16 @@ function calcularResumen(atractivo) {
     var mesKeyAct = fechaAct.substring(0, 7);
     var totalAct = numero(act.cantidad_total);
 
+    if (fechaAct) aniosSet[fechaAct.substring(0, 4)] = true;
     if (!fechaAct || fechaAct.substring(0, 4) !== String(anioActual)) continue;
 
     totalActividades++;
     totalPersonasActividades += totalAct;
 
+    if (fechaAct === hoy) {
+      hoyActividades++;
+      hoyPersonasActividades += totalAct;
+    }
     if (mesKeyAct === mesActualKey) {
       mesActividades++;
       mesPersonasActividades += totalAct;
@@ -201,12 +157,19 @@ function calcularResumen(atractivo) {
     }
   }
 
-  // ── Histórico (solo lectura, poblado por la migración; caché propia de 6 h) ──
-  var totalHistorico = getTotalHistorico(atractivo);
+  var aniosDisponibles = Object.keys(aniosSet).map(function (a) { return parseInt(a, 10); });
+  aniosDisponibles.sort(function (a, b) { return b - a; }); // más reciente primero
 
   return {
     anio: anioActual,
-    hoy: { fecha: hoy, ingresos: hoyIngresos, personas: hoyPersonas },
+    hoy: {
+      fecha: hoy,
+      ingresos: hoyIngresos,
+      personas: hoyPersonas,
+      actividades: hoyActividades,
+      personasActividades: hoyPersonasActividades,
+      personasTotal: hoyPersonas + hoyPersonasActividades
+    },
     mesEnCurso: {
       anio: anioActual,
       mes: mesActual,
@@ -226,8 +189,83 @@ function calcularResumen(atractivo) {
       ingresos: totalIngresos,
       personas: totalPersonas,
       actividades: totalActividades,
-      personasActividades: totalPersonasActividades
+      personasActividades: totalPersonasActividades,
+      personasTotal: totalPersonas + totalPersonasActividades
     },
-    historico: { personas: totalHistorico }
+    aniosDisponibles: aniosDisponibles
   };
+}
+
+// ==============================================================================
+// SERIE — drill-down bajo demanda para el selector de año/mes del dashboard.
+// Sin año+mes: agrega por mes (1-12) de ese año. Con año+mes: agrega por día
+// del mes. No confundir con serieAnual (siempre año en curso, ya viene en
+// calcularResumen): esta función sirve cualquier año/mes que el usuario elija,
+// incluidos los históricos consolidados en Ingresos.
+// Cache 300 s por (atractivo, año, mes) — mismo criterio que el resumen.
+// ==============================================================================
+
+function SERIE_CACHE_KEY(atractivo, anio, mes) {
+  return 'serie_' + atractivo + '_' + anio + '_' + (mes || '');
+}
+
+function getSerie(atractivo, anio, mes) {
+  var anioNum = parseInt(anio, 10);
+  if (isNaN(anioNum)) return { success: false, error: 'año inválido' };
+  var mesNum = mes ? parseInt(mes, 10) : null;
+  if (mesNum !== null && (isNaN(mesNum) || mesNum < 1 || mesNum > 12)) {
+    return { success: false, error: 'mes inválido' };
+  }
+
+  var cache = CacheService.getScriptCache();
+  var key = SERIE_CACHE_KEY(atractivo, anioNum, mesNum);
+  var cacheado = cache.get(key);
+  if (cacheado) {
+    try {
+      return { success: true, data: JSON.parse(cacheado) };
+    } catch (e) {
+      // cache corrupta → recalcular
+    }
+  }
+
+  var data = calcularSerie(atractivo, anioNum, mesNum);
+  try {
+    cache.put(key, JSON.stringify(data), 300);
+  } catch (e) {
+    Logger.log('[serie] no se pudo cachear: ' + e.toString());
+  }
+  return { success: true, data: data };
+}
+
+function calcularSerie(atractivo, anioNum, mesNum) {
+  var sheetIngresos = getSheetDe(atractivo, SHEETS.INGRESOS);
+  var headersIngresos = getHeaders(sheetIngresos);
+  var filasIngresos = listarActivos(sheetIngresos, headersIngresos, 'fecha_hora_registro', { sinLimite: true });
+
+  var granularidad = mesNum ? 'dia' : 'mes';
+  var tope = mesNum ? 31 : 12;
+  var puntos = {};
+  for (var p = 1; p <= tope; p++) {
+    puntos[p] = { periodo: p, personas: 0, ingresos: 0 };
+  }
+
+  for (var i = 0; i < filasIngresos.length; i++) {
+    var ing = filasIngresos[i];
+    var fecha = String(ing.fecha_hora_registro || '').substring(0, 10);
+    if (!fecha || fecha.substring(0, 4) !== String(anioNum)) continue;
+
+    var mesFila = parseInt(fecha.substring(5, 7), 10);
+    if (mesNum && mesFila !== mesNum) continue;
+
+    var periodo = mesNum ? parseInt(fecha.substring(8, 10), 10) : mesFila;
+    if (!puntos[periodo]) continue; // fecha corrupta (día fuera de rango)
+
+    puntos[periodo].personas += numero(ing.cantidad_personas);
+    puntos[periodo].ingresos += 1;
+  }
+
+  var serie = [];
+  for (var k = 1; k <= tope; k++) serie.push(puntos[k]);
+
+  return { granularidad: granularidad, anio: anioNum, mes: mesNum || null, serie: serie };
 }

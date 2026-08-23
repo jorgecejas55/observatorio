@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { esAdmin, type SessionUser } from '@/lib/permisos'
 import { TIPOS_VISITANTE, PROCEDENCIAS_INGRESO, MOTIVOS_INGRESOS } from '@/lib/atractivos-config'
-import { fechaHoraLocalISO } from '@/lib/formato-fechas'
+import { fechaHoraLocalISO, formatearFechaCorta } from '@/lib/formato-fechas'
 import type { AtractivoConIngresos } from '@/lib/atractivos-config'
 import type { IngresoAtractivo } from '@/lib/types'
 
@@ -12,6 +14,13 @@ interface FormIngresoProps {
   registro?: IngresoAtractivo | null
   onGuardado: () => void
   onCancelar: () => void
+  /**
+   * 'pagina' (default): botones grandes tablet-first, sin overlay — SOLO
+   * /ocio/ingresos/[atractivo]/cargar.
+   * 'modal': overlay tipo museos (Adán Quiroga / Virgen del Valle) — usado
+   * desde TablaRegistros (/registros y /actividades).
+   */
+  variante?: 'pagina' | 'modal'
 }
 
 function generadorIdLocal(): string {
@@ -23,12 +32,20 @@ function stepperCls(base: string) {
   return `${base} touch-manipulation select-none`
 }
 
-export default function FormIngreso({ atractivo, registro, onGuardado, onCancelar }: FormIngresoProps) {
+export default function FormIngreso({ atractivo, registro, onGuardado, onCancelar, variante = 'pagina' }: FormIngresoProps) {
+  const modal = variante === 'modal'
+  const { data: session } = useSession()
+
   const motivos = MOTIVOS_INGRESOS[atractivo]
 
   // fecha_hora_registro: reloj LOCAL del dispositivo (no UTC — el GAS agrupa
-  // "hoy" y el mes por la zona de Catamarca). En edición se preserva la original.
-  const [fechaHoraRegistro] = useState(() => registro?.fecha_hora_registro || fechaHoraLocalISO())
+  // "hoy" y el mes por la zona de Catamarca). En edición se preserva la original,
+  // salvo que un admin la corrija a mano (ver puedeEditarFecha más abajo) — a
+  // veces hace falta arreglar una fecha mal cargada o migrada del histórico.
+  const [fechaHoraRegistro, setFechaHoraRegistro] = useState(
+    () => registro?.fecha_hora_registro || fechaHoraLocalISO(),
+  )
+  const puedeEditarFecha = modal && !!registro && esAdmin(session?.user as SessionUser)
   const [idLocal] = useState(() => registro?.id_local || generadorIdLocal())
 
   const [tipoVisitante, setTipoVisitante] = useState<string>(registro?.tipo_visitante || '')
@@ -110,17 +127,42 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
         : 'border-gray-200 bg-white text-text-secondary hover:border-primary/50'
     }`
 
-  return (
-    <form onSubmit={handleSubmit} className="card p-6 space-y-6 max-w-2xl">
-      <div>
-        <h3 className="text-lg font-bold text-text-primary">
-          {registro ? 'Editar ingreso' : 'Cargar ingreso'}
-        </h3>
-        <p className="text-sm text-text-secondary">
-          Fecha y hora del registro (automáticas del dispositivo):{' '}
-          <span className="font-medium text-text-primary">{new Date(fechaHoraRegistro).toLocaleString('es-AR')}</span>
-        </p>
-      </div>
+  const contenido = (
+    <form onSubmit={handleSubmit} className={modal ? 'space-y-6' : 'card p-6 space-y-6 max-w-2xl'}>
+      {!modal && (
+        <div>
+          <h3 className="text-lg font-bold text-text-primary">
+            {registro ? 'Editar ingreso' : 'Cargar ingreso'}
+          </h3>
+          <p className="text-sm text-text-secondary">
+            Fecha y hora del registro (automáticas del dispositivo):{' '}
+            <span className="font-medium text-text-primary">
+              {formatearFechaCorta(fechaHoraRegistro)} {fechaHoraRegistro.substring(11, 16)}
+            </span>
+          </p>
+        </div>
+      )}
+
+      {/* Fecha y hora: editable solo para admin, editando un registro, en el modal */}
+      {modal && (
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2">
+            Fecha y hora del registro
+          </label>
+          {puedeEditarFecha ? (
+            <input
+              type="datetime-local"
+              value={fechaHoraRegistro.substring(0, 16)}
+              onChange={(e) => setFechaHoraRegistro(e.target.value)}
+              className="input bg-white w-full"
+            />
+          ) : (
+            <p className="text-sm font-medium text-text-primary">
+              {formatearFechaCorta(fechaHoraRegistro)} {fechaHoraRegistro.substring(11, 16)}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Tipo de visitante */}
       <div>
@@ -226,7 +268,13 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
       )}
 
       {/* Barra sticky de guardar */}
-      <div className="sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t border-gray-100 flex gap-3">
+      <div
+        className={
+          modal
+            ? 'sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-white border-t border-gray-100 flex gap-3'
+            : 'sticky bottom-0 -mx-6 px-6 py-4 bg-white border-t border-gray-100 flex gap-3'
+        }
+      >
         <button
           type="submit"
           disabled={guardando}
@@ -254,5 +302,26 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
         </button>
       </div>
     </form>
+  )
+
+  if (!modal) return contenido
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+          <h3 className="text-xl font-bold text-text-primary">{registro ? 'Editar ingreso' : 'Nuevo ingreso'}</h3>
+          <button
+            type="button"
+            onClick={onCancelar}
+            disabled={guardando}
+            className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+          >
+            <i className="fa-solid fa-times text-text-secondary" />
+          </button>
+        </div>
+        <div className="p-6">{contenido}</div>
+      </div>
+    </div>
   )
 }

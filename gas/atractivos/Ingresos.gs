@@ -3,15 +3,18 @@
 // Envoltorio fino sobre Datos.gs con la lista de campos y validaciones.
 // ==============================================================================
 
-var TIPOS_VISITANTE = ['Residente', 'Turista', 'Institución'];
+// 'Sin especificar' cubre los registros consolidados desde Histórico: el Form
+// legacy no capturaba tipo de visitante. Ver Migracion.gs → consolidarHistoricoEnIngresos.
+var TIPOS_VISITANTE = ['Residente', 'Turista', 'Institución', 'Sin especificar'];
 var PROCEDENCIAS_INGRESO = ['Internacional', 'Nacional', 'Provincial'];
 var MAX_PERSONAS = 10000;
 
 // Motivos por atractivo. También viven en src/lib/atractivos-config.ts
 // (source of truth en Next); acá se validan como defensa en profundidad.
+// 'Histórico' es el motivo que asigna la consolidación (Migracion.gs).
 var MOTIVOS_VALIDOS = {
-  'casa-la-puna': ['Visita guiada', 'Peña', 'Feria'],
-  'pueblo-perdido': ['Visita guiada', 'Actividad especial']
+  'casa-la-puna': ['Visita guiada', 'Peña', 'Feria', 'Histórico'],
+  'pueblo-perdido': ['Visita guiada', 'Actividad especial', 'Histórico']
 };
 
 /** Devuelve lista de errores (vacía = válido). */
@@ -89,13 +92,19 @@ function actualizarIngreso(atractivo, data) {
     var headers = getHeaders(sheet);
     var ahora = getCurrentDateTime();
 
-    actualizarFila(sheet, headers, String(data.id), {
+    // fecha_hora_registro: el Next filtra este campo salvo que quien edita sea
+    // admin (ver gateAtractivo/route.ts) — acá solo se aplica SI vino en el
+    // payload; si no vino, actualizarFila no la toca y se conserva la original.
+    var payload = {
       tipo_visitante: data.tipo_visitante,
       procedencia: data.tipo_visitante === 'Turista' ? data.procedencia : '',
       cantidad_personas: parseInt(data.cantidad_personas, 10),
       motivo: data.motivo,
       usuario_modificacion: data.usuario_modificacion || ''
-    }, ahora);
+    };
+    if (data.fecha_hora_registro) payload.fecha_hora_registro = data.fecha_hora_registro;
+
+    actualizarFila(sheet, headers, String(data.id), payload, ahora);
 
     invalidarResumen(atractivo);
     return { success: true, data: { id: String(data.id) } };

@@ -38,8 +38,12 @@ function esFilaActiva(obj) {
  * - filtros.limit: tope de filas (default 500)
  * - filtros.sinLimite: true → devuelve todas las coincidencias (uso interno del
  *   resumen; un tope silencioso ahí desvirtuaría los totales del año)
- * Cuando hay tope se conservan las ÚLTIMAS filas coincidentes (las más nuevas):
- * cortar por el principio dejaría los registros recién cargados fuera del listado.
+ * Cuando hay tope se conservan las ÚLTIMAS filas coincidentes por FECHA real
+ * (más nuevas), no por posición en la hoja: desde que Ingresos mezcla filas
+ * consolidadas del histórico (fuera de orden cronológico de fila) con las
+ * cargadas en tiempo real, la posición en la hoja ya no coincide con la fecha
+ * — cortar por posición podía devolver un bloque de fechas viejas y dejar
+ * afuera registros recientes sin que el filtro los viera nunca.
  * Los listados NO se cachean (pueden superar 100 KB); se acotan acá en el servidor.
  */
 function listarActivos(sheet, headers, campoFecha, filtros) {
@@ -65,6 +69,16 @@ function listarActivos(sheet, headers, campoFecha, filtros) {
   }
 
   if (filtros.sinLimite || resultado.length <= limit) return resultado;
+
+  // Orden ascendente por fecha (texto ISO, comparación directa) para que el
+  // tope se aplique sobre fecha real: slice del final = las más recientes.
+  resultado.sort(function (a, b) {
+    var fa = String(a[campoFecha] || '');
+    var fb = String(b[campoFecha] || '');
+    if (fa < fb) return -1;
+    if (fa > fb) return 1;
+    return 0;
+  });
   return resultado.slice(resultado.length - limit);
 }
 
@@ -156,7 +170,9 @@ function leerFila(sheet, headers, filaNum) {
 
 /**
  * Actualiza campos editables de la fila con ese id.
- * Preserva id, fecha_hora_registro, id_local y activo.
+ * Preserva id, id_local y activo siempre. fecha_hora_registro/fecha_actividad
+ * se actualizan SOLO si vienen en `data` — el caller decide si el campo se
+ * incluye (Ingresos.gs solo lo incluye cuando el Next confirmó rol admin).
  * Asienta fecha_hora_sync + auditoría de modificación.
  */
 function actualizarFila(sheet, headers, id, data, ahora) {
@@ -165,7 +181,7 @@ function actualizarFila(sheet, headers, id, data, ahora) {
 
   for (var c = 0; c < headers.length; c++) {
     var h = headers[c];
-    if (h === 'id' || h === 'fecha_hora_registro' || h === 'id_local' || h === 'activo') continue;
+    if (h === 'id' || h === 'id_local' || h === 'activo') continue;
     var v = data[h];
     if (v !== undefined && v !== null) {
       setCeldaTexto(sheet, fila, c, v);

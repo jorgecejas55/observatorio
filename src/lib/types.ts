@@ -78,7 +78,14 @@ export interface SerieMesAtractivo {
 
 export interface ResumenAtractivo {
   anio: number
-  hoy: { fecha: string; ingresos: number; personas: number }
+  hoy: {
+    fecha: string
+    ingresos: number
+    personas: number
+    actividades: number
+    personasActividades: number
+    personasTotal: number
+  }
   mesEnCurso: {
     anio: number
     mes: number
@@ -95,8 +102,22 @@ export interface ResumenAtractivo {
     personas: number
     actividades: number
     personasActividades: number
+    personasTotal: number
   }
-  historico: { personas: number }
+  aniosDisponibles: number[]
+}
+
+export interface SerieAtractivoPunto {
+  periodo: number
+  personas: number
+  ingresos: number
+}
+
+export interface SerieAtractivo {
+  granularidad: 'mes' | 'dia'
+  anio: number
+  mes: number | null
+  serie: SerieAtractivoPunto[]
 }
 
 // ─── Ocio / Demanda ───────────────────────────────────────────────────────────
