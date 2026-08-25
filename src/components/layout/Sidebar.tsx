@@ -62,13 +62,14 @@ const NAV: NavGroup[] = [
       { href: '/informes/mice', label: 'Turismo MICE', icon: 'fa-calendar-star' },
     ],
   },
-  {
+    {
     label: 'Oferta de Servicios',
     icon: 'fa-hotel',
     color: 'text-accent',
     items: [
       { href: '/oferta', label: 'Estructura de la Oferta', icon: 'fa-database' },
       { href: '/oferta/alojamientos', label: 'Alojamientos (No Reg.)', icon: 'fa-house-chimney' },
+      { href: '/oferta/cobertura-transporte', label: 'Cobertura de Transporte', icon: 'fa-bus' },
     ],
   },
   {

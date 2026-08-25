@@ -23,6 +23,24 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
 ]
 
+// Headers permisivos para dashboards HTML estáticos (Leaflet + OSM tiles)
+const DashboardCSP = `
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com;
+  style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+  font-src 'self' https://cdnjs.cloudflare.com;
+  img-src 'self' data: blob: https://*.tile.openstreetmap.org https://turismo.apps.cc.gob.ar;
+  connect-src 'self' https://*.tile.openstreetmap.org;
+  frame-ancestors 'self';
+  worker-src blob:;
+`.replace(/\s{2,}/g, ' ').trim()
+
+const dashboardHeaders = [
+  { key: 'Content-Security-Policy', value: DashboardCSP },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+]
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -41,8 +59,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        // Headers estrictos para todo el app excepto /dashboards/
+        source: '/((?!dashboards).*)',
         headers: securityHeaders,
+      },
+      {
+        // Headers permisivos para dashboards HTML estáticos embebidos en iframe
+        source: '/dashboards/:path*',
+        headers: dashboardHeaders,
       },
     ]
   },
