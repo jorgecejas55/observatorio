@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import * as XLSX from 'xlsx'
 import EventForm from '@/components/eventos/EventForm'
 import EventosTable from '@/components/eventos/EventosTable'
 import EventDetail from '@/components/eventos/EventDetail'
@@ -146,6 +147,64 @@ function RegistroEventosContent() {
   useEffect(() => {
     setCurrentPage(1)
   }, [busqueda, filtroEstado, filtroTipo, fechaDesde, fechaHasta, minAsistentes, maxAsistentes])
+
+  // ── Exportar a Excel (respeta filtros activos) ────────────────────────────
+  // Debe declararse antes de los early returns para no romper el orden de hooks
+
+  const exportarXLSX = useCallback(() => {
+    if (eventosFiltrados.length === 0) {
+      setToast({ message: 'No hay eventos para exportar', type: 'info' })
+      return
+    }
+
+    const datos = eventosFiltrados.map(ev => ({
+      'Estado': ev.estado || '',
+      'Fuente': ev.fuente || '',
+      'Denominación': ev.denominacion || '',
+      'Generador': ev.generador || '',
+      'Origen': ev.origen || '',
+      'Tipo': ev.tipo || '',
+      'Subtipo': ev.subtipo || '',
+      'Sede': ev.sede || '',
+      'Tipo de sede': ev.tipoSede || '',
+      'Fecha inicio': ev.fechaInicio || '',
+      'Fecha fin': ev.fechaFin || '',
+      'Duración (días)': ev.duracion || '',
+      'Periodicidad': ev.periodicidad || '',
+      'Referente': ev.referente || '',
+      'Email': ev.email || '',
+      'Teléfono': ev.telefono || '',
+      'Prioridad': ev.prioridad || '',
+      'Aprobación en agenda': ev.aprobacionAgenda || '',
+      'Solicita asistencia STDE': ev.solicitaAsistencia || '',
+      'Detalles asistencia solicitada': ev.detallesAsistenciaSolicitada || '',
+      'Detalles asistencia asignada': ev.detallesAsistenciaAsignada || '',
+      'Derivado': ev.derivado || '',
+      'Detalles derivación': ev.detallesDerivacion || '',
+      'Presencia física STDE': ev.presenciaFisica || '',
+      'Total asistentes': ev.totalAsistentes || '',
+      'Residentes': ev.totalResidentes || '',
+      'No residentes': ev.totalNoResidentes || '',
+      'Inversión STDE ($)': ev.inversionSTDE || '',
+      'Inversión generador ($)': ev.inversionGenerador || '',
+      'Recaudación ($)': ev.recaudacion || '',
+      'Observaciones': ev.observaciones || '',
+      'Creado por': ev.creadoPor || '',
+      'Fecha creación': ev.fechaCreacion || '',
+      'Modificado por': ev.modificadoPor || '',
+      'Fecha modificación': ev.fechaModificacion || '',
+    }))
+
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(datos)
+    ws['!cols'] = Object.keys(datos[0]).map(col => ({ wch: Math.min(Math.max(col.length, 14), 35) }))
+    XLSX.utils.book_append_sheet(wb, ws, 'Eventos')
+
+    const fecha = new Date().toISOString().split('T')[0]
+    XLSX.writeFile(wb, `eventos-turisticos-${fecha}.xlsx`)
+
+    setToast({ message: `${eventosFiltrados.length} evento${eventosFiltrados.length !== 1 ? 's' : ''} exportado${eventosFiltrados.length !== 1 ? 's' : ''} (Excel)`, type: 'success' })
+  }, [eventosFiltrados])
 
   // ── Mostrar login si no está autenticado (DESPUÉS de todos los hooks) ───────
 
@@ -336,6 +395,9 @@ function RegistroEventosContent() {
               <i className="fa-solid fa-right-from-bracket text-sm" />
             </button>
           </div>
+          <button onClick={exportarXLSX} className="btn-outline" title="Descargar Excel con los eventos filtrados">
+            <i className="fa-solid fa-file-excel" /> Exportar Excel
+          </button>
           <button onClick={() => { setEditando(null); setFormOpen(true) }} className="btn-primary">
             <i className="fa-solid fa-plus" /> Nuevo evento
           </button>

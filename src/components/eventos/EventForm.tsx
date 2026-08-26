@@ -352,11 +352,11 @@ export default function EventForm({ evento, onSave, onClose }: EventFormProps) {
                 </button>
               )}
               {seccion !== 'Resultados' ? (
-                <button type="button" onClick={() => setSeccion(SECCIONES[SECCIONES.indexOf(seccion) + 1])} className="btn-outline">
+                <button key="btn-siguiente" type="button" onClick={() => setSeccion(SECCIONES[SECCIONES.indexOf(seccion) + 1])} className="btn-outline">
                   Siguiente <i className="fa-solid fa-arrow-right text-xs" />
                 </button>
               ) : (
-                <button type="submit" disabled={guardando} className="btn-primary min-w-32">
+                <button key="btn-guardar" type="submit" disabled={guardando} className="btn-primary min-w-32">
                   {guardando ? <><i className="fa-solid fa-spinner fa-spin" /> Guardando...</> : <><i className="fa-solid fa-floppy-disk" /> Guardar</>}
                 </button>
               )}

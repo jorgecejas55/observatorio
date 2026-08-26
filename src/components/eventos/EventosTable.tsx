@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { ESTADO_COLORS, type Evento } from '@/config/eventConfig'
+import { formatearFechaCorta as formatDate } from '@/lib/formato-fechas'
 import EventCard from './EventCard'
 
 type SortKey = keyof Evento
@@ -14,11 +15,6 @@ interface EventosTableProps {
   onView: (e: Evento) => void
   onDelete: (id: string) => void
   totalEventos?: number
-}
-
-function formatDate(d: string) {
-  if (!d) return '—'
-  try { return new Date(d).toLocaleDateString('es-AR') } catch { return d }
 }
 
 export default function EventosTable({ eventos, loading, onEdit, onView, onDelete, totalEventos }: EventosTableProps) {

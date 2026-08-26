@@ -90,6 +90,9 @@ export async function POST(req: Request) {
     })
 
     const result = await gasPost({ action: 'createEvento', data: dataWithAudit })
+    if (result?.success === false) {
+      return NextResponse.json(result, { status: 502 })
+    }
     return NextResponse.json(result)
   } catch (err) {
     console.error('[eventos POST]', err)

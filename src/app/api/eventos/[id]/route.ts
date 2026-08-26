@@ -66,6 +66,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     })
 
     const result = await gasPost({ action: 'updateEvento', id, data: dataWithAudit })
+    if (result?.success === false) {
+      return NextResponse.json(result, { status: 502 })
+    }
     return NextResponse.json(result)
   } catch (err) {
     console.error('[eventos PUT]', err)
@@ -78,6 +81,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params
     const result = await gasPost({ action: 'deleteEvento', id })
+    if (result?.success === false) {
+      return NextResponse.json(result, { status: 502 })
+    }
     return NextResponse.json(result)
   } catch (err) {
     console.error('[eventos DELETE]', err)

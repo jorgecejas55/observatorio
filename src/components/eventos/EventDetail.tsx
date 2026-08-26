@@ -1,12 +1,7 @@
 'use client'
 
 import { ESTADO_COLORS, type Evento } from '@/config/eventConfig'
-
-function formatDate(d: string) {
-  if (!d) return '—'
-  try { return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' }) }
-  catch { return d }
-}
+import { formatearFechaLarga as formatDate } from '@/lib/formato-fechas'
 
 function formatMoney(v: string) {
   const n = parseFloat(v)

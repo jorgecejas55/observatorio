@@ -1,17 +1,13 @@
 'use client'
 
 import { ESTADO_COLORS, type Evento } from '@/config/eventConfig'
+import { formatearFechaCorta as formatDate } from '@/lib/formato-fechas'
 
 interface EventCardProps {
   evento: Evento
   onEdit: (e: Evento) => void
   onView: (e: Evento) => void
   onDelete: (id: string) => void
-}
-
-function formatDate(d: string) {
-  if (!d) return '—'
-  try { return new Date(d).toLocaleDateString('es-AR') } catch { return d }
 }
 
 export default function EventCard({ evento, onEdit, onView, onDelete }: EventCardProps) {
