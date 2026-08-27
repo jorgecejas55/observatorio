@@ -5,20 +5,20 @@
  * Se eliminan los @ts-expect-error dispersos por el código.
  */
 
-import type { ModuloKey } from '@/lib/permisos/modulos'
+import type { ModuloKey, Rol } from '@/lib/permisos/modulos'
 
 declare module '@auth/core/types' {
   interface User {
-    /** Rol global: 'admin' (acceso total), 'operador' (lectura+escritura en módulos), 'lector' (solo lectura) */
-    rol?: 'admin' | 'operador' | 'lector'
-    /** Lista de módulos permitidos (solo relevante para operador/lector) */
+    /** Rol global — ver semántica de cada valor en src/lib/permisos/modulos.ts */
+    rol?: Rol
+    /** Lista de módulos permitidos (solo relevante para operador/cargador/lector) */
     modulos?: ModuloKey[]
   }
 }
 
 declare module '@auth/core/jwt' {
   interface DefaultJWT {
-    rol?: 'admin' | 'operador' | 'lector'
+    rol?: Rol
     modulos?: ModuloKey[]
     permisosRefreshedAt?: number
   }

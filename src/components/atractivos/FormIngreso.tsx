@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { esAdmin, type SessionUser } from '@/lib/permisos'
 import { TIPOS_VISITANTE, PROCEDENCIAS_INGRESO, MOTIVOS_INGRESOS } from '@/lib/atractivos-config'
 import { fechaHoraLocalISO, formatearFechaCorta } from '@/lib/formato-fechas'
+import { useOffline } from '@/contexts/OfflineContext'
 import type { AtractivoConIngresos } from '@/lib/atractivos-config'
 import type { IngresoAtractivo } from '@/lib/types'
 
@@ -12,7 +13,8 @@ interface FormIngresoProps {
   atractivo: AtractivoConIngresos
   /** Si está presente, el form edita ese registro (PUT). */
   registro?: IngresoAtractivo | null
-  onGuardado: () => void
+  /** modo: 'offline' si la alta quedó encolada en el dispositivo por falta de red. */
+  onGuardado: (modo?: 'online' | 'offline') => void
   onCancelar: () => void
   /**
    * 'pagina' (default): botones grandes tablet-first, sin overlay — SOLO
@@ -35,6 +37,7 @@ function stepperCls(base: string) {
 export default function FormIngreso({ atractivo, registro, onGuardado, onCancelar, variante = 'pagina' }: FormIngresoProps) {
   const modal = variante === 'modal'
   const { data: session } = useSession()
+  const { guardar } = useOffline()
 
   const motivos = MOTIVOS_INGRESOS[atractivo]
 
@@ -57,26 +60,33 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
 
   const esTurista = tipoVisitante === 'Turista'
 
-  // Único punto de guardado: la Fase B solo reemplaza esta función por useOffline().guardar().
+  // Único punto de guardado. Edición (PUT) requiere conexión — la hace el
+  // responsable, no el guía en el campo. Alta (POST) es offline-aware: si
+  // falla por falta de red, useOffline().guardar() la encola para sincronizar sola.
   const guardarIngreso = useCallback(
-    async (payload: Record<string, unknown>) => {
-      const url = registro?.id
-        ? `/api/ocio/ingresos/atractivos/${atractivo}/ingresos/${registro.id}`
-        : `/api/ocio/ingresos/atractivos/${atractivo}/ingresos`
-      const method = registro?.id ? 'PUT' : 'POST'
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const result = await res.json()
-      if (!res.ok || !result.success) {
-        throw new Error(result.error || 'Error al guardar')
+    async (payload: Record<string, unknown>): Promise<{ modo: 'online' | 'offline' }> => {
+      if (registro?.id) {
+        const res = await fetch(`/api/ocio/ingresos/atractivos/${atractivo}/ingresos/${registro.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const result = await res.json()
+        if (!res.ok || !result.success) {
+          throw new Error(result.error || 'Error al guardar')
+        }
+        return { modo: 'online' }
       }
-      return result
+
+      return guardar({
+        tipo: 'ingreso',
+        atractivo,
+        url: `/api/ocio/ingresos/atractivos/${atractivo}/ingresos`,
+        payload,
+        idLocal,
+      })
     },
-    [atractivo, registro],
+    [atractivo, registro, guardar, idLocal],
   )
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,8 +121,8 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
 
     setGuardando(true)
     try {
-      await guardarIngreso(payload)
-      onGuardado()
+      const { modo } = await guardarIngreso(payload)
+      onGuardado(modo)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar el ingreso.')
     } finally {
@@ -121,14 +131,14 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
   }
 
   const btnSeleccion = (activo: boolean) =>
-    `min-h-16 px-4 py-3 rounded-xl border-2 text-base font-semibold transition-all touch-manipulation ${
+    `flex-1 basis-32 min-h-16 px-4 py-3 rounded-xl border-2 text-base font-semibold transition-all touch-manipulation ${
       activo
         ? 'border-primary bg-primary/10 text-primary'
         : 'border-gray-200 bg-white text-text-secondary hover:border-primary/50'
     }`
 
   const contenido = (
-    <form onSubmit={handleSubmit} className={modal ? 'space-y-6' : 'card p-6 space-y-6 max-w-2xl'}>
+    <form onSubmit={handleSubmit} className={modal ? 'space-y-6' : 'card p-6 space-y-6'}>
       {!modal && (
         <div>
           <h3 className="text-lg font-bold text-text-primary">
@@ -166,10 +176,10 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
 
       {/* Tipo de visitante */}
       <div>
-        <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2">
+        <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2 text-center">
           Tipo de visitante
         </label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="flex flex-wrap gap-3">
           {TIPOS_VISITANTE.map((t) => (
             <button
               key={t}
@@ -189,10 +199,10 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
       {/* Procedencia (solo turistas) */}
       {esTurista && (
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2">
+          <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2 text-center">
             Procedencia del turista
           </label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="flex flex-wrap gap-3">
             {PROCEDENCIAS_INGRESO.map((p) => (
               <button
                 key={p}
@@ -209,10 +219,10 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
 
       {/* Cantidad */}
       <div>
-        <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2">
+        <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2 text-center">
           Cantidad de personas
         </label>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-center gap-4">
           <button
             type="button"
             onClick={() => setCantidad((c) => Math.max(1, c - 1))}
@@ -243,10 +253,10 @@ export default function FormIngreso({ atractivo, registro, onGuardado, onCancela
 
       {/* Motivo */}
       <div>
-        <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2">
+        <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2 text-center">
           Motivo de la visita
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="flex flex-wrap gap-3">
           {motivos.map((m) => (
             <button
               key={m}

@@ -8,10 +8,12 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/auth'
-import { requireAccesoPage, puedeEscribir } from '@/lib/permisos'
+import { requireAccesoPage, puedeEscribir, esSoloCarga } from '@/lib/permisos'
 import type { SessionUser } from '@/lib/permisos'
 import { ATRACTIVOS } from '@/lib/types'
 import { esAtractivoConIngresos, MODULO_DE_ATRACTIVO } from '@/lib/atractivos-config'
+import { OfflineProvider } from '@/contexts/OfflineContext'
+import OfflineBanner from '@/components/atractivos/OfflineBanner'
 
 export const metadata = {
   title: 'Ingresos a Atractivos — Observatorio',
@@ -31,6 +33,7 @@ export default async function AtractivoLayout({ children, params }: AtractivoLay
 
   const session = await auth()
   const escribir = puedeEscribir(session?.user as SessionUser)
+  const soloCarga = esSoloCarga(session?.user as SessionUser)
 
   const base = `/ocio/ingresos/${atractivo}`
   const nombre = ATRACTIVOS[atractivo]
@@ -46,26 +49,34 @@ export default async function AtractivoLayout({ children, params }: AtractivoLay
   )
 
   return (
-    <div className="space-y-6">
-      {/* Sub-nav interno de la sección (nunca se imprime) */}
-      <div className="print:hidden flex flex-wrap gap-2 items-center border-b border-gray-200 pb-3">
-        <h2 className="text-xl font-bold text-gray-800 mr-4">
-          <i className="fas fa-landmark text-orange-500 mr-2" />
-          {nombre}
-        </h2>
-        <nav className="flex gap-1 text-sm">
-          {navItem(base, 'fa-chart-pie', 'Dashboard')}
-          {escribir && (
-            <>
-              {navItem(`${base}/cargar`, 'fa-arrow-up-from-bracket', 'Cargar ingreso')}
-              {navItem(`${base}/actividades`, 'fa-star', 'Actividades')}
-              {navItem(`${base}/registros`, 'fa-list', 'Registros')}
-            </>
-          )}
-        </nav>
-      </div>
+    <OfflineProvider>
+      <div className="space-y-6">
+        {/* Sub-nav interno de la sección (nunca se imprime) */}
+        <div className="print:hidden flex flex-wrap gap-2 items-center border-b border-gray-200 pb-3">
+          <h2 className="text-xl font-bold text-gray-800 mr-4">
+            <i className="fas fa-landmark text-orange-500 mr-2" />
+            {nombre}
+          </h2>
+          <nav className="flex gap-1 text-sm">
+            {!soloCarga && navItem(base, 'fa-chart-pie', 'Dashboard')}
+            {escribir && navItem(`${base}/cargar`, 'fa-arrow-up-from-bracket', 'Cargar ingreso')}
+            {escribir && !soloCarga && (
+              <>
+                {navItem(`${base}/actividades`, 'fa-star', 'Actividades')}
+                {navItem(`${base}/registros`, 'fa-list', 'Registros')}
+              </>
+            )}
+          </nav>
+        </div>
 
-      {children}
-    </div>
+        {escribir && (
+          <div className="print:hidden">
+            <OfflineBanner />
+          </div>
+        )}
+
+        {children}
+      </div>
+    </OfflineProvider>
   )
 }

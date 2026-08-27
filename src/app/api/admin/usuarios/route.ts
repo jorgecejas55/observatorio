@@ -20,7 +20,7 @@ import {
   isObsAdminConfigured,
 } from '@/lib/permisos/obs-admin-service'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { esModuloValido, MODULO_KEYS } from '@/lib/permisos/modulos'
+import { esModuloValido, MODULO_KEYS, ROLES, type Rol } from '@/lib/permisos/modulos'
 
 // ── GET: listar usuarios ────────────────────────────────────────────────────────
 
@@ -79,8 +79,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email requerido' }, { status: 400 })
     }
 
-    if (rol && !['admin', 'operador', 'lector'].includes(rol)) {
-      return NextResponse.json({ error: 'Rol inválido. Válidos: admin, operador, lector' }, { status: 400 })
+    if (rol && !ROLES.includes(rol)) {
+      return NextResponse.json({ error: `Rol inválido. Válidos: ${ROLES.join(', ')}` }, { status: 400 })
     }
 
     // Validar módulos contra el registro canónico

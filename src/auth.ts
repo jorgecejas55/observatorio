@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import { getPermisosCached } from '@/lib/permisos/obs-admin-service'
-import type { ModuloKey } from '@/lib/permisos/modulos'
+import type { ModuloKey, Rol } from '@/lib/permisos/modulos'
 
 // ── Anti-lockout ─────────────────────────────────────────────────────────────────
 // Este email es super-admin incondicional: se evalúa ANTES de consultar GAS.
@@ -13,7 +13,7 @@ const PERMISOS_TTL_MS = 10 * 60 * 1000 // 10 minutos
 
 async function resolverPermisos(
   email: string,
-): Promise<{ rol: 'admin' | 'operador' | 'lector'; modulos: ModuloKey[] }> {
+): Promise<{ rol: Rol; modulos: ModuloKey[] }> {
   // 1. Bypass: ADMIN_EMAIL es admin incondicional (no depende de GAS)
   if (email.toLowerCase().trim() === ADMIN_EMAIL) {
     return { rol: 'admin', modulos: [] }

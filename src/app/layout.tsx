@@ -1,9 +1,19 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import ServiceWorkerRegister from '@/components/shared/ServiceWorkerRegister'
 
 export const metadata: Metadata = {
   title: 'Observatorio de Turismo Municipal',
   description: 'Sistema de recolección y análisis de datos turísticos — Municipalidad de la Capital',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/icons/icon-192.png',
+    apple: '/icons/icon-192.png',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#1e79b8',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -18,7 +28,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           referrerPolicy="no-referrer"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   )
 }

@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { requireAcceso, requireEscritura, esAdmin, type SessionUser } from '@/lib/permisos'
+import { requireAcceso, requireEscritura, requireGestion, esAdmin, type SessionUser } from '@/lib/permisos'
 import {
   esAtractivoConIngresos,
   MODULO_DE_ATRACTIVO,
@@ -34,6 +34,27 @@ export async function gateAtractivo(
     ? await requireEscritura(MODULO_DE_ATRACTIVO[atractivo])
     : await requireAcceso(MODULO_DE_ATRACTIVO[atractivo])
 
+  if (session instanceof NextResponse) {
+    return { error: session }
+  }
+
+  return {
+    atractivo,
+    userEmail: session?.user?.email,
+    esAdmin: esAdmin(session?.user as SessionUser),
+  }
+}
+
+/**
+ * Gate para gestión (editar/borrar) — como gateAtractivo(atractivo, true) pero
+ * excluye rol 'cargador': ese rol solo puede crear (POST), nunca PUT/DELETE.
+ */
+export async function gateAtractivoGestion(atractivo: string): Promise<GateResult> {
+  if (!esAtractivoConIngresos(atractivo)) {
+    return { error: NextResponse.json({ error: 'Atractivo no encontrado' }, { status: 404 }) }
+  }
+
+  const session = await requireGestion(MODULO_DE_ATRACTIVO[atractivo])
   if (session instanceof NextResponse) {
     return { error: session }
   }

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { gateAtractivo } from '../../_helpers'
+import { gateAtractivoGestion } from '../../_helpers'
 import { IngresoAtractivoSchema } from '@/lib/schemas'
 import { actualizarIngreso, eliminarIngreso } from '@/lib/atractivos-service'
 import { MOTIVOS_INGRESOS } from '@/lib/atractivos-config'
@@ -16,7 +16,7 @@ export async function PUT(
   context: { params: Promise<{ atractivo: string; id: string }> },
 ) {
   const { atractivo, id } = await context.params
-  const g = await gateAtractivo(atractivo, true)
+  const g = await gateAtractivoGestion(atractivo)
   if ('error' in g) return g.error
 
   if (!checkRateLimit(getClientIp(req), 60, 60_000)) {
@@ -65,7 +65,7 @@ export async function DELETE(
   context: { params: Promise<{ atractivo: string; id: string }> },
 ) {
   const { atractivo, id } = await context.params
-  const g = await gateAtractivo(atractivo, true)
+  const g = await gateAtractivoGestion(atractivo)
   if ('error' in g) return g.error
 
   if (!checkRateLimit(getClientIp(req), 60, 60_000)) {

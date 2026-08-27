@@ -18,8 +18,9 @@ const CONFIG = {
   // y en Next.js va en OBS_ADMIN_GAS_API_KEY (.env.local / Vercel).
   API_KEY: 'PENDIENTE_API_KEY',
 
-  // Roles válidos del sistema
-  ROLES: ['admin', 'operador', 'lector'],
+  // Roles válidos del sistema. 'cargador': solo alta de registros (ej. guías
+  // de campo) — sin dashboard/gestión, sin editar/borrar (ver src/lib/permisos).
+  ROLES: ['admin', 'operador', 'cargador', 'lector'],
 
   // Columnas de cada hoja (índice empezando en 0)
   //

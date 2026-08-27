@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
+import * as XLSX from 'xlsx'
 import { puedeEscribir } from '@/lib/permisos'
 import Toast from '@/components/shared/Toast'
 import FormIngreso from './FormIngreso'
@@ -92,6 +93,49 @@ export default function TablaRegistros({ atractivo, tipo }: TablaRegistrosProps)
     const start = (paginaActualSegura - 1) * ITEMS_PER_PAGE
     return ordenados.slice(start, start + ITEMS_PER_PAGE)
   }, [ordenados, paginaActualSegura])
+
+  // ── Exportar Excel (la sección visible: la pestaña activa determina `tipo`) ──
+  const exportarExcel = useCallback(() => {
+    if (ordenados.length === 0) {
+      setToast({ message: 'No hay datos para exportar', type: 'info' })
+      return
+    }
+
+    const datos =
+      tipo === 'ingreso'
+        ? (ordenados as IngresoAtractivo[]).map((r) => ({
+            'Fecha': formatearFechaCorta(r.fecha_hora_registro),
+            'Hora': formatearHora(r.fecha_hora_registro),
+            'Tipo de visitante': r.tipo_visitante,
+            'Procedencia': r.procedencia || '',
+            'Cantidad de personas': r.cantidad_personas,
+            'Motivo': r.motivo,
+            'Cargado por': r.usuario_registro || '',
+          }))
+        : (ordenados as ActividadEspecialAtractivo[]).map((a) => ({
+            'Fecha': formatearFechaCorta(a.fecha_actividad),
+            'Actividad': a.nombre_actividad,
+            'Cantidad total': a.cantidad_total,
+            'Turistas': a.cantidad_turistas,
+            'Residentes': a.cantidad_residentes,
+            'Observaciones': a.observaciones || '',
+            'Cargado por': a.usuario_registro || '',
+          }))
+
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(datos)
+    ws['!cols'] =
+      tipo === 'ingreso'
+        ? [{ wch: 12 }, { wch: 8 }, { wch: 16 }, { wch: 14 }, { wch: 10 }, { wch: 18 }, { wch: 28 }]
+        : [{ wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 35 }, { wch: 28 }]
+    XLSX.utils.book_append_sheet(wb, ws, tipo === 'ingreso' ? 'Ingresos' : 'Actividades Especiales')
+
+    const fechaArchivo = new Date().toISOString().split('T')[0]
+    const nombreArchivo = tipo === 'ingreso' ? 'ingresos' : 'actividades-especiales'
+    XLSX.writeFile(wb, `${nombreArchivo}-${atractivo}-${fechaArchivo}.xlsx`)
+
+    setToast({ message: `${ordenados.length} ${mensajeLista} exportados (Excel)`, type: 'success' })
+  }, [ordenados, tipo, atractivo, mensajeLista])
 
   // ── Acciones ─────────────────────────────────────────────────────────────────
   const abrirCrear = () => {
@@ -185,11 +229,21 @@ export default function TablaRegistros({ atractivo, tipo }: TablaRegistrosProps)
             {loading ? 'Cargando...' : `${registros.length} ${mensajeLista}`}
           </span>
         </div>
-        {escribir && (
-          <button onClick={abrirCrear} className="btn-primary min-h-12 touch-manipulation">
-            <i className="fa-solid fa-plus" /> Nuevo {NOMBRE_REGISTRO[tipo]}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={exportarExcel}
+            disabled={ordenados.length === 0}
+            className="btn-secondary min-h-12 touch-manipulation disabled:opacity-50"
+            title={`Descargar Excel de ${mensajeLista}`}
+          >
+            <i className="fa-solid fa-file-excel text-green-600" /> Exportar Excel
           </button>
-        )}
+          {escribir && (
+            <button onClick={abrirCrear} className="btn-primary min-h-12 touch-manipulation">
+              <i className="fa-solid fa-plus" /> Nuevo {NOMBRE_REGISTRO[tipo]}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error */}

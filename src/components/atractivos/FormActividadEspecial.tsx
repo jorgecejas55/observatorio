@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react'
 import { fechaLocalISO, fechaHoraLocalISO } from '@/lib/formato-fechas'
+import { useOffline } from '@/contexts/OfflineContext'
 import type { AtractivoConIngresos } from '@/lib/atractivos-config'
 import type { ActividadEspecialAtractivo } from '@/lib/types'
 
@@ -9,7 +10,8 @@ interface FormActividadEspecialProps {
   atractivo: AtractivoConIngresos
   /** Si está presente, el form edita esa actividad (PUT). */
   actividad?: ActividadEspecialAtractivo | null
-  onGuardado: () => void
+  /** modo: 'offline' si la alta quedó encolada en el dispositivo por falta de red. */
+  onGuardado: (modo?: 'online' | 'offline') => void
   onCancelar: () => void
   /** 'pagina' (default, sin overlay) o 'modal' (overlay tipo museos) — ver FormIngreso. */
   variante?: 'pagina' | 'modal'
@@ -44,10 +46,10 @@ function Stepper({ label, value, onChange, min = 0, max = 10000 }: StepperProps)
 
   return (
     <div>
-      <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2">
+      <label className="text-xs font-semibold uppercase tracking-wider text-text-secondary block mb-2 text-center">
         {label}
       </label>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-center gap-4">
         <button
           type="button"
           onClick={() => aplicar(value - 1)}
@@ -107,6 +109,7 @@ export default function FormActividadEspecial({
   variante = 'pagina',
 }: FormActividadEspecialProps) {
   const modal = variante === 'modal'
+  const { guardar } = useOffline()
   // Fecha/hora del reloj LOCAL del dispositivo: en UTC (toISOString) todo lo
   // cargado después de las 21:00 en Catamarca se fecharía al día siguiente.
   const [fechaActividad, setFechaActividad] = useState<string>(
@@ -123,26 +126,33 @@ export default function FormActividadEspecial({
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
-  // Único punto de guardado: la Fase B solo reemplaza esta función por useOffline().guardar().
+  // Único punto de guardado. Edición (PUT) requiere conexión — la hace el
+  // responsable. Alta (POST) es offline-aware: si falla por falta de red,
+  // useOffline().guardar() la encola para sincronizar sola.
   const guardarActividad = useCallback(
-    async (payload: Record<string, unknown>) => {
-      const url = actividad?.id
-        ? `/api/ocio/ingresos/atractivos/${atractivo}/actividades/${actividad.id}`
-        : `/api/ocio/ingresos/atractivos/${atractivo}/actividades`
-      const method = actividad?.id ? 'PUT' : 'POST'
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const result = await res.json()
-      if (!res.ok || !result.success) {
-        throw new Error(result.error || 'Error al guardar')
+    async (payload: Record<string, unknown>): Promise<{ modo: 'online' | 'offline' }> => {
+      if (actividad?.id) {
+        const res = await fetch(`/api/ocio/ingresos/atractivos/${atractivo}/actividades/${actividad.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const result = await res.json()
+        if (!res.ok || !result.success) {
+          throw new Error(result.error || 'Error al guardar')
+        }
+        return { modo: 'online' }
       }
-      return result
+
+      return guardar({
+        tipo: 'actividad',
+        atractivo,
+        url: `/api/ocio/ingresos/atractivos/${atractivo}/actividades`,
+        payload,
+        idLocal,
+      })
     },
-    [atractivo, actividad],
+    [atractivo, actividad, guardar, idLocal],
   )
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -175,8 +185,8 @@ export default function FormActividadEspecial({
 
     setGuardando(true)
     try {
-      await guardarActividad(payload)
-      onGuardado()
+      const { modo } = await guardarActividad(payload)
+      onGuardado(modo)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al guardar la actividad.')
     } finally {
@@ -188,7 +198,7 @@ export default function FormActividadEspecial({
     'input bg-white min-h-16 text-base touch-manipulation w-full py-3'
 
   const contenido = (
-    <form onSubmit={handleSubmit} className={modal ? 'space-y-6' : 'card p-6 space-y-6 max-w-2xl'}>
+    <form onSubmit={handleSubmit} className={modal ? 'space-y-6' : 'card p-6 space-y-6'}>
       {!modal && (
         <div>
           <h3 className="text-lg font-bold text-text-primary">

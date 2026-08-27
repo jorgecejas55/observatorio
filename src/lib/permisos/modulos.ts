@@ -44,6 +44,18 @@ export const MODULOS = {
 
 export type ModuloKey = keyof typeof MODULOS
 
+/**
+ * Rol global del usuario.
+ * - admin: acceso total (lectura + escritura).
+ * - operador: lectura + escritura en sus módulos, incluye gestión (dashboard, editar, borrar).
+ * - cargador: solo alta (crear) en sus módulos — pensado para quien carga formularios en el
+ *   campo (ej. guías de atractivos). No ve dashboard/listados de gestión, no edita ni borra.
+ * - lector: solo lectura en sus módulos.
+ */
+export type Rol = 'admin' | 'operador' | 'cargador' | 'lector'
+
+export const ROLES: readonly Rol[] = ['admin', 'operador', 'cargador', 'lector'] as const
+
 /** Lista de claves de módulo válidas para validación rápida */
 export const MODULO_KEYS = Object.keys(MODULOS) as ModuloKey[]
 

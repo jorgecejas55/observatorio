@@ -7,7 +7,7 @@
  */
 
 import { createGasClient } from '@/lib/gas-client'
-import { esModuloValido, type ModuloKey } from '@/lib/permisos/modulos'
+import { esModuloValido, ROLES, type ModuloKey, type Rol } from '@/lib/permisos/modulos'
 
 // ── Cliente GAS (inicialización lazy) ────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ function getClient() {
 export interface PermisosUsuario {
   email: string
   nombre: string
-  rol: 'admin' | 'operador' | 'lector'
+  rol: Rol
   modulos: ModuloKey[]
   activo: boolean
 }
@@ -91,7 +91,7 @@ export async function getPermisosDeUsuario(email: string): Promise<PermisosUsuar
     return {
       email: normalizarEmail(String(data.Email || '')),
       nombre: String(data.Nombre || ''),
-      rol: (data.Rol === 'admin' || data.Rol === 'operador' || data.Rol === 'lector') ? data.Rol : 'operador',
+      rol: ROLES.includes(data.Rol as Rol) ? (data.Rol as Rol) : 'operador',
       modulos: filtrarModulosValidos(modulosRaw),
       activo: true,
     }
@@ -170,7 +170,7 @@ export async function getUsuariosAdmin(): Promise<UsuarioAdmin[]> {
 export async function upsertUsuarioAdmin(data: {
   email: string
   nombre: string
-  rol: 'admin' | 'operador' | 'lector'
+  rol: Rol
   modulos: ModuloKey[]
   activo: boolean
   actorEmail: string

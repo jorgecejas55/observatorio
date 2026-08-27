@@ -2,7 +2,9 @@
  * Funciones de control de acceso (RBAC) para el sistema.
  *
  * Regla: rol === 'admin'    → acceso total (lectura + escritura).
- *        rol === 'operador' → lectura + escritura en módulos asignados.
+ *        rol === 'operador' → lectura + escritura en módulos asignados (incluye gestión).
+ *        rol === 'cargador' → solo alta (crear) en módulos asignados. Sin dashboard,
+ *                              sin editar/borrar, sin ver el resto de la gestión.
  *        rol === 'lector'   → solo lectura en módulos asignados.
  *
  * Anti-lockout: ADMIN_EMAIL (env) es super-admin incondicional,
@@ -12,7 +14,7 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { NextResponse } from 'next/server'
-import type { ModuloKey } from '@/lib/permisos/modulos'
+import type { ModuloKey, Rol } from '@/lib/permisos/modulos'
 
 // ── Tipos de sesión extendida ────────────────────────────────────────────────────
 
@@ -20,7 +22,7 @@ export interface SessionUser {
   name?: string | null
   email?: string | null
   image?: string | null
-  rol?: 'admin' | 'operador' | 'lector'
+  rol?: Rol
   modulos?: ModuloKey[]
 }
 
@@ -41,10 +43,28 @@ export function esAdmin(user?: SessionUser | null): boolean {
   return user.rol === 'admin'
 }
 
-/** Verifica si el usuario puede escribir (crear/editar/eliminar). Admin y operador pueden, lector no. Client-safe. */
+/** Verifica si el usuario puede escribir (crear/editar/eliminar). Admin, operador y cargador pueden, lector no. Client-safe. */
 export function puedeEscribir(user?: SessionUser | null): boolean {
   if (!user?.email) return false
   // admin (rol) + ADMIN_EMAIL bypass
+  if (esAdmin(user)) return true
+  return user.rol === 'operador' || user.rol === 'cargador'
+}
+
+/**
+ * Verifica si el usuario está restringido a solo-carga (rol 'cargador'): puede
+ * crear registros pero no ve dashboard/listados de gestión ni edita/borra.
+ * Admin y operador nunca son "solo carga", aunque tengan rol undefined en tránsito.
+ */
+export function esSoloCarga(user?: SessionUser | null): boolean {
+  if (!user?.email) return false
+  if (esAdmin(user)) return false
+  return user.rol === 'cargador'
+}
+
+/** Verifica si el usuario puede gestionar (editar/borrar) registros existentes. Admin y operador sí; cargador y lector no. */
+export function puedeGestionar(user?: SessionUser | null): boolean {
+  if (!user?.email) return false
   if (esAdmin(user)) return true
   return user.rol === 'operador'
 }
@@ -87,6 +107,21 @@ export async function requireEscritura(modulo: ModuloKey) {
 
   if (!puedeEscribir(session.user as SessionUser)) {
     return NextResponse.json({ error: 'Solo lectura — no tenés permisos para modificar' }, { status: 403 })
+  }
+
+  return session
+}
+
+/**
+ * Gate para API routes de gestión (editar/borrar registros existentes).
+ * Igual que requireEscritura pero excluye 'cargador' — ese rol solo puede crear.
+ */
+export async function requireGestion(modulo: ModuloKey) {
+  const session = await requireAcceso(modulo)
+  if (session instanceof NextResponse) return session
+
+  if (!puedeGestionar(session.user as SessionUser)) {
+    return NextResponse.json({ error: 'No tenés permisos para editar o eliminar registros' }, { status: 403 })
   }
 
   return session

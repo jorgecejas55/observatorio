@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Toast from '@/components/shared/Toast'
-import { MODULOS, type ModuloKey } from '@/lib/permisos/modulos'
+import { MODULOS, ROLES, type ModuloKey, type Rol } from '@/lib/permisos/modulos'
 import { puedeEscribir } from '@/lib/permisos'
 import type { SessionUser } from '@/lib/permisos'
 
@@ -23,7 +23,7 @@ interface Usuario {
 interface FormData {
   email: string
   nombre: string
-  rol: 'admin' | 'operador' | 'lector'
+  rol: Rol
   modulos: ModuloKey[]
   activo: boolean
   oldEmail?: string // email original al editar (para cambio de email)
@@ -42,12 +42,14 @@ const FORM_VACIO: FormData = {
 function rolColor(rol: string) {
   if (rol === 'admin') return 'primary' as const
   if (rol === 'lector') return 'cyan' as const
+  if (rol === 'cargador') return 'orange' as const
   return 'gray' as const
 }
 
 function rolLabel(rol: string) {
   if (rol === 'admin') return 'Admin'
   if (rol === 'lector') return 'Lector'
+  if (rol === 'cargador') return 'Cargador'
   return 'Operador'
 }
 
@@ -101,7 +103,7 @@ export default function UsuariosClient() {
     setForm({
       email: usr.email,
       nombre: usr.nombre || '',
-      rol: usr.rol as 'admin' | 'operador' | 'lector',
+      rol: usr.rol as Rol,
       modulos: (usr.modulos || []) as ModuloKey[],
       activo: usr.activo,
       oldEmail: usr.email,
@@ -403,8 +405,8 @@ export default function UsuariosClient() {
                 {/* Rol */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-                  <div className="flex gap-3">
-                    {(['admin', 'operador', 'lector'] as const).map((r) => (
+                  <div className="flex flex-wrap gap-3">
+                    {ROLES.map((r) => (
                       <label key={r} className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"
@@ -418,6 +420,9 @@ export default function UsuariosClient() {
                           {rolLabel(r)}
                           {r === 'admin' && (
                             <span className="text-xs text-gray-400 ml-1">(acceso total)</span>
+                          )}
+                          {r === 'cargador' && (
+                            <span className="text-xs text-gray-400 ml-1">(solo cargar, sin ver/editar el resto)</span>
                           )}
                           {r === 'lector' && (
                             <span className="text-xs text-gray-400 ml-1">(solo lectura)</span>
