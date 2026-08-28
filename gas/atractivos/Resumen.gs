@@ -96,7 +96,7 @@ function calcularResumen(atractivo) {
 
   for (var i = 0; i < filasIngresos.length; i++) {
     var ing = filasIngresos[i];
-    var fecha = String(ing.fecha_hora_registro || '').substring(0, 10);
+    var fecha = normalizarFechaTexto(ing.fecha_hora_registro);
     var mesKey = fecha.substring(0, 7);
     var personas = numero(ing.cantidad_personas);
 
@@ -132,7 +132,7 @@ function calcularResumen(atractivo) {
 
   for (var a = 0; a < filasActividades.length; a++) {
     var act = filasActividades[a];
-    var fechaAct = String(act.fecha_actividad || '').substring(0, 10);
+    var fechaAct = normalizarFechaTexto(act.fecha_actividad);
     var mesKeyAct = fechaAct.substring(0, 7);
     var totalAct = numero(act.cantidad_total);
 
@@ -242,16 +242,20 @@ function calcularSerie(atractivo, anioNum, mesNum) {
   var headersIngresos = getHeaders(sheetIngresos);
   var filasIngresos = listarActivos(sheetIngresos, headersIngresos, 'fecha_hora_registro', { sinLimite: true });
 
+  var sheetActividades = getSheetDe(atractivo, SHEETS.ACTIVIDADES);
+  var headersActividades = getHeaders(sheetActividades);
+  var filasActividades = listarActivos(sheetActividades, headersActividades, 'fecha_actividad', { sinLimite: true });
+
   var granularidad = mesNum ? 'dia' : 'mes';
   var tope = mesNum ? 31 : 12;
   var puntos = {};
   for (var p = 1; p <= tope; p++) {
-    puntos[p] = { periodo: p, personas: 0, ingresos: 0 };
+    puntos[p] = { periodo: p, personas: 0, ingresos: 0, actividades: 0, personasActividades: 0 };
   }
 
   for (var i = 0; i < filasIngresos.length; i++) {
     var ing = filasIngresos[i];
-    var fecha = String(ing.fecha_hora_registro || '').substring(0, 10);
+    var fecha = normalizarFechaTexto(ing.fecha_hora_registro);
     if (!fecha || fecha.substring(0, 4) !== String(anioNum)) continue;
 
     var mesFila = parseInt(fecha.substring(5, 7), 10);
@@ -262,6 +266,21 @@ function calcularSerie(atractivo, anioNum, mesNum) {
 
     puntos[periodo].personas += numero(ing.cantidad_personas);
     puntos[periodo].ingresos += 1;
+  }
+
+  for (var a = 0; a < filasActividades.length; a++) {
+    var act = filasActividades[a];
+    var fechaAct = normalizarFechaTexto(act.fecha_actividad);
+    if (!fechaAct || fechaAct.substring(0, 4) !== String(anioNum)) continue;
+
+    var mesFilaAct = parseInt(fechaAct.substring(5, 7), 10);
+    if (mesNum && mesFilaAct !== mesNum) continue;
+
+    var periodoAct = mesNum ? parseInt(fechaAct.substring(8, 10), 10) : mesFilaAct;
+    if (!puntos[periodoAct]) continue;
+
+    puntos[periodoAct].actividades += 1;
+    puntos[periodoAct].personasActividades += numero(act.cantidad_total);
   }
 
   var serie = [];

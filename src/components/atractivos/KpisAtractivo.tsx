@@ -14,6 +14,13 @@ export default function KpisAtractivo({ resumen }: KpisAtractivoProps) {
   const { hoy, mesEnCurso, totalAnio } = resumen
   const mesLabel = MESES[mesEnCurso.mes - 1] ?? ''
 
+  // Promedio diario del año en curso: total del año / días transcurridos desde
+  // el 1° de enero hasta hoy (mismo criterio que el promedio/día de museos).
+  const diasTranscurridos = Math.floor(
+    (new Date(hoy.fecha).getTime() - new Date(resumen.anio, 0, 1).getTime()) / 86400000,
+  ) + 1
+  const promedioDia = diasTranscurridos > 0 ? Math.round(totalAnio.personasTotal / diasTranscurridos) : 0
+
   const cards = [
     {
       label: 'Hoy',
@@ -43,10 +50,17 @@ export default function KpisAtractivo({ resumen }: KpisAtractivoProps) {
       icon: 'fa-chart-line',
       color: 'bg-green-100 text-green-600',
     },
+    {
+      label: 'Promedio / día',
+      value: formatearNumero(promedioDia),
+      sub: `Sobre ${formatearNumero(diasTranscurridos)} días transcurridos de ${resumen.anio}`,
+      icon: 'fa-calendar-week',
+      color: 'bg-sky-100 text-sky-600',
+    },
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
       {cards.map((card) => (
         <div key={card.label} className="card p-5">
           <div className="flex items-center gap-2 mb-3">

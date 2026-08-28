@@ -506,7 +506,7 @@ function consolidarHistoricoEnIngresos(atractivo) {
   var valoresHist = hojaHistorico.getRange(2, 1, ultimaFilaHist - 1, 3).getValues();
   var nuevas = [];
   for (var h = 0; h < valoresHist.length; h++) {
-    var fecha = String(valoresHist[h][0] || '').trim();
+    var fecha = normalizarFechaTexto(valoresHist[h][0]);
     var cantidad = Number(valoresHist[h][1]);
     var origen = String(valoresHist[h][2] || '').trim();
     if (!fecha || isNaN(cantidad) || cantidad < 1) continue;

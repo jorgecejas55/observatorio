@@ -62,7 +62,7 @@ function listarActivos(sheet, headers, campoFecha, filtros) {
   for (var i = 0; i < filas.length; i++) {
     var f = filas[i];
     if (!esFilaActiva(f)) continue;
-    var fecha = String(f[campoFecha] || '').substring(0, 10);
+    var fecha = normalizarFechaTexto(f[campoFecha]);
     if (desde && fecha < desde) continue;
     if (hasta && fecha > hasta) continue;
     resultado.push(f);

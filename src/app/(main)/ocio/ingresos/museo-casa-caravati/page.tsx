@@ -139,23 +139,6 @@ function MuseoCasaCaravatiDashboardContent() {
           </div>
         </Link>
       </div>
-
-      {/* Info adicional */}
-      <div className="card p-6 mt-6">
-        <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
-            <i className="fa-solid fa-circle-info text-orange-600" />
-          </div>
-          <div>
-            <h4 className="font-semibold text-text-primary mb-1">Información</h4>
-            <p className="text-sm text-text-secondary">
-              Este sistema reemplaza los formularios de Google Forms. Todos los datos se guardan
-              en la misma planilla de Google Sheets y son compatibles con los dashboards de
-              Looker Studio existentes.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

@@ -111,6 +111,8 @@ export interface SerieAtractivoPunto {
   periodo: number
   personas: number
   ingresos: number
+  actividades: number
+  personasActividades: number
 }
 
 export interface SerieAtractivo {

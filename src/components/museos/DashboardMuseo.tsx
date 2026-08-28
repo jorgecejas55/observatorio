@@ -204,42 +204,78 @@ export default function DashboardMuseo({ ocasionales, institucionales }: Dashboa
       .sort((a, b) => a.mes.localeCompare(b.mes))
   }, [institucionalesFiltradas])
 
-  // ── Procedencia (useMemo) ─────────────────────────────────────────────────
-  const procedenciaData = useMemo(() => {
+  // ── Procedencia ocasionales / institucionales, por separado (useMemo) ──────
+  const procedenciaOcasionalesData = useMemo(() => {
     const conteo: Record<string, number> = {}
-
     ocasionalesFiltradas.forEach(v => {
       const proc = (v['Procedencia '] || 'Sin especificar').trim()
       conteo[proc] = (conteo[proc] || 0) + (v['Total de personas'] || 0)
     })
+    return Object.entries(conteo)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+  }, [ocasionalesFiltradas])
 
+  const procedenciaInstitucionalesData = useMemo(() => {
+    const conteo: Record<string, number> = {}
     institucionalesFiltradas.forEach(v => {
       const proc = v.procedencia_institucion || 'Sin especificar'
       conteo[proc] = (conteo[proc] || 0) + (v.cantidad_asistentes || 0)
     })
-
-    return Object.entries(conteo)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-  }, [ocasionalesFiltradas, institucionalesFiltradas])
-
-  // ── Tipo institución (useMemo) ────────────────────────────────────────────
-  const tipoInstitucionData = useMemo(() => {
-    const conteo: Record<string, number> = {}
-
-    institucionalesFiltradas.forEach(v => {
-      const tipo = v.tipo_institucion || 'Sin especificar'
-      conteo[tipo] = (conteo[tipo] || 0) + (v.cantidad_asistentes || 0)
-    })
-
     return Object.entries(conteo)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
   }, [institucionalesFiltradas])
 
-  // ── Canal difusión (useMemo) ──────────────────────────────────────────────
+  // ── Top 5 lugares de procedencia (país / provincia / departamento) ─────────
+  // 'Lugar de procedencia ' solo se completa cuando 'Procedencia ' es
+  // Internacional/Nacional/Provincial (el Form la oculta para 'Residente').
+  const top5LugaresPorCategoria = useMemo(() => {
+    function top5(categoria: 'Internacional' | 'Nacional' | 'Provincial') {
+      const conteo: Record<string, number> = {}
+      let total = 0
+      ocasionalesFiltradas.forEach(v => {
+        if ((v['Procedencia '] || '').trim() !== categoria) return
+        const lugar = (v['Lugar de procedencia '] || 'Sin especificar').trim()
+        const personas = v['Total de personas'] || 0
+        conteo[lugar] = (conteo[lugar] || 0) + personas
+        total += personas
+      })
+      return Object.entries(conteo)
+        .map(([name, value]) => ({ name, value, pct: total ? Math.round((value / total) * 100) : 0 }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5)
+    }
+    return {
+      paises: top5('Internacional'),
+      provincias: top5('Nacional'),
+      departamentos: top5('Provincial'),
+    }
+  }, [ocasionalesFiltradas])
+
+  // ── Tipo institución, en % del total institucional (useMemo) ───────────────
+  const tipoInstitucionData = useMemo(() => {
+    const conteo: Record<string, number> = {}
+    let total = 0
+
+    institucionalesFiltradas.forEach(v => {
+      const tipo = v.tipo_institucion || 'Sin especificar'
+      const asistentes = v.cantidad_asistentes || 0
+      conteo[tipo] = (conteo[tipo] || 0) + asistentes
+      total += asistentes
+    })
+
+    return Object.entries(conteo)
+      .map(([name, value]) => ({ name, value, pct: total ? Math.round((value / total) * 100) : 0 }))
+      .sort((a, b) => b.value - a.value)
+  }, [institucionalesFiltradas])
+
+  // ── Canal difusión, en % de las visitas ocasionales que lo mencionan ───────
+  // Una visita puede citar varios canales — los % no suman 100, cada barra es
+  // "% de visitas ocasionales que mencionan este canal".
   const canalDifusionData = useMemo(() => {
     const conteo: Record<string, number> = {}
+    const totalVisitas = ocasionalesFiltradas.length
 
     ocasionalesFiltradas.forEach(v => {
       if (v.canal_difusion) {
@@ -253,7 +289,7 @@ export default function DashboardMuseo({ ocasionales, institucionales }: Dashboa
     })
 
     return Object.entries(conteo)
-      .map(([name, value]) => ({ name, value }))
+      .map(([name, value]) => ({ name, value, pct: totalVisitas ? Math.round((value / totalVisitas) * 100) : 0 }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8)
   }, [ocasionalesFiltradas])
@@ -447,41 +483,101 @@ export default function DashboardMuseo({ ocasionales, institucionales }: Dashboa
         </div>
       </div>
 
-      {/* ── Gráficos en grid ──────────────────────────────────────────────── */}
+      {/* ── Procedencia: ocasionales vs institucionales, por separado ──────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Procedencia - Donut */}
         <div className="card p-6">
           <h3 className="text-lg font-semibold text-text-primary mb-4">
-            Procedencia de Visitantes
+            Procedencia · Visitas Ocasionales
           </h3>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie
-                data={procedenciaData}
+                data={procedenciaOcasionalesData}
                 cx="50%"
                 cy="50%"
                 innerRadius={55}
                 outerRadius={85}
                 dataKey="value"
                 label={({ value }) => {
-                  const total = procedenciaData.reduce((s, d) => s + d.value, 0)
+                  const total = procedenciaOcasionalesData.reduce((s, d) => s + d.value, 0)
                   return total ? `${Math.round(value / total * 100)}%` : ''
                 }}
                 labelLine={true}
               >
-                {procedenciaData.map((entry, index) => (
+                {procedenciaOcasionalesData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS_PIE[index % COLORS_PIE.length]} />
                 ))}
               </Pie>
               <Legend formatter={(v) => <span style={{ fontSize: 12 }}>{v}</span>} />
               <Tooltip formatter={(v: number) => {
-                const total = procedenciaData.reduce((s, d) => s + d.value, 0)
+                const total = procedenciaOcasionalesData.reduce((s, d) => s + d.value, 0)
                 return [total ? `${Math.round((v / total) * 100)}%` : '—', '']
               }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
 
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-text-primary mb-4">
+            Procedencia · Visitas Institucionales
+          </h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie
+                data={procedenciaInstitucionalesData}
+                cx="50%"
+                cy="50%"
+                innerRadius={55}
+                outerRadius={85}
+                dataKey="value"
+                label={({ value }) => {
+                  const total = procedenciaInstitucionalesData.reduce((s, d) => s + d.value, 0)
+                  return total ? `${Math.round(value / total * 100)}%` : ''
+                }}
+                labelLine={true}
+              >
+                {procedenciaInstitucionalesData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS_PIE[index % COLORS_PIE.length]} />
+                ))}
+              </Pie>
+              <Legend formatter={(v) => <span style={{ fontSize: 12 }}>{v}</span>} />
+              <Tooltip formatter={(v: number) => {
+                const total = procedenciaInstitucionalesData.reduce((s, d) => s + d.value, 0)
+                return [total ? `${Math.round((v / total) * 100)}%` : '—', '']
+              }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ── Top 5 lugares de procedencia (solo visitas ocasionales) ────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {([
+          { key: 'paises', titulo: 'Top 5 Países (Internacional)', color: '#db2777' },
+          { key: 'provincias', titulo: 'Top 5 Provincias (Nacional)', color: '#0ea5e9' },
+          { key: 'departamentos', titulo: 'Top 5 Departamentos (Provincial)', color: '#10b981' },
+        ] as const).map(({ key, titulo, color }) => {
+          const datos = top5LugaresPorCategoria[key]
+          if (datos.length === 0) return null
+          return (
+            <div key={key} className="card p-6">
+              <h3 className="text-base font-semibold text-text-primary mb-4">{titulo}</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={datos} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                  <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [`${v}%`, 'Personas']} />
+                  <Bar dataKey="pct" fill={color} name="% del total" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── Tipo de institución / canal de difusión, en % ───────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Tipo de Institución */}
         {tipoInstitucionData.length > 0 && (
           <div className="card p-6">
@@ -491,10 +587,10 @@ export default function DashboardMuseo({ ocasionales, institucionales }: Dashboa
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={tipoInstitucionData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tick={{ fontSize: 11, fill: '#6B7280' }} />
+                <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: '#6B7280' }} />
                 <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 11, fill: '#6B7280' }} />
-                <Tooltip contentStyle={{ fontSize: 12 }} />
-                <Bar dataKey="value" fill="#10B981" name="Visitantes" />
+                <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [`${v}%`, 'Visitantes']} />
+                <Bar dataKey="pct" fill="#10B981" name="% de visitantes" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -510,9 +606,9 @@ export default function DashboardMuseo({ ocasionales, institucionales }: Dashboa
               <BarChart data={canalDifusionData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6B7280' }} angle={-45} textAnchor="end" height={100} />
-                <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} />
-                <Tooltip contentStyle={{ fontSize: 12 }} />
-                <Bar dataKey="value" fill="#F59E0B" name="Menciones" />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [`${v}%`, 'Visitas que lo mencionan']} />
+                <Bar dataKey="pct" fill="#F59E0B" name="% de visitas" />
               </BarChart>
             </ResponsiveContainer>
           </div>

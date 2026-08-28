@@ -63,14 +63,53 @@ export default function DashboardAtractivo({ atractivo }: DashboardAtractivoProp
     cargar()
   }, [cargar])
 
+  // ── Personas por mes: selector de año (reusa /serie para años != al actual) ──
+  const [anioPersonasMes, setAnioPersonasMes] = useState<number | null>(null)
+  const [seriePersonasMesOtroAnio, setSeriePersonasMesOtroAnio] = useState<SerieAtractivo | null>(null)
+  const [cargandoSeriePersonasMes, setCargandoSeriePersonasMes] = useState(false)
+
+  useEffect(() => {
+    if (resumen && anioPersonasMes === null) setAnioPersonasMes(resumen.anio)
+  }, [resumen, anioPersonasMes])
+
+  useEffect(() => {
+    if (anioPersonasMes === null || !resumen) return
+    if (anioPersonasMes === resumen.anio) {
+      setSeriePersonasMesOtroAnio(null)
+      return
+    }
+    let cancelado = false
+    setCargandoSeriePersonasMes(true)
+    fetch(`/api/ocio/ingresos/atractivos/${atractivo}/serie?anio=${anioPersonasMes}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelado) return
+        if (data.success) setSeriePersonasMesOtroAnio(data.data)
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoSeriePersonasMes(false)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [atractivo, anioPersonasMes, resumen])
+
   const serie = useMemo(() => {
-    if (!resumen) return []
-    return resumen.serieAnual.map((s) => ({
-      mes: MESES_CORTOS[s.mes - 1],
-      personas: s.personas,
-      actividades: s.personasActividades,
+    if (!resumen || anioPersonasMes === null) return []
+    if (anioPersonasMes === resumen.anio) {
+      return resumen.serieAnual.map((s) => ({
+        mes: MESES_CORTOS[s.mes - 1],
+        personas: s.personas,
+        actividades: s.personasActividades,
+      }))
+    }
+    if (!seriePersonasMesOtroAnio) return []
+    return seriePersonasMesOtroAnio.serie.map((p) => ({
+      mes: MESES_CORTOS[p.periodo - 1],
+      personas: p.personas,
+      actividades: p.personasActividades,
     }))
-  }, [resumen])
+  }, [resumen, anioPersonasMes, seriePersonasMesOtroAnio])
 
   const porMotivo = useMemo(() => (resumen?.porMotivo || []).slice().sort((a, b) => b.personas - a.personas), [resumen])
   const porTipo = useMemo(
@@ -161,11 +200,27 @@ export default function DashboardAtractivo({ atractivo }: DashboardAtractivoProp
 
       {/* Serie mensual */}
       <div className="card p-5">
-        <h3 className="text-base font-semibold text-text-primary mb-4">
-          <i className="fa-solid fa-chart-line text-primary mr-2" />
-          Personas por mes · {resumen?.anio}
-        </h3>
-        <div className="h-72">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h3 className="text-base font-semibold text-text-primary">
+            <i className="fa-solid fa-chart-line text-primary mr-2" />
+            Personas por mes
+          </h3>
+          <select
+            value={anioPersonasMes ?? ''}
+            onChange={(e) => setAnioPersonasMes(Number(e.target.value))}
+            className="input py-1.5 text-sm w-auto"
+          >
+            {(resumen?.aniosDisponibles || []).map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+        <div className="h-72 relative">
+          {cargandoSeriePersonasMes && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/60 z-10">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={serie} margin={{ top: 10, right: 20, bottom: 0, left: -10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
