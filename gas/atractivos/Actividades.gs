@@ -69,6 +69,8 @@ function crearActividad(atractivo, data) {
     var creado = leerFila(sheet, headers, filaNueva);
 
     invalidarResumen(atractivo);
+    var am = anioMesDesdeFecha(payload.fecha_actividad);
+    if (am) invalidarSerie(atractivo, am.anio, am.mes);
     return { success: true, data: { id: String(creado.id), duplicado: false } };
   });
 }
@@ -83,6 +85,12 @@ function actualizarActividad(atractivo, data) {
     var headers = getHeaders(sheet);
     var ahora = getCurrentDateTime();
 
+    // Fecha ANTES de editar: si cambia de mes/año hay que invalidar los dos
+    // períodos afectados.
+    var filaNum = buscarFilaPorId(sheet, headers, String(data.id));
+    if (filaNum < 0) return { success: false, error: 'registro_no_encontrado' };
+    var anterior = leerFila(sheet, headers, filaNum);
+
     actualizarFila(sheet, headers, String(data.id), {
       fecha_actividad: String(data.fecha_actividad),
       nombre_actividad: String(data.nombre_actividad),
@@ -94,6 +102,10 @@ function actualizarActividad(atractivo, data) {
     }, ahora);
 
     invalidarResumen(atractivo);
+    var amAnterior = anioMesDesdeFecha(anterior.fecha_actividad);
+    if (amAnterior) invalidarSerie(atractivo, amAnterior.anio, amAnterior.mes);
+    var amNuevo = anioMesDesdeFecha(data.fecha_actividad);
+    if (amNuevo) invalidarSerie(atractivo, amNuevo.anio, amNuevo.mes);
     return { success: true, data: { id: String(data.id) } };
   });
 }
@@ -104,8 +116,16 @@ function eliminarActividad(atractivo, data) {
   return conLock(function () {
     var sheet = getSheetDe(atractivo, SHEETS.ACTIVIDADES);
     var headers = getHeaders(sheet);
+
+    var filaNum = buscarFilaPorId(sheet, headers, String(data.id));
+    var fechaAfectada = filaNum > 0 ? leerFila(sheet, headers, filaNum).fecha_actividad : null;
+
     var resultado = bajaLogica(sheet, headers, String(data.id), data.usuario_modificacion || '');
-    if (resultado.success) invalidarResumen(atractivo);
+    if (resultado.success) {
+      invalidarResumen(atractivo);
+      var am = anioMesDesdeFecha(fechaAfectada);
+      if (am) invalidarSerie(atractivo, am.anio, am.mes);
+    }
     return resultado;
   });
 }

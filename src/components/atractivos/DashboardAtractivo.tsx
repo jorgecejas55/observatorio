@@ -154,6 +154,7 @@ export default function DashboardAtractivo({ atractivo }: DashboardAtractivoProp
     return serieHistorica.serie.map((p) => ({
       etiqueta: serieHistorica.granularidad === 'mes' ? MESES_CORTOS[p.periodo - 1] : String(p.periodo),
       personas: p.personas,
+      personasActividades: p.personasActividades,
     }))
   }, [serieHistorica])
 
@@ -271,6 +272,8 @@ export default function DashboardAtractivo({ atractivo }: DashboardAtractivoProp
           {mesSeleccionado
             ? `Personas por día · ${MESES_LARGOS[mesSeleccionado - 1]} ${anioSeleccionado}`
             : `Personas por mes · ${anioSeleccionado ?? ''}`}
+          {' · '}
+          Visitas guiadas + actividades especiales
         </p>
         <div className="h-64 relative">
           {cargandoSerie && (
@@ -284,7 +287,15 @@ export default function DashboardAtractivo({ atractivo }: DashboardAtractivoProp
               <XAxis dataKey="etiqueta" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="personas" name="Personas" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+              <Legend />
+              <Bar dataKey="personas" name="Visitas guiadas" stackId="personas" fill="#0ea5e9" />
+              <Bar
+                dataKey="personasActividades"
+                name="Actividades especiales"
+                stackId="personas"
+                fill="#8b5cf6"
+                radius={[6, 6, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -39,6 +39,34 @@ function invalidarResumen(atractivo) {
   }
 }
 
+/**
+ * Invalida la caché de /serie para el período (año, y año+mes) que tocó una
+ * mutación. SIN esto, un alta/edición/baja de un registro de un mes ya
+ * cargado se ve reflejada en el KPI y en "Personas por mes" (resumen, que sí
+ * se invalida arriba) pero "Serie histórica" sigue mostrando el dato viejo
+ * hasta 5 min (TTL de calcularSerie) — el usuario ve "no entró" cuando en
+ * realidad ya está en la planilla. Bug real detectado 2026-09-01.
+ * `anio`/`mes` salen de la fecha del registro afectado (no del año actual):
+ * cargar un histórico de 2019 debe invalidar la serie de 2019, no la de hoy.
+ */
+function invalidarSerie(atractivo, anio, mes) {
+  if (!anio) return;
+  try {
+    var claves = [SERIE_CACHE_KEY(atractivo, anio, null)];
+    if (mes) claves.push(SERIE_CACHE_KEY(atractivo, anio, mes));
+    CacheService.getScriptCache().removeAll(claves);
+  } catch (e) {
+    Logger.log('[serie] no se pudo invalidar: ' + e.toString());
+  }
+}
+
+/** { anio, mes } (números) a partir de una fecha 'yyyy-MM-dd...', o null si no es válida. */
+function anioMesDesdeFecha(fechaTexto) {
+  var fecha = normalizarFechaTexto(fechaTexto);
+  if (!fecha) return null;
+  return { anio: parseInt(fecha.substring(0, 4), 10), mes: parseInt(fecha.substring(5, 7), 10) };
+}
+
 // ── Total histórico (hoja Histórico, solo lectura de migración) ───────────────
 // Ya no participa del resumen: tras consolidarHistoricoEnIngresos() (Migracion.gs)
 // los mismos datos viven en Ingresos y entran a totalAnio/serieAnual/serie como

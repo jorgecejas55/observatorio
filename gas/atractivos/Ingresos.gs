@@ -78,6 +78,8 @@ function crearIngreso(atractivo, data) {
     var creado = leerFila(sheet, headers, filaNueva);
 
     invalidarResumen(atractivo);
+    var am = anioMesDesdeFecha(payload.fecha_hora_registro);
+    if (am) invalidarSerie(atractivo, am.anio, am.mes);
     return { success: true, data: { id: String(creado.id), duplicado: false } };
   });
 }
@@ -91,6 +93,12 @@ function actualizarIngreso(atractivo, data) {
     var sheet = getSheetDe(atractivo, SHEETS.INGRESOS);
     var headers = getHeaders(sheet);
     var ahora = getCurrentDateTime();
+
+    // Fecha ANTES de editar: si cambia de mes/año hay que invalidar los dos
+    // períodos (el viejo se queda con un registro fantasma en caché si no).
+    var filaNum = buscarFilaPorId(sheet, headers, String(data.id));
+    if (filaNum < 0) return { success: false, error: 'registro_no_encontrado' };
+    var anterior = leerFila(sheet, headers, filaNum);
 
     // fecha_hora_registro: el Next filtra este campo salvo que quien edita sea
     // admin (ver gateAtractivo/route.ts) — acá solo se aplica SI vino en el
@@ -107,6 +115,12 @@ function actualizarIngreso(atractivo, data) {
     actualizarFila(sheet, headers, String(data.id), payload, ahora);
 
     invalidarResumen(atractivo);
+    var amAnterior = anioMesDesdeFecha(anterior.fecha_hora_registro);
+    if (amAnterior) invalidarSerie(atractivo, amAnterior.anio, amAnterior.mes);
+    if (data.fecha_hora_registro) {
+      var amNuevo = anioMesDesdeFecha(data.fecha_hora_registro);
+      if (amNuevo) invalidarSerie(atractivo, amNuevo.anio, amNuevo.mes);
+    }
     return { success: true, data: { id: String(data.id) } };
   });
 }
@@ -117,8 +131,16 @@ function eliminarIngreso(atractivo, data) {
   return conLock(function () {
     var sheet = getSheetDe(atractivo, SHEETS.INGRESOS);
     var headers = getHeaders(sheet);
+
+    var filaNum = buscarFilaPorId(sheet, headers, String(data.id));
+    var fechaAfectada = filaNum > 0 ? leerFila(sheet, headers, filaNum).fecha_hora_registro : null;
+
     var resultado = bajaLogica(sheet, headers, String(data.id), data.usuario_modificacion || '');
-    if (resultado.success) invalidarResumen(atractivo);
+    if (resultado.success) {
+      invalidarResumen(atractivo);
+      var am = anioMesDesdeFecha(fechaAfectada);
+      if (am) invalidarSerie(atractivo, am.anio, am.mes);
+    }
     return resultado;
   });
 }
