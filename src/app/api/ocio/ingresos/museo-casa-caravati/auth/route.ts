@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { MuseoAuthSchema } from '@/lib/schemas'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { requireSesionApi } from '@/lib/permisos'
 
 const GAS = process.env.MUSEO_CASA_CARAVATI_SCRIPT_URL ?? ''
 
 // POST /api/ocio/ingresos/museo-casa-caravati/auth - Login
 export async function POST(req: Request) {
+  const gate = await requireSesionApi()
+  if (gate instanceof NextResponse) return gate
+
   try {
     if (!checkRateLimit(getClientIp(req), 5, 15 * 60 * 1000)) {
       return NextResponse.json({ success: false, error: 'Demasiados intentos. Esperá 15 minutos.' }, { status: 429 })

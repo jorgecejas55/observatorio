@@ -13,6 +13,8 @@ interface NavItem {
   icon: string
   /** Módulo requerido para ver este item (si no se especifica, visible para todos los logueados) */
   modulo?: ModuloKey
+  /** true = formulario de carga; requiere estar logueado (cualquier rol), no aparece en la vista pública */
+  requiereSesion?: boolean
 }
 
 interface NavGroup {
@@ -23,36 +25,7 @@ interface NavGroup {
 }
 
 const NAV: NavGroup[] = [
-  {
-    label: 'Turismo de Ocio',
-    icon: 'fa-umbrella-beach',
-    color: 'text-orange-500',
-    items: [
-      { href: '/ocio/encuesta', label: 'Encuesta turista', icon: 'fa-clipboard-list' },
-      { href: '/ocio/ingresos', label: 'Ingresos atractivos', icon: 'fa-ticket' },
-      { href: '/ocio/ingresos/casa-la-puna', label: 'Casa de la Puna', icon: 'fa-mountain-sun', modulo: 'atractivos-casa-puna' },
-      { href: '/ocio/ingresos/pueblo-perdido', label: 'Pueblo Perdido', icon: 'fa-archway', modulo: 'atractivos-pueblo-perdido' },
-      { href: '/ocio/camping', label: 'Camping municipal', icon: 'fa-campground' },
-    ],
-  },
-  {
-    label: 'Turismo de Eventos',
-    icon: 'fa-calendar-star',
-    color: 'text-purple-500',
-    items: [
-      { href: '/eventos/registro', label: 'Registro de evento', icon: 'fa-calendar-plus' },
-      { href: '/eventos/encuesta', label: 'Encuesta demanda', icon: 'fa-clipboard-question' },
-    ],
-  },
-  {
-    label: 'Casa de Catamarca',
-    icon: 'fa-house-building',
-    color: 'text-teal-600',
-    items: [
-      { href: '/casa-catamarca/encuesta', label: 'Cargar encuesta', icon: 'fa-clipboard-list' },
-      { href: '/casa-catamarca/dashboard', label: 'Panel operativo', icon: 'fa-chart-pie', modulo: 'casa-catamarca' },
-    ],
-  },
+  // ── Vista pública: tableros e informes, sin formularios de carga ──
   {
     label: 'Informes Técnicos',
     icon: 'fa-file-lines',
@@ -62,7 +35,17 @@ const NAV: NavGroup[] = [
       { href: '/informes/mice', label: 'Turismo MICE', icon: 'fa-calendar-star' },
     ],
   },
-    {
+  {
+    label: 'Estadísticas',
+    icon: 'fa-chart-column',
+    color: 'text-primary',
+    items: [
+      { href: '/estadisticas/perfil-visitante', label: 'Perfil del visitante', icon: 'fa-chart-bar' },
+      { href: '/estadisticas/eventos', label: 'Dashboard de eventos', icon: 'fa-calendar-check' },
+      { href: '/estadisticas/digital', label: 'Dashboard digital', icon: 'fa-chart-line' },
+    ],
+  },
+  {
     label: 'Oferta de Servicios',
     icon: 'fa-hotel',
     color: 'text-accent',
@@ -81,32 +64,53 @@ const NAV: NavGroup[] = [
       { href: '/accesibilidad-gastronomica', label: 'Acc. Gastronomía', icon: 'fa-utensils' },
     ],
   },
+  // ── Carga de datos: requiere sesión, oculto en vista pública ──
+  {
+    label: 'Turismo de Ocio',
+    icon: 'fa-umbrella-beach',
+    color: 'text-orange-500',
+    items: [
+      { href: '/ocio/encuesta', label: 'Encuesta turista', icon: 'fa-clipboard-list', requiereSesion: true },
+      { href: '/ocio/ingresos', label: 'Ingresos atractivos', icon: 'fa-ticket', requiereSesion: true },
+      { href: '/ocio/ingresos/casa-la-puna', label: 'Casa de la Puna', icon: 'fa-mountain-sun', modulo: 'atractivos-casa-puna' },
+      { href: '/ocio/ingresos/pueblo-perdido', label: 'Pueblo Perdido', icon: 'fa-archway', modulo: 'atractivos-pueblo-perdido' },
+      { href: '/ocio/camping', label: 'Camping municipal', icon: 'fa-campground', requiereSesion: true },
+    ],
+  },
+  {
+    label: 'Turismo de Eventos',
+    icon: 'fa-calendar-star',
+    color: 'text-purple-500',
+    items: [
+      { href: '/eventos/registro', label: 'Registro de evento', icon: 'fa-calendar-plus', requiereSesion: true },
+      { href: '/eventos/encuesta', label: 'Encuesta demanda', icon: 'fa-clipboard-question', requiereSesion: true },
+    ],
+  },
+  {
+    label: 'Casa de Catamarca',
+    icon: 'fa-house-building',
+    color: 'text-teal-600',
+    items: [
+      { href: '/casa-catamarca/encuesta', label: 'Cargar encuesta', icon: 'fa-clipboard-list', requiereSesion: true },
+      { href: '/casa-catamarca/dashboard', label: 'Panel operativo', icon: 'fa-chart-pie', modulo: 'casa-catamarca' },
+    ],
+  },
   {
     label: 'Análisis de Calidad',
     icon: 'fa-star-half-stroke',
     color: 'text-yellow-500',
     items: [
-      { href: '/calidad/atractivos', label: 'Calidad atractivos', icon: 'fa-landmark' },
-      { href: '/calidad/servicios', label: 'Calidad servicios', icon: 'fa-concierge-bell' },
-      { href: '/calidad/bus', label: 'Calidad bus turístico', icon: 'fa-bus' },
-      { href: '/calidad/percepcion', label: 'Percepción social', icon: 'fa-people-group' },
-    ],
-  },
-  {
-    label: 'Estadísticas',
-    icon: 'fa-chart-column',
-    color: 'text-primary',
-    items: [
-      { href: '/estadisticas/indicadores', label: 'Indicadores mensuales', icon: 'fa-table-list' },
-      { href: '/estadisticas/perfil-visitante', label: 'Perfil del visitante', icon: 'fa-chart-bar' },
-      { href: '/estadisticas/eventos', label: 'Dashboard de eventos', icon: 'fa-calendar-check' },
-      { href: '/estadisticas/digital', label: 'Dashboard digital', icon: 'fa-chart-line' },
+      { href: '/calidad/atractivos', label: 'Calidad atractivos', icon: 'fa-landmark', requiereSesion: true },
+      { href: '/calidad/servicios', label: 'Calidad servicios', icon: 'fa-concierge-bell', requiereSesion: true },
+      { href: '/calidad/bus', label: 'Calidad bus turístico', icon: 'fa-bus', requiereSesion: true },
+      { href: '/calidad/percepcion', label: 'Percepción social', icon: 'fa-people-group', requiereSesion: true },
     ],
   },
 ]
 
 /** Items de la sección Admin (siempre visibles para logueados, salvo los que tienen módulo) */
 const ADMIN_ITEMS: NavItem[] = [
+  { href: '/estadisticas/indicadores', label: 'Cargar indicadores mensuales', icon: 'fa-table-list', requiereSesion: true },
   { href: '/admin/ocupacion', label: 'Ocupación Hotelera', icon: 'fa-hotel', modulo: 'ocupacion' },
   { href: '/admin/informes-auto', label: 'Agente informes', icon: 'fa-robot', modulo: 'informes-auto' },
   { href: '/admin/informes', label: 'Cargar informe', icon: 'fa-file-arrow-up', modulo: 'informes' },
@@ -160,7 +164,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   /** Filtra items según los permisos del usuario */
   const visibleItems = (items: NavItem[]) =>
     items.filter((item) => {
-      if (!item.modulo) return true // sin módulo → visible para todos
+      if (item.requiereSesion && !estaLogueado) return false // formulario de carga: oculto en vista pública
+      if (!item.modulo) return true // sin módulo → visible para todos los logueados (o público si no requiere sesión)
       if (!session?.user) return false // requiere módulo pero no hay sesión
       return tieneAcceso(session.user, item.modulo)
     })

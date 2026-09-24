@@ -73,7 +73,7 @@ export default function Header({ sidebarOpen, onToggle }: HeaderProps) {
                 <p className="text-xs text-text-secondary truncate">{session.user.email}</p>
               </div>
               <button
-                onClick={() => signOut({ callbackUrl: '/login' })}
+                onClick={() => signOut({ callbackUrl: '/dashboard' })}
                 className="w-full text-left px-4 py-2 text-sm text-text-secondary hover:text-primary hover:bg-gray-50 flex items-center gap-2 transition-colors"
               >
                 <i className="fa-solid fa-arrow-right-from-bracket" />

@@ -172,13 +172,9 @@ export interface InformeFindeCompleto {
   comparativaUltimoFinde: PeriodoComparativo
   comparativaAnioAnterior: PeriodoComparativo
 
-  // Reporte de prensa generado por IA (editable)
-  tituloPrensa: string
-  bajadaPrensa: string
-  reportePrensa: string
-
-  // Propuesta de actividades vigentes durante el finde
-  actividades: ResumenActividades
+  // Ingresos a atractivos (Casa de la Puna, Pueblo Perdido, museos) y sus
+  // actividades especiales durante el período (informativo)
+  ingresosAtractivos: ResumenIngresosAtractivos
 
   // Resultado del empuje a la planilla histórica maestra (191cjZK9...)
   empujeMaestra?: ResultadoEmpuje
@@ -227,16 +223,32 @@ export interface GenerarInformePayload {
   comparativaManualAnioAnterior?: string  // ID de registro maestro (anula Jaccard) o 'NINGUNA'
 }
 
-// ── Actividades ──────────────────────────────────────────────────────────────
+// ── Ingresos a atractivos y actividades especiales ────────────────────────────
+// (Casa de la Puna, Pueblo Perdido, museos — ver lib/informes-auto/ingresos-atractivos.ts)
 
-export interface ResumenActividades {
-  total: number
-  porTematica: Array<{ nombre: string; cantidad: number }>
-  permanentes: number
-  ocasionales: number
-  destacadas: string[]
-  /** Nombres de actividades vigentes, priorizados: ocasionales → destacadas → permanentes (tope ~15) */
-  nombres?: string[]
+export interface IngresoPorAtractivo {
+  atractivo: string
+  nombre: string
+  personas: number
+  registros: number
+  /** true si alguna consulta al GAS falló: el total puede estar subestimado */
+  incompleto?: boolean
+}
+
+export interface ActividadEspecialResumen {
+  atractivo: string
+  fecha: string
+  nombre: string
+  cantidadTotal: number
+  /** Ausentes en informes generados antes de incorporar el desglose */
+  cantidadTuristas?: number
+  cantidadResidentes?: number
+}
+
+export interface ResumenIngresosAtractivos {
+  porAtractivo: IngresoPorAtractivo[]
+  totalPersonas: number
+  actividadesEspeciales: ActividadEspecialResumen[]
 }
 
 // ── Tendencia del año en curso ─────────────────────────────────────────────────

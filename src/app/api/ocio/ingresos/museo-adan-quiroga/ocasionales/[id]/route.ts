@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { VisitaOcasionalSchema } from '@/lib/schemas'
+import { requireSesionApi } from '@/lib/permisos'
 
 const GAS = process.env.MUSEO_ADAN_QUIROGA_SCRIPT_URL ?? ''
 
@@ -36,6 +37,9 @@ export async function GET(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireSesionApi()
+  if (gate instanceof NextResponse) return gate
+
   try {
     if (!GAS) {
       return NextResponse.json({
@@ -71,6 +75,9 @@ export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireSesionApi()
+  if (gate instanceof NextResponse) return gate
+
   try {
     const params = await context.params
     const body = await req.json()
@@ -91,6 +98,9 @@ export async function DELETE(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireSesionApi()
+  if (gate instanceof NextResponse) return gate
+
   try {
     const params = await context.params
     const result = await gasPost({ action: 'deleteOcasional', id: params.id })

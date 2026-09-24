@@ -7,6 +7,8 @@ import { tieneAcceso } from '@/lib/permisos'
 import { formatearRango } from '@/lib/formato-fechas'
 import type { InformeFindeCompleto, TipoInforme } from '@/lib/informes-auto/types'
 import { LABELS_CATEGORIA } from '@/lib/types'
+import { RESPUESTA_FAVORABLE, porcentajeDe, porcentajeSobreRespondentes, totalRespuestas, type RespuestaSiNo } from '@/lib/indicadores-perfil'
+import SeccionIngresosAtractivos from '@/components/informes/SeccionIngresosAtractivos'
 
 const ETIQUETAS_TIPO: Record<TipoInforme, { portada: string; header: string }> = {
   FSL: { portada: 'Fin de Semana Largo', header: 'Informe Fin de Semana Largo' },
@@ -22,12 +24,8 @@ export default function InformeAutoDetallePage() {
   const [informe, setInforme] = useState<InformeFindeCompleto | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-  const [editandoTitulo, setEditandoTitulo] = useState(false)
-  const [editandoBajada, setEditandoBajada] = useState(false)
-  const [editandoReporte, setEditandoReporte] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'success' | 'error' } | null>(null)
-  const [copiado, setCopiado] = useState(false)
   const [reintentandoEmpuje, setReintentandoEmpuje] = useState(false)
   const [recalculando, setRecalculando] = useState(false)
 
@@ -55,22 +53,13 @@ export default function InformeAutoDetallePage() {
         const respuesta = json.data
         if (!respuesta) throw new Error('Informe no encontrado')
         // Reconstruir InformeFindeCompleto: el GAS devuelve { ...metadata, datos }
-        let informeCompleto: InformeFindeCompleto = respuesta.datos
+        const informeCompleto: InformeFindeCompleto = respuesta.datos
           ? { ...respuesta.datos }   // datosJSON tiene el objeto completo
           : { ...respuesta }          // fallback si no hay datos separados
 
-        // Migración: informes viejos usaban narrativaInforme / gacetillaPrensa
-        const datosRaw = informeCompleto as unknown as Record<string, unknown>
-        if (!datosRaw.tituloPrensa && datosRaw.narrativaInforme) {
-          informeCompleto.tituloPrensa = String(datosRaw.narrativaInforme || '').split('\n')[0] || informeCompleto.nombre
-          informeCompleto.bajadaPrensa = ''
-          informeCompleto.reportePrensa = String(datosRaw.narrativaInforme || '') + '\n\n' + String(datosRaw.gacetillaPrensa || '')
-          delete (informeCompleto as unknown as Record<string, unknown>).narrativaInforme
-          delete (informeCompleto as unknown as Record<string, unknown>).gacetillaPrensa
-        }
-        // Asegurar que actividades existe
-        if (!informeCompleto.actividades) {
-          informeCompleto.actividades = { total: 0, porTematica: [], permanentes: 0, ocasionales: 0, destacadas: [] }
+        // Informes generados antes de incorporar ingresos a atractivos
+        if (!informeCompleto.ingresosAtractivos) {
+          informeCompleto.ingresosAtractivos = { porAtractivo: [], totalPersonas: 0, actividadesEspeciales: [] }
         }
         // Asegurar que picos existe (informes generados antes de esta función)
         if (!informeCompleto.picos) {
@@ -129,13 +118,6 @@ export default function InformeAutoDetallePage() {
   const etiquetaTipo = ETIQUETAS_TIPO[informe.tipoInforme ?? 'FSL']
 
   // ── Acciones ──
-  const copiarReporte = () => {
-    const texto = `${informe.tituloPrensa}\n\n${informe.bajadaPrensa}\n\n${informe.reportePrensa}`
-    navigator.clipboard.writeText(texto)
-    setCopiado(true)
-    setTimeout(() => setCopiado(false), 2000)
-  }
-
   const exportarPDF = () => window.print()
 
   const reintentarEmpuje = async () => {
@@ -182,26 +164,6 @@ export default function InformeAutoDetallePage() {
     }
   }
 
-  const guardarCambios = async () => {
-    setGuardando(true)
-    try {
-      await fetch(`/api/informes-auto/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tituloPrensa: informe.tituloPrensa,
-          bajadaPrensa: informe.bajadaPrensa,
-          reportePrensa: informe.reportePrensa,
-        }),
-      })
-      setToast({ mensaje: 'Cambios guardados', tipo: 'success' })
-    } catch {
-      setToast({ mensaje: 'Error al guardar', tipo: 'error' })
-    } finally {
-      setGuardando(false)
-    }
-  }
-
   const publicar = async () => {
     if (!confirm('¿Publicar este informe en el módulo de Informes Técnicos?')) return
     setGuardando(true)
@@ -221,31 +183,27 @@ export default function InformeAutoDetallePage() {
 
   const totalEncuestas = perfil.totalEncuestas
   // Calcular porcentajes (claves normalizadas sin tilde: SI, NO)
-  const pctPrimeraVezSi = perfil.totalEncuestas > 0
-    ? Math.round((perfil.primeraVez['SI'] ?? 0) / perfil.totalEncuestas * 100)
-    : 0
-  const pctPrimeraVezNo = perfil.totalEncuestas > 0
-    ? Math.round((perfil.primeraVez['NO'] ?? 0) / perfil.totalEncuestas * 100)
-    : 0
-  const pctOtrosDestinosSi = perfil.totalEncuestas > 0
-    ? Math.round((perfil.otrosDestinos['SI'] ?? 0) / perfil.totalEncuestas * 100)
-    : 0
-  const pctOtrosDestinosNo = perfil.totalEncuestas > 0
-    ? Math.round((perfil.otrosDestinos['NO'] ?? 0) / perfil.totalEncuestas * 100)
-    : 0
-  const pctRecomendariaSi = perfil.totalEncuestas > 0
-    ? Math.round((perfil.recomendaria?.['SI'] ?? 0) / perfil.totalEncuestas * 100)
-    : 0
+  // Estos porcentajes se calculan solo sobre quienes contestaron cada pregunta
+  const pctPrimeraVezSi = porcentajeSobreRespondentes(perfil.primeraVez, 'SI')
+  const pctPrimeraVezNo = porcentajeSobreRespondentes(perfil.primeraVez, 'NO')
+  const pctOtrosDestinosSi = porcentajeSobreRespondentes(perfil.otrosDestinos, 'SI')
+  const pctOtrosDestinosNo = porcentajeSobreRespondentes(perfil.otrosDestinos, 'NO')
+  const pctRecomendariaSi = porcentajeSobreRespondentes(perfil.recomendaria, 'SI')
   // volveria usa escala distinta: "MUY PROBABLE" / "POCO PROBABLE"
-  const pctVolveriaMuyProbable = perfil.totalEncuestas > 0
-    ? Math.round(((perfil.volveria?.['MUY PROBABLE'] ?? 0) / perfil.totalEncuestas) * 100)
-    : 0
-  const pctNacional = perfil.totalEncuestas > 0
-    ? Math.round((perfil.procedencia.NACIONAL ?? 0) / perfil.totalEncuestas * 100)
-    : 0
+  const pctVolveriaMuyProbable = porcentajeSobreRespondentes(perfil.volveria, 'MUY PROBABLE')
+  // Cada gráfico se calcula sobre quienes contestaron esa pregunta (ej.: la
+  // provincia de origen solo la informan visitantes nacionales/provinciales)
+  const pctNacional = porcentajeSobreRespondentes(perfil.procedencia, 'NACIONAL')
+  const pctProvincial = porcentajeSobreRespondentes(perfil.procedencia, 'PROVINCIAL')
+  const pctInternacional = porcentajeSobreRespondentes(perfil.procedencia, 'INTERNACIONAL')
+  const totalProvincias = totalRespuestas(perfil.provinciasFrecuentes)
+  const totalMotivos = totalRespuestas(perfil.motivosVisita)
+  const totalGrupos = totalRespuestas(perfil.gruposViaje)
+  const totalTransportes = totalRespuestas(perfil.mediosTransporte)
+  const totalAlojamientos = totalRespuestas(perfil.tiposAlojamiento)
 
   return (
-    <div className="max-w-5xl print:max-w-none">
+    <div className="max-w-5xl mx-auto print:max-w-none">
       {/* ── Barra de acciones (no-print) ── */}
       <div className="no-print flex items-center justify-between mb-4">
         <button
@@ -267,26 +225,11 @@ export default function InformeAutoDetallePage() {
             {recalculando ? 'Recalculando...' : 'Recalcular datos'}
           </button>
           <button
-            onClick={copiarReporte}
-            className="btn-outline text-sm flex items-center gap-1.5"
-          >
-            <i className={copiado ? 'fa-solid fa-check text-green-600' : 'fa-regular fa-copy'} />
-            {copiado ? 'Copiado' : 'Copiar reporte'}
-          </button>
-          <button
             onClick={exportarPDF}
             className="btn-outline text-sm flex items-center gap-1.5"
           >
             <i className="fa-solid fa-print" />
             Exportar PDF
-          </button>
-          <button
-            onClick={guardarCambios}
-            disabled={guardando}
-            className="btn-outline text-sm flex items-center gap-1.5"
-          >
-            <i className="fa-solid fa-floppy-disk" />
-            Guardar
           </button>
           {informe.estado === 'borrador' && (
             <button
@@ -570,17 +513,7 @@ export default function InformeAutoDetallePage() {
         </div>{/* cierre pagina-1 */}
 
         <div className="pagina-2">
-        {/* Encabezado reducido página 2 (solo visible en impresión) */}
-        <div className="hidden print:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 gap-3">
-          <img src="/logos/secretaria.png" alt="Secretaría" className="h-6 w-auto" />
-          <span className="text-xs font-semibold text-text-primary">
-            {etiquetaTipo.header} — {informe.nombre}
-          </span>
-          <div className="flex items-center gap-2">
-            <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
-            <img src="/logos/observatorio.png" alt="Observatorio" className="h-7 w-auto" />
-          </div>
-        </div>
+        <EncabezadoPaginaImpresion titulo={`${etiquetaTipo.header} — ${informe.nombre}`} />
         {/* ── 5. Perfil del Visitante ── */}
         {perfil.totalEncuestas > 0 && (
           <div className="mb-8">
@@ -600,13 +533,13 @@ export default function InformeAutoDetallePage() {
                   </div>
                   <div className="flex-1 bg-green-50 rounded-lg p-3 text-center">
                     <p className="text-2xl font-bold text-green-600">
-                      {perfil.totalEncuestas > 0 ? Math.round((perfil.procedencia.PROVINCIAL ?? 0) / perfil.totalEncuestas * 100) : 0}%
+                      {pctProvincial}%
                     </p>
                     <p className="text-xs text-green-600">Provincial</p>
                   </div>
                   <div className="flex-1 bg-purple-50 rounded-lg p-3 text-center">
                     <p className="text-2xl font-bold text-purple-600">
-                      {perfil.totalEncuestas > 0 ? Math.round((perfil.procedencia.INTERNACIONAL ?? 0) / perfil.totalEncuestas * 100) : 0}%
+                      {pctInternacional}%
                     </p>
                     <p className="text-xs text-purple-600">Internacional</p>
                   </div>
@@ -622,11 +555,11 @@ export default function InformeAutoDetallePage() {
                     <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
                         className="bg-primary h-3 rounded-full"
-                        style={{ width: `${perfil.totalEncuestas > 0 ? (p.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
+                        style={{ width: `${porcentajeDe(p.cantidad, totalProvincias)}%` }}
                       />
                     </div>
                     <span className="w-10 text-right text-text-primary font-semibold">
-                      {perfil.totalEncuestas > 0 ? Math.round(p.cantidad / perfil.totalEncuestas * 100) : 0}%
+                      {porcentajeDe(p.cantidad, totalProvincias)}%
                     </span>
                   </div>
                 ))}
@@ -641,11 +574,11 @@ export default function InformeAutoDetallePage() {
                     <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
                         className="bg-accent h-3 rounded-full"
-                        style={{ width: `${perfil.totalEncuestas > 0 ? (m.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
+                        style={{ width: `${porcentajeDe(m.cantidad, totalMotivos)}%` }}
                       />
                     </div>
                     <span className="w-10 text-right text-text-primary font-semibold">
-                      {perfil.totalEncuestas > 0 ? Math.round(m.cantidad / perfil.totalEncuestas * 100) : 0}%
+                      {porcentajeDe(m.cantidad, totalMotivos)}%
                     </span>
                   </div>
                 ))}
@@ -660,11 +593,11 @@ export default function InformeAutoDetallePage() {
                     <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
                         className="bg-orange-500 h-3 rounded-full"
-                        style={{ width: `${perfil.totalEncuestas > 0 ? (g.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
+                        style={{ width: `${porcentajeDe(g.cantidad, totalGrupos)}%` }}
                       />
                     </div>
                     <span className="w-10 text-right text-text-primary font-semibold">
-                      {perfil.totalEncuestas > 0 ? Math.round(g.cantidad / perfil.totalEncuestas * 100) : 0}%
+                      {porcentajeDe(g.cantidad, totalGrupos)}%
                     </span>
                   </div>
                 ))}
@@ -679,11 +612,11 @@ export default function InformeAutoDetallePage() {
                     <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
                         className="bg-teal-600 h-3 rounded-full"
-                        style={{ width: `${perfil.totalEncuestas > 0 ? (t.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
+                        style={{ width: `${porcentajeDe(t.cantidad, totalTransportes)}%` }}
                       />
                     </div>
                     <span className="w-10 text-right text-text-primary font-semibold">
-                      {perfil.totalEncuestas > 0 ? Math.round(t.cantidad / perfil.totalEncuestas * 100) : 0}%
+                      {porcentajeDe(t.cantidad, totalTransportes)}%
                     </span>
                   </div>
                 ))}
@@ -698,11 +631,11 @@ export default function InformeAutoDetallePage() {
                     <div className="flex-1 bg-gray-200 rounded-full h-3.5">
                       <div
                         className="bg-amber-500 h-3 rounded-full"
-                        style={{ width: `${perfil.totalEncuestas > 0 ? (a.cantidad / perfil.totalEncuestas * 100) : 0}%` }}
+                        style={{ width: `${porcentajeDe(a.cantidad, totalAlojamientos)}%` }}
                       />
                     </div>
                     <span className="w-10 text-right text-text-primary font-semibold">
-                      {perfil.totalEncuestas > 0 ? Math.round(a.cantidad / perfil.totalEncuestas * 100) : 0}%
+                      {porcentajeDe(a.cantidad, totalAlojamientos)}%
                     </span>
                   </div>
                 ))}
@@ -711,20 +644,18 @@ export default function InformeAutoDetallePage() {
 
             {/* Indicadores Sí/No */}
             <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-3 mt-4 evitar-corte">
-              <div className="bg-gray-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-text-secondary mb-1">¿Primera vez en SFVC?</p>
-                <div className="flex justify-center gap-4">
-                  <p className="text-lg font-bold text-green-600">Sí: {pctPrimeraVezSi}%</p>
-                  <p className="text-lg font-bold text-text-secondary">No: {pctPrimeraVezNo}%</p>
-                </div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-text-secondary mb-1">¿Pensó en otros destinos?</p>
-                <div className="flex justify-center gap-4">
-                  <p className="text-lg font-bold text-green-600">Sí: {pctOtrosDestinosSi}%</p>
-                  <p className="text-lg font-bold text-text-secondary">No: {pctOtrosDestinosNo}%</p>
-                </div>
-              </div>
+              <IndicadorSiNo
+                titulo="¿Primera vez en SFVC?"
+                pctSi={pctPrimeraVezSi}
+                pctNo={pctPrimeraVezNo}
+                favorable={RESPUESTA_FAVORABLE.primeraVez}
+              />
+              <IndicadorSiNo
+                titulo="¿Pensó en otros destinos?"
+                pctSi={pctOtrosDestinosSi}
+                pctNo={pctOtrosDestinosNo}
+                favorable={RESPUESTA_FAVORABLE.otrosDestinos}
+              />
               <div className="bg-gray-50 rounded-lg p-3 text-center">
                 <p className="text-xs text-text-secondary mb-1">¿Recomendaría SFVC?</p>
                 <p className="text-lg font-bold text-green-600">Sí: {pctRecomendariaSi}%</p>
@@ -737,7 +668,14 @@ export default function InformeAutoDetallePage() {
           </div>
         )}
 
-        {/* ── 6. Nota Metodológica ── */}
+        </div>{/* cierre pagina-2 */}
+
+        <div className="pagina-3">
+        <EncabezadoPaginaImpresion titulo={`${etiquetaTipo.header} — ${informe.nombre}`} />
+        {/* ── 6. Ingresos a atractivos ── */}
+        <SeccionIngresosAtractivos ingresos={informe.ingresosAtractivos} />
+
+        {/* ── 7. Nota Metodológica ── */}
         <div className="bg-gray-50 rounded-xl p-6 text-xs text-text-secondary seccion-informe print:text-[10px]">
           <h3 className="font-bold text-text-primary mb-2 flex items-center gap-2">
             <i className="fa-solid fa-microscope text-text-secondary" />
@@ -753,6 +691,11 @@ export default function InformeAutoDetallePage() {
               Cobertura del relevamiento de ocupación hotelera: {relevamiento.cantidadRelevados} alojamientos.
             </li>
             <li>
+              Ingresos a atractivos: registros cargados en el sistema del Observatorio (Casa de la Puna
+              y Pueblo Perdido, incluidas sus actividades especiales) y en los registros de visitas de
+              los museos municipales, filtrados por las fechas del período.
+            </li>
+            <li>
               Impacto económico estimado en base a estudios y relevamientos en campo realizados
               por el Observatorio de Turismo Municipal, considerando precios en servicios de
               alojamiento, gastronomía y comercios de productos regionales.
@@ -764,88 +707,43 @@ export default function InformeAutoDetallePage() {
           </ul>
         </div>
 
-        </div>{/* cierre pagina-2 */}
+        </div>{/* cierre pagina-3 */}
       </div>{/* cierre card principal */}
 
-      {/* ── 7. Reporte de Prensa (no se imprime, se copia y envía aparte) ── */}
-      <div className="no-print bg-white rounded-xl shadow-sm border border-gray-100 p-8 mb-8 seccion-informe">
-        <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
-          <i className="fa-solid fa-newspaper text-primary text-sm" />
-          Reporte de Prensa
-        </h3>
+    </div>
+  )
+}
 
-        {/* Titular */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-semibold text-text-secondary">Titular</label>
-            <button
-              onClick={() => setEditandoTitulo(!editandoTitulo)}
-              className="no-print btn-ghost text-xs flex items-center gap-1"
-            >
-              <i className={`fa-solid ${editandoTitulo ? 'fa-xmark' : 'fa-pen'}`} />
-              {editandoTitulo ? 'Cancelar' : 'Editar'}
-            </button>
-          </div>
-          {editandoTitulo ? (
-            <input
-              className="input w-full text-sm font-bold"
-              value={informe.tituloPrensa}
-              onChange={e => setInforme({ ...informe, tituloPrensa: e.target.value })}
-            />
-          ) : (
-            <h2 className="text-lg font-bold text-text-primary">{informe.tituloPrensa}</h2>
-          )}
-        </div>
-
-        {/* Bajada */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-semibold text-text-secondary">Bajada / Copete</label>
-            <button
-              onClick={() => setEditandoBajada(!editandoBajada)}
-              className="no-print btn-ghost text-xs flex items-center gap-1"
-            >
-              <i className={`fa-solid ${editandoBajada ? 'fa-xmark' : 'fa-pen'}`} />
-              {editandoBajada ? 'Cancelar' : 'Editar'}
-            </button>
-          </div>
-          {editandoBajada ? (
-            <textarea
-              className="input w-full min-h-[60px] text-sm"
-              value={informe.bajadaPrensa}
-              onChange={e => setInforme({ ...informe, bajadaPrensa: e.target.value })}
-            />
-          ) : (
-            <p className="text-sm text-text-secondary italic">{informe.bajadaPrensa}</p>
-          )}
-        </div>
-
-        {/* Cuerpo */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-semibold text-text-secondary">Cuerpo del reporte</label>
-            <button
-              onClick={() => setEditandoReporte(!editandoReporte)}
-              className="no-print btn-ghost text-xs flex items-center gap-1"
-            >
-              <i className={`fa-solid ${editandoReporte ? 'fa-xmark' : 'fa-pen'}`} />
-              {editandoReporte ? 'Cancelar' : 'Editar'}
-            </button>
-          </div>
-          {editandoReporte ? (
-            <textarea
-              className="input w-full min-h-[200px] text-sm"
-              value={informe.reportePrensa}
-              onChange={e => setInforme({ ...informe, reportePrensa: e.target.value })}
-            />
-          ) : (
-            <div className="prose prose-sm max-w-none text-text-secondary whitespace-pre-line">
-              {informe.reportePrensa}
-            </div>
-          )}
-        </div>
+/** Indicador Sí/No: la respuesta favorable para el destino va en verde, la otra en gris */
+function IndicadorSiNo({ titulo, pctSi, pctNo, favorable }: {
+  titulo: string
+  pctSi: number
+  pctNo: number
+  favorable: RespuestaSiNo
+}) {
+  const clase = (respuesta: RespuestaSiNo) =>
+    `text-lg font-bold ${respuesta === favorable ? 'text-green-600' : 'text-text-secondary'}`
+  return (
+    <div className="bg-gray-50 rounded-lg p-3 text-center">
+      <p className="text-xs text-text-secondary mb-1">{titulo}</p>
+      <div className="flex justify-center gap-4">
+        <p className={clase('SI')}>Sí: {pctSi}%</p>
+        <p className={clase('NO')}>No: {pctNo}%</p>
       </div>
+    </div>
+  )
+}
 
+/** Encabezado reducido de las páginas 2 y 3 (solo visible en impresión) */
+function EncabezadoPaginaImpresion({ titulo }: { titulo: string }) {
+  return (
+    <div className="hidden print:flex items-center justify-between mb-4 pb-3 border-b border-gray-200 gap-3">
+      <img src="/logos/secretaria.png" alt="Secretaría" className="h-6 w-auto" />
+      <span className="text-xs font-semibold text-text-primary">{titulo}</span>
+      <div className="flex items-center gap-2">
+        <img src="/logos/marca-destino.png" alt="Marca Destino" className="h-7 w-auto" />
+        <img src="/logos/observatorio.png" alt="Observatorio" className="h-7 w-auto" />
+      </div>
     </div>
   )
 }

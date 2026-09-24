@@ -143,3 +143,29 @@ export async function requireAccesoPage(modulo: ModuloKey) {
     redirect('/sin-acceso')
   }
 }
+
+/**
+ * Gate liviano para formularios de carga que no requieren un módulo RBAC
+ * específico: alcanza con estar logueado (cualquier rol). Redirige a /login
+ * si no hay sesión.
+ */
+export async function requireSesion() {
+  const session = await auth()
+  if (!session?.user?.email) {
+    redirect('/login')
+  }
+  return session
+}
+
+/**
+ * Gate liviano para API routes que no requieren un módulo RBAC específico:
+ * alcanza con estar logueado (cualquier rol). Devuelve la sesión, o una
+ * NextResponse 401 si no hay sesión.
+ */
+export async function requireSesionApi() {
+  const session = await auth()
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  return session
+}

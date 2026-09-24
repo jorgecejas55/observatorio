@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { tieneAcceso } from '@/lib/permisos'
+import { RESPUESTA_FAVORABLE, porcentajeDe, porcentajeSobreRespondentes, totalRespuestas, type RespuestaSiNo } from '@/lib/indicadores-perfil'
 import { formatearFechaLarga, tituloRelevamiento } from '@/lib/formato-fechas'
 import type {
   SugerenciaHistorial,
@@ -16,7 +17,7 @@ import type {
 
 // ── Estados del flujo ─────────────────────────────────────────────────────────
 
-type PasoEstado = 'idle' | 'cargando' | 'seleccionado' | 'generando' | 'completado' | 'error'
+type PasoEstado = 'idle' | 'cargando' | 'seleccionado' | 'calculando' | 'revisando' | 'confirmando' | 'completado' | 'error'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -83,8 +84,14 @@ export default function InformesAutoPage() {
   // ── Estado ──
   const [paso, setPaso] = useState<PasoEstado>('idle')
   const [sugerenciaHistorial, setSugerenciaHistorial] = useState<SugerenciaHistorial | null>(null)
-  const [mensajeProgreso, setMensajeProgreso] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+
+  // ── Informe calculado, pendiente de revisión/confirmación ──
+  const [informePreview, setInformePreview] = useState<InformeFindeCompleto | null>(null)
+
+  // ── Datos base reales (plazas + estadía) para la estimación de impacto en vivo ──
+  const [datosBase, setDatosBase] = useState<{ plazasDisponibles: number; estadiaPromedio: number; nEncuestas: number } | null>(null)
+  const [cargandoDatosBase, setCargandoDatosBase] = useState(false)
 
   // ── Informes generados ──
   const [informesGuardados, setInformesGuardados] = useState<InformeGuardado[]>([])
@@ -202,15 +209,33 @@ export default function InformesAutoPage() {
     }
   }, [relevamientos])
 
-  // ── Cálculo de impacto en tiempo real (fórmulas canónicas, sin redondeos intermedios) ──
+  // ── Al fijarse las fechas del período, traer plazas y estadía reales ──
+  useEffect(() => {
+    if (!fechaInicio || !fechaFin) {
+      setDatosBase(null)
+      return
+    }
+    setCargandoDatosBase(true)
+    setDatosBase(null)
+    fetch(`/api/informes-auto/datos-base?fechaInicio=${fechaInicio}&fechaFin=${fechaFin}`)
+      .then(async res => {
+        if (!res.ok) return null
+        const json = await res.json()
+        return json.success ? json.data : null
+      })
+      .then(data => setDatosBase(data))
+      .catch(() => setDatosBase(null))
+      .finally(() => setCargandoDatosBase(false))
+  }, [fechaInicio, fechaFin])
+
+  // ── Cálculo de impacto en tiempo real con datos reales (plazas + estadía) ──
   const impactoEstimado = useMemo(() => {
-    if (!relevamientoSeleccionado || !gastoDiarioTuristas || !gastoDiarioExcursionistas) {
+    if (!relevamientoSeleccionado || !gastoDiarioTuristas || !gastoDiarioExcursionistas || !datosBase) {
       return null
     }
 
     const { ohTotal } = relevamientoSeleccionado
-    const estadia = 3.3 // fallback, se actualiza al generar con datos reales de encuestas
-    const plazasDisponibles = 2690 // fallback, se actualiza al generar con datos OH reales
+    const { estadiaPromedio: estadia, plazasDisponibles } = datosBase
     const pernoctesEnOferta = plazasDisponibles * duracionPeriodo
     const pernoctesConsumidos = pernoctesEnOferta * (ohTotal / 100)
     const turistasExactos = estadia > 0 ? pernoctesConsumidos / estadia : 0
@@ -227,35 +252,21 @@ export default function InformesAutoPage() {
       impactoExcursionistas: Math.round(impactoExcursionistas),
       impactoTotal: Math.round(impactoTotal),
     }
-  }, [relevamientoSeleccionado, gastoDiarioTuristas, gastoDiarioExcursionistas, porcentajeExcursionistas, duracionPeriodo])
+  }, [relevamientoSeleccionado, gastoDiarioTuristas, gastoDiarioExcursionistas, porcentajeExcursionistas, duracionPeriodo, datosBase])
 
-  // ── Generar informe ──
-  const handleGenerar = useCallback(async () => {
+  // ── Paso 1: calcular datos e indicadores (sin guardar nada) ──
+  const handleCalcular = useCallback(async () => {
     if (!nombre || !fechaInicio || !fechaFin) return
     if (!gastoDiarioTuristas || !gastoDiarioExcursionistas) {
       setErrorMsg('Completá todos los campos de datos manuales')
       return
     }
 
-    setPaso('generando')
+    setPaso('calculando')
     setErrorMsg('')
 
-    const mensajes = [
-      'Obteniendo datos del sistema de ocupación hotelera...',
-      'Recuperando encuestas de perfil del visitante...',
-      'Calculando indicadores y comparativas...',
-      'Generando narrativa con IA...',
-      'Guardando informe y empujando a la serie histórica...',
-    ]
-    let idx = 0
-    setMensajeProgreso(mensajes[idx])
-    const interval = setInterval(() => {
-      idx++
-      if (idx < mensajes.length) setMensajeProgreso(mensajes[idx])
-    }, 3000)
-
     try {
-      const res = await fetch('/api/informes-auto/generar', {
+      const res = await fetch('/api/informes-auto/calcular', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -272,35 +283,58 @@ export default function InformesAutoPage() {
         }),
       })
 
-      clearInterval(interval)
-
       const json = await res.json()
       if (!json.success) {
         setPaso('error')
-        setErrorMsg(json.error ?? 'Error al generar el informe')
+        setErrorMsg(json.error ?? 'Error al calcular el informe')
+        return
+      }
+
+      setInformePreview(json.data)
+      setPaso('revisando')
+    } catch {
+      setPaso('error')
+      setErrorMsg('Error de conexión al calcular el informe')
+    }
+  }, [relevamientoId, tipoInforme, nombre, fechaInicio, fechaFin, gastoDiarioTuristas, gastoDiarioExcursionistas, porcentajeExcursionistas, comparativaUltimoFindeId, comparativaAnioAnteriorId])
+
+  // ── Paso 2: confirmar — recién acá se guarda y se empuja a la serie histórica ──
+  const handleConfirmar = useCallback(async () => {
+    if (!informePreview) return
+
+    setPaso('confirmando')
+    setErrorMsg('')
+
+    try {
+      const res = await fetch('/api/informes-auto/confirmar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ informe: informePreview }),
+      })
+
+      const json = await res.json()
+      if (!json.success) {
+        setPaso('revisando')
+        setErrorMsg(json.error ?? 'Error al confirmar el informe')
         return
       }
 
       const informe: InformeFindeCompleto = json.data
-
-      // Si la IA no generó el reporte, avisar y NO redirigir (el informe no se guardó).
-      if (json.meta?.iaOk === false) {
-        setPaso('error')
-        setErrorMsg('El reporte no se generó con IA (Anthropic sin crédito y DeepSeek no respondió). No se guardó, para no sobrescribir un informe previo. Reintentá en unos segundos.')
-        return
-      }
-
-      // (Si el empuje a la planilla maestra falló, la vista del informe
-      // muestra el aviso y el botón de reintento — informe.empujeMaestra)
       sessionStorage.setItem(`informe_${informe.id}`, JSON.stringify(informe))
       setPaso('completado')
       router.push(`/admin/informes-auto/${informe.id}`)
     } catch {
-      clearInterval(interval)
-      setPaso('error')
-      setErrorMsg('Error de conexión al generar el informe')
+      setPaso('revisando')
+      setErrorMsg('Error de conexión al confirmar el informe')
     }
-  }, [relevamientoId, tipoInforme, nombre, fechaInicio, fechaFin, gastoDiarioTuristas, gastoDiarioExcursionistas, porcentajeExcursionistas, comparativaUltimoFindeId, comparativaAnioAnteriorId, router])
+  }, [informePreview, router])
+
+  // ── Volver del paso de revisión a editar los datos de entrada ──
+  const handleVolverAEditar = useCallback(() => {
+    setInformePreview(null)
+    setPaso('seleccionado')
+    setErrorMsg('')
+  }, [])
 
   // ── Verificación de acceso ──
   if (status === 'loading') {
@@ -316,7 +350,7 @@ export default function InformesAutoPage() {
   if (!tieneAcceso(session.user, 'informes-auto')) redirect('/sin-acceso')
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl mx-auto">
       {/* ── Encabezado ── */}
       <div className="mb-6">
         <h2 className="section-title mb-1">
@@ -522,7 +556,21 @@ export default function InformesAutoPage() {
           </div>
         </div>
 
-        {/* Cálculo en tiempo real */}
+        {/* Cálculo en tiempo real, con datos reales de plazas y estadía */}
+        {relevamientoSeleccionado && cargandoDatosBase && (
+          <div className="mt-4 flex items-center gap-2 text-xs text-text-secondary py-3">
+            <i className="fa-solid fa-spinner fa-spin text-accent" />
+            Cargando plazas disponibles y estadía real del período...
+          </div>
+        )}
+
+        {relevamientoSeleccionado && datosBase && datosBase.nEncuestas === 0 && (
+          <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+            <i className="fa-solid fa-triangle-exclamation mr-1.5" />
+            No hay encuestas de perfil del visitante cargadas para este período — no se puede estimar la estadía ni el impacto todavía.
+          </div>
+        )}
+
         {impactoEstimado && (
           <div className="mt-4 p-4 rounded-lg bg-accent/5 border border-accent/20">
             <div className="flex items-center gap-2 text-sm font-bold text-text-primary mb-3">
@@ -531,15 +579,15 @@ export default function InformesAutoPage() {
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs text-text-secondary">
               <p>
-                {impactoEstimado.turistasAlojados.toLocaleString('es-AR')} turistas × ${gastoDiarioTuristas?.toLocaleString('es-AR') || '—'} × ~3,3 noches = ${impactoEstimado.impactoTuristas.toLocaleString('es-AR')}
+                {impactoEstimado.turistasAlojados.toLocaleString('es-AR')} turistas × ${gastoDiarioTuristas?.toLocaleString('es-AR') || '—'} × ~{datosBase!.estadiaPromedio.toFixed(1)} noches = ${impactoEstimado.impactoTuristas.toLocaleString('es-AR')}
               </p>
               <p>
                 {impactoEstimado.excursionistas.toLocaleString('es-AR')} excursionistas ({porcentajeExcursionistas}%) × ${gastoDiarioExcursionistas?.toLocaleString('es-AR') || '—'} = ${impactoEstimado.impactoExcursionistas.toLocaleString('es-AR')}
               </p>
             </div>
             <p className="text-xs text-text-secondary mt-2">
-              <i className="fa-solid fa-info-circle mr-1" />
-              Estimación preliminar. Los valores finales se calculan con datos reales de plazas, estadía y encuestas al generar.
+              <i className="fa-solid fa-circle-check mr-1 text-green-600" />
+              Calculado con datos reales: {datosBase!.plazasDisponibles.toLocaleString('es-AR')} plazas disponibles y estadía de {datosBase!.nEncuestas} encuestas del período.
             </p>
           </div>
         )}
@@ -633,59 +681,285 @@ export default function InformesAutoPage() {
         </div>
       )}
 
-      {/* ── Sección 4 — Generación ── */}
-      <div className="card p-6 mb-6">
-        <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
-          <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center font-bold">4</span>
-          Generar informe
-        </h3>
+      {/* ── Sección 4 — Calcular datos ── */}
+      {paso !== 'revisando' && paso !== 'confirmando' && paso !== 'completado' && (
+        <div className="card p-6 mb-6">
+          <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center font-bold">4</span>
+            Calcular datos del informe
+          </h3>
 
-        {paso === 'generando' ? (
-          <div className="flex flex-col items-center py-8">
-            <div className="flex items-center gap-3 mb-4">
-              <i className="fa-solid fa-spinner fa-spin text-2xl text-primary" />
-              <span className="text-sm font-semibold text-text-primary">Generando informe...</span>
-            </div>
-            <div className="w-full max-w-sm bg-gray-100 rounded-full h-2 mb-4">
-              <div className="bg-primary h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
-            </div>
-            <p className="text-xs text-text-secondary">{mensajeProgreso}</p>
-          </div>
-        ) : (
-          <div>
-            <button
-              onClick={handleGenerar}
-              disabled={
-                paso !== 'seleccionado' ||
-                !nombre ||
-                !gastoDiarioTuristas ||
-                !gastoDiarioExcursionistas
-              }
-              className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <i className="fa-solid fa-wand-magic-sparkles" />
-              Generar informe {ETIQUETAS_TIPO[tipoInforme].toLowerCase()}
-            </button>
-
-            {paso !== 'seleccionado' && (
-              <p className="text-xs text-text-secondary mt-2">
-                {cargandoRelevamientos ? 'Cargando datos del sistema OH...' :
-                 !relevamientoId ? 'Seleccioná un relevamiento para continuar.' :
-                 'Completá los datos manuales para continuar.'}
+          {paso === 'calculando' ? (
+            <div className="flex flex-col items-center py-8">
+              <div className="flex items-center gap-3 mb-4">
+                <i className="fa-solid fa-spinner fa-spin text-2xl text-primary" />
+                <span className="text-sm font-semibold text-text-primary">Calculando indicadores...</span>
+              </div>
+              <p className="text-xs text-text-secondary">
+                Obteniendo datos del sistema de ocupación hotelera, encuestas de perfil del visitante,
+                comparativas y actividades vigentes.
               </p>
-            )}
+            </div>
+          ) : (
+            <div>
+              <button
+                onClick={handleCalcular}
+                disabled={
+                  paso !== 'seleccionado' ||
+                  !nombre ||
+                  !gastoDiarioTuristas ||
+                  !gastoDiarioExcursionistas
+                }
+                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <i className="fa-solid fa-calculator" />
+                Calcular y revisar informe {ETIQUETAS_TIPO[tipoInforme].toLowerCase()}
+              </button>
 
-            {errorMsg && paso === 'error' && (
-              <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
-                <p className="text-sm text-red-600">
-                  <i className="fa-solid fa-circle-exclamation mr-1.5" />
-                  {errorMsg}
+              {paso !== 'seleccionado' && (
+                <p className="text-xs text-text-secondary mt-2">
+                  {cargandoRelevamientos ? 'Cargando datos del sistema OH...' :
+                   !relevamientoId ? 'Seleccioná un relevamiento para continuar.' :
+                   'Completá los datos manuales para continuar.'}
                 </p>
+              )}
+
+              {errorMsg && paso === 'error' && (
+                <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-sm text-red-600">
+                    <i className="fa-solid fa-circle-exclamation mr-1.5" />
+                    {errorMsg}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Sección 5 — Revisar datos e indicadores antes de confirmar ── */}
+      {informePreview && (paso === 'revisando' || paso === 'confirmando') && (
+        <div className="card p-6 mb-6 border-2 border-primary/20">
+          <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-sm flex items-center justify-center font-bold">5</span>
+            Revisar datos e indicadores
+          </h3>
+          <p className="text-xs text-text-secondary mb-4">
+            Todavía no se guardó nada. Revisá que los datos sean correctos antes de confirmar.
+          </p>
+
+          {/* KPIs principales */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div className="bg-primary/5 rounded-lg p-3 text-center">
+              <p className="text-[11px] text-text-secondary mb-1">Ocupación Hotelera</p>
+              <p className="text-2xl font-bold text-primary">{informePreview.relevamiento.ohTotal}%</p>
+            </div>
+            <div className="bg-primary/5 rounded-lg p-3 text-center">
+              <p className="text-[11px] text-text-secondary mb-1">Estadía Promedio</p>
+              <p className="text-2xl font-bold text-primary">
+                {informePreview.perfil.estadiaSinOutliers.estadiaPromedio.toFixed(1)}
+              </p>
+            </div>
+            <div className="bg-primary/5 rounded-lg p-3 text-center">
+              <p className="text-[11px] text-text-secondary mb-1">Visitantes Totales</p>
+              <p className="text-2xl font-bold text-primary">
+                {informePreview.impacto.visitantesTotales.toLocaleString('es-AR')}
+              </p>
+            </div>
+            <div className="bg-primary/5 rounded-lg p-3 text-center">
+              <p className="text-[11px] text-text-secondary mb-1">Impacto Económico</p>
+              <p className="text-xl font-bold text-primary">
+                ${informePreview.impacto.impactoTotal.toLocaleString('es-AR')}
+              </p>
+            </div>
+          </div>
+
+          {/* OH por tipo */}
+          {informePreview.ohPorTipo.filter(t => t.habitacionesRelevadas > 0).length > 0 && (
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-text-secondary mb-2">Ocupación por tipo de alojamiento</p>
+              <div className="space-y-1.5">
+                {informePreview.ohPorTipo.filter(t => t.habitacionesRelevadas > 0).map(t => (
+                  <div key={t.tipo} className="flex items-center gap-2 text-xs">
+                    <span className="w-32 text-text-secondary truncate">{t.tipo}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-3">
+                      <div className="bg-primary h-3 rounded-full" style={{ width: `${Math.min(t.ohPorcentaje, 100)}%` }} />
+                    </div>
+                    <span className="w-10 text-right font-semibold text-text-primary">{t.ohPorcentaje}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Picos de ocupación */}
+          {informePreview.picos.picoMaximo && (
+            <p className="text-xs text-text-secondary mb-5">
+              <i className="fa-solid fa-arrow-trend-up mr-1.5 text-primary" />
+              Pico máximo: <strong>{informePreview.picos.picoMaximo.ohMaximo}%</strong> ({informePreview.picos.picoMaximo.tipoCategoria})
+            </p>
+          )}
+
+          {/* Perfil del visitante */}
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-text-secondary mb-2">
+              Perfil del visitante ({informePreview.perfil.totalEncuestas} encuestas)
+            </p>
+            {informePreview.perfil.totalEncuestas === 0 ? (
+              <p className="text-xs text-amber-600">
+                <i className="fa-solid fa-triangle-exclamation mr-1" />
+                No hay encuestas cargadas para este período.
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="bg-blue-50 rounded-lg p-2 text-center">
+                  <p className="text-lg font-bold text-blue-600">
+                    {porcentajeSobreRespondentes(informePreview.perfil.procedencia, 'NACIONAL')}%
+                  </p>
+                  <p className="text-blue-600">Nacional</p>
+                </div>
+                <div className="bg-green-50 rounded-lg p-2 text-center">
+                  <p className="text-lg font-bold text-green-600">
+                    {porcentajeSobreRespondentes(informePreview.perfil.procedencia, 'PROVINCIAL')}%
+                  </p>
+                  <p className="text-green-600">Provincial</p>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-2 text-center">
+                  <p className="text-lg font-bold text-purple-600">
+                    {porcentajeSobreRespondentes(informePreview.perfil.procedencia, 'INTERNACIONAL')}%
+                  </p>
+                  <p className="text-purple-600">Internacional</p>
+                </div>
               </div>
             )}
+
+            {informePreview.perfil.totalEncuestas > 0 && (() => {
+              const p = informePreview.perfil
+              // Cada porcentaje es sobre quienes contestaron esa pregunta
+              const listar = (items: Array<{ nombre: string; cantidad: number }>) =>
+                items.slice(0, 3).map(i => `${i.nombre} (${porcentajeDe(i.cantidad, totalRespuestas(items))}%)`).join(', ') || '—'
+              // Solo sobre quienes contestaron la pregunta (se ignoran las encuestas sin dato)
+              const pctSiNo = porcentajeSobreRespondentes
+              // La respuesta favorable para el destino se resalta en verde
+              const siNo = (obj: Record<string, number>, favorable: RespuestaSiNo) => (
+                <>
+                  <span className={favorable === 'SI' ? 'text-green-600 font-semibold' : ''}>Sí {pctSiNo(obj, 'SI')}%</span>
+                  {' / '}
+                  <span className={favorable === 'NO' ? 'text-green-600 font-semibold' : ''}>No {pctSiNo(obj, 'NO')}%</span>
+                </>
+              )
+
+              return (
+                <dl className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Top provincias</dt><dd className="text-right text-text-primary">{listar(p.provinciasFrecuentes)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Motivo de visita</dt><dd className="text-right text-text-primary">{listar(p.motivosVisita)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Grupo de viaje</dt><dd className="text-right text-text-primary">{listar(p.gruposViaje)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Medio de transporte</dt><dd className="text-right text-text-primary">{listar(p.mediosTransporte)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Tipo de alojamiento</dt><dd className="text-right text-text-primary">{listar(p.tiposAlojamiento)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Primera vez en SFVC</dt><dd className="text-right text-text-primary">{siNo(p.primeraVez, RESPUESTA_FAVORABLE.primeraVez)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Consideró otros destinos</dt><dd className="text-right text-text-primary">{siNo(p.otrosDestinos, RESPUESTA_FAVORABLE.otrosDestinos)}</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Recomendaría SFVC</dt><dd className="text-right text-text-primary">Sí {pctSiNo(p.recomendaria, 'SI')}%</dd></div>
+                  <div className="flex justify-between gap-2"><dt className="text-text-secondary">Volvería (muy probable)</dt><dd className="text-right text-text-primary">{pctSiNo(p.volveria, 'MUY PROBABLE')}%</dd></div>
+                </dl>
+              )
+            })()}
           </div>
-        )}
-      </div>
+
+          {/* Comparativas */}
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-text-secondary mb-2">Comparativas</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              {[informePreview.comparativaUltimoFinde, informePreview.comparativaAnioAnterior].map((c, i) => (
+                <div key={i} className="bg-gray-50 rounded-lg p-2.5">
+                  {c.relevamiento ? (
+                    <>
+                      <p className="font-semibold text-text-primary">{c.relevamiento.nombre}</p>
+                      <p className="text-text-secondary">
+                        OH {c.relevamiento.ohTotal}%
+                        {c.visitantes != null && ` · ${c.visitantes.toLocaleString('es-AR')} visitantes`}
+                        {c.impactoTotal != null && ` · $${c.impactoTotal.toLocaleString('es-AR')}`}
+                      </p>
+                    </>
+                  ) : (
+                    <span className="text-text-secondary">
+                      {i === 0 ? 'Período anterior' : 'Año anterior'}: {c.advertencia ?? 'sin datos'}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Ingresos a atractivos (Casa de la Puna, Pueblo Perdido, museos) */}
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-text-secondary mb-2">
+              Ingresos a atractivos ({informePreview.ingresosAtractivos.totalPersonas.toLocaleString('es-AR')} personas en el período)
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              {informePreview.ingresosAtractivos.porAtractivo.map(a => (
+                <div key={a.atractivo} className={`rounded-lg p-2.5 ${a.incompleto ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
+                  <p className="font-semibold text-text-primary">{a.personas.toLocaleString('es-AR')}</p>
+                  <p className="text-text-secondary truncate">{a.nombre}</p>
+                  {a.incompleto && (
+                    <p className="text-amber-700 mt-1">
+                      <i className="fa-solid fa-triangle-exclamation mr-1" />
+                      No se pudo leer todo. Volvé a calcular.
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Actividades especiales (Casa de la Puna / Pueblo Perdido) */}
+          {informePreview.ingresosAtractivos.actividadesEspeciales.length > 0 && (
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-text-secondary mb-2">
+                <i className="fa-solid fa-calendar-days mr-1.5 text-primary" />
+                {informePreview.ingresosAtractivos.actividadesEspeciales.length} actividades especiales en el período
+              </p>
+              <ul className="text-xs text-text-secondary space-y-0.5">
+                {informePreview.ingresosAtractivos.actividadesEspeciales.map((act, i) => (
+                  <li key={i}>
+                    {formatearFecha(act.fecha)} — {act.nombre} ({act.cantidadTotal.toLocaleString('es-AR')} personas
+                    {act.cantidadTuristas !== undefined && `: ${act.cantidadTuristas.toLocaleString('es-AR')} turistas, ${(act.cantidadResidentes ?? 0).toLocaleString('es-AR')} residentes`})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-sm text-red-600">
+                <i className="fa-solid fa-circle-exclamation mr-1.5" />
+                {errorMsg}
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleConfirmar}
+              disabled={paso === 'confirmando'}
+              className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {paso === 'confirmando' ? (
+                <><i className="fa-solid fa-spinner fa-spin" /> Guardando...</>
+              ) : (
+                <><i className="fa-solid fa-check" /> Confirmar y guardar informe</>
+              )}
+            </button>
+            <button
+              onClick={handleVolverAEditar}
+              disabled={paso === 'confirmando'}
+              className="btn-outline text-sm disabled:opacity-50"
+            >
+              Volver a editar datos
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Informes generados ── */}
       <div className="card p-6 mb-6">

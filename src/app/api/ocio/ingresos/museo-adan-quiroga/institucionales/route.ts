@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { VisitaInstitucionalSchema } from '@/lib/schemas'
+import { requireSesionApi } from '@/lib/permisos'
 
 const GAS = process.env.MUSEO_ADAN_QUIROGA_SCRIPT_URL ?? ''
 
@@ -33,6 +34,9 @@ async function gasPost(body: object) {
 
 // GET /api/ocio/ingresos/museo-adan-quiroga/institucionales - Obtener todas las visitas institucionales
 export async function GET() {
+  const gate = await requireSesionApi()
+  if (gate instanceof NextResponse) return gate
+
   try {
     if (!GAS) {
       return NextResponse.json({
@@ -65,6 +69,9 @@ export async function GET() {
 
 // POST /api/ocio/ingresos/museo-adan-quiroga/institucionales - Crear nueva visita institucional
 export async function POST(req: Request) {
+  const gate = await requireSesionApi()
+  if (gate instanceof NextResponse) return gate
+
   try {
     const body = await req.json()
     const parsed = VisitaInstitucionalSchema.safeParse(body)

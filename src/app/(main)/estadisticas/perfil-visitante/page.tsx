@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { RESPUESTA_FAVORABLE, colorRespuestaSiNo } from '@/lib/indicadores-perfil'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, ResponsiveContainer, Legend,
@@ -148,7 +149,12 @@ function BarH({ data, color = '#db2777', domain, unit = '%' }: {
 }
 
 /** Gráfico de torta genérico — etiquetas internas, sin labels externas */
-function PieG({ data, colors = COLORES_PIE }: { data: { name: string; value: number }[]; colors?: string[] }) {
+function PieG({ data, colors = COLORES_PIE, colorPorNombre }: {
+  data: { name: string; value: number }[]
+  colors?: string[]
+  /** Si se indica, tiene prioridad sobre `colors` (color según la respuesta, no según el orden) */
+  colorPorNombre?: (nombre: string) => string
+}) {
   if (!data || data.length === 0) return <EmptyChart />
 
   const dataPositiva = data.filter(d => d.value > 0)
@@ -202,7 +208,7 @@ function PieG({ data, colors = COLORES_PIE }: { data: { name: string; value: num
           labelLine={false}
           isAnimationActive={true}
         >
-          {dataFinal.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+          {dataFinal.map((d, i) => <Cell key={i} fill={colorPorNombre ? colorPorNombre(d.name) : colors[i % colors.length]} />)}
         </Pie>
         <Legend
           verticalAlign="bottom"
@@ -550,10 +556,10 @@ export default function PerfilVisitantePage() {
       <SectionTitle>Satisfacción y Comportamiento</SectionTitle>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <ChartCard title="¿Primera vez en SFVC?">
-          {loading ? <LoadingChart /> : <PieG data={dataPrimeraVez} />}
+          {loading ? <LoadingChart /> : <PieG data={dataPrimeraVez} colorPorNombre={n => colorRespuestaSiNo(n, RESPUESTA_FAVORABLE.primeraVez)} />}
         </ChartCard>
         <ChartCard title="¿Pensó en otros destinos?">
-          {loading ? <LoadingChart /> : <PieG data={dataOtrosDestinos} />}
+          {loading ? <LoadingChart /> : <PieG data={dataOtrosDestinos} colorPorNombre={n => colorRespuestaSiNo(n, RESPUESTA_FAVORABLE.otrosDestinos)} />}
         </ChartCard>
         <ChartCard title="¿Recomendaría SFVC?">
           {loading ? <LoadingChart /> : <PieG data={dataRecomendaria} colors={['#10b981', '#f97316', '#ef4444']} />}

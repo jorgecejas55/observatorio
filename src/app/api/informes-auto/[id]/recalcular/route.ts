@@ -2,11 +2,11 @@
  * POST /api/informes-auto/[id]/recalcular
  *
  * Recalcula SOLO los datos derivados del período actual (OH por tipo, picos,
- * perfil del visitante, impacto económico, actividades vigentes) desde las
- * fuentes en vivo (Sheets de Ocupación Hotelera, encuestas, Directus).
+ * perfil del visitante, impacto económico, ingresos a atractivos y actividades
+ * especiales) desde las fuentes en vivo (Sheets de Ocupación Hotelera, encuestas,
+ * GAS de atractivos/museos).
  *
- * NO toca: id, slug, estado, idInformePublico, tituloPrensa/bajadaPrensa/
- * reportePrensa (no vuelve a llamar a la IA), NI las comparativas
+ * NO toca: id, slug, estado, idInformePublico, NI las comparativas
  * (comparativaUltimoFinde/comparativaAnioAnterior) — esas suelen resolverse
  * con una selección MANUAL al generar (la detección automática del "año
  * anterior" no siempre matchea por nombre) y no tenemos esa selección
@@ -31,7 +31,7 @@ import {
   calcularDiasEntreFechas,
 } from '@/lib/informes-auto/calculos'
 import { empujarAPlanillaMaestra } from '@/lib/informes-auto/empuje'
-import { getActividadesVigentes } from '@/lib/informes-auto/actividades'
+import { fetchIngresosAtractivos } from '@/lib/informes-auto/ingresos-atractivos'
 import { fetchPerfil } from '@/lib/informes-auto/perfil'
 import type { InformeFindeCompleto, InputsImpactoEconomico } from '@/lib/informes-auto/types'
 
@@ -88,10 +88,10 @@ export async function POST(
       return NextResponse.json({ error: 'El relevamiento de origen ya no existe en el sistema OH' }, { status: 404 })
     }
 
-    const [alojamientos, perfil, actividades] = await Promise.all([
+    const [alojamientos, perfil, ingresosAtractivos] = await Promise.all([
       getAlojamientosActivos(),
       fetchPerfil(fechaInicio, fechaFin),
-      getActividadesVigentes(fechaInicio, fechaFin),
+      fetchIngresosAtractivos(fechaInicio, fechaFin),
     ])
 
     const cargas = await getCargasDeRelevamiento(relevamiento.id)
@@ -125,7 +125,7 @@ export async function POST(
       perfil: perfil ?? existente.perfil,
       impacto,
       excursionistasManual: impacto.excursionistas,
-      actividades,
+      ingresosAtractivos,
     }
 
     // Mantiene sincronizada la planilla histórica maestra (upsert, no duplica filas).

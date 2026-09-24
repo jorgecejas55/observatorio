@@ -1,6 +1,6 @@
 /**
  * GET   /api/informes-auto/[id]  — obtener informe completo
- * PATCH /api/informes-auto/[id]  — actualizar narrativa/gacetilla
+ * PATCH /api/informes-auto/[id]  — publicar informe
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -55,7 +55,7 @@ export async function GET(
   }
 }
 
-// ── PATCH: actualizar reporte de prensa o publicar ────────────────────────────
+// ── PATCH: publicar informe ────────────────────────────────────────────────────
 
 export async function PATCH(
   req: NextRequest,
@@ -82,18 +82,7 @@ export async function PATCH(
       return NextResponse.json({ success: true })
     }
 
-    // Actualizar reporte de prensa
-    const json = await gasPost({
-      action: 'actualizarReporte',
-      id,
-      tituloPrensa: body.tituloPrensa,
-      bajadaPrensa: body.bajadaPrensa,
-      reportePrensa: body.reportePrensa,
-    })
-    if (json.error) {
-      return NextResponse.json({ error: json.error }, { status: 500 })
-    }
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ error: 'Acción no válida' }, { status: 400 })
   } catch (error) {
     console.error('[informes-auto] patch:', error)
     return NextResponse.json({ error: 'Error al actualizar el informe' }, { status: 500 })

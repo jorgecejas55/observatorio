@@ -197,17 +197,6 @@ export default function CargaIndicadoresPage() {
             </button>
           </div>
         </form>
-
-        <div className="card p-4 mt-4 border-amber-100 bg-amber-50">
-          <p className="text-xs text-amber-800 flex items-start gap-2">
-            <i className="fa-solid fa-circle-info mt-0.5" />
-            <span>
-              Para que el guardado funcione, el Apps Script de indicadores debe estar desplegado y
-              su URL cargada en <code className="bg-amber-100 px-1 rounded">INDICADORES_SCRIPT_URL</code> del archivo{' '}
-              <code className="bg-amber-100 px-1 rounded">.env.local</code>.
-            </span>
-          </p>
-        </div>
       </div>
     </div>
   )

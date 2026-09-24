@@ -5,14 +5,20 @@ import type { DatosPerfilVisitante } from './types'
 export async function fetchPerfil(fechaDesde: string, fechaHasta: string): Promise<DatosPerfilVisitante | null> {
   try {
     const baseUrl = process.env.DASHBOARD_PERFIL_SCRIPT_URL
-    if (!baseUrl) return null
+    if (!baseUrl) {
+      console.error('[fetchPerfil] DASHBOARD_PERFIL_SCRIPT_URL no configurada')
+      return null
+    }
 
     const url = new URL(baseUrl)
     url.searchParams.set('fechaDesde', fechaDesde)
     url.searchParams.set('fechaHasta', fechaHasta)
 
-    const res = await fetch(url.toString())
-    if (!res.ok) return null
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    if (!res.ok) {
+      console.error(`[fetchPerfil] GAS respondió ${res.status} para ${fechaDesde}..${fechaHasta}`)
+      return null
+    }
 
     const json = await res.json()
     const d = json.data ?? json
@@ -93,7 +99,8 @@ export async function fetchPerfil(fechaDesde: string, fechaHasta: string): Promi
       recomendaria: normalizarSiNo(d.recomendaria),
       volveria: normalizarSiNo(d.volveria),
     }
-  } catch {
+  } catch (error) {
+    console.error(`[fetchPerfil] Error para ${fechaDesde}..${fechaHasta}:`, error)
     return null
   }
 }

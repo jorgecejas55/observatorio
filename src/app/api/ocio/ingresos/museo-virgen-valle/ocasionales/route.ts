@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { VisitaOcasionalSchema } from '@/lib/schemas'
+import { requireSesionApi } from '@/lib/permisos'
 
 const GAS = process.env.MUSEO_VIRGEN_VALLE_SCRIPT_URL ?? ''
 
@@ -15,6 +16,9 @@ async function gasPost(body: object) {
 
 // GET /api/ocio/ingresos/museo-virgen-valle/ocasionales - Obtener todas las visitas ocasionales
 export async function GET() {
+  const gate = await requireSesionApi()
+  if (gate instanceof NextResponse) return gate
+
   try {
     const url = new URL(GAS)
     url.searchParams.set('action', 'getOcasionales')
@@ -40,6 +44,9 @@ export async function GET() {
 
 // POST /api/museos/virgen-valle/ocasionales - Crear nueva visita ocasional
 export async function POST(req: Request) {
+  const gate = await requireSesionApi()
+  if (gate instanceof NextResponse) return gate
+
   try {
     const body = await req.json()
     const parsed = VisitaOcasionalSchema.safeParse(body)
