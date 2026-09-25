@@ -4,88 +4,36 @@
  *
  * Casa de la Puna / Pueblo Perdido: vía el módulo propio (gas/atractivos),
  * que ya soporta filtro por fecha en el servidor.
- * Museos: cada uno tiene su propio GAS sin filtro de fecha — se trae todo y
- * se filtra acá por fecha_visita/Fecha dentro del rango del informe.
+ * Museos: `lib/museos/visitas` trae todas las visitas; acá se filtra por el
+ * rango del informe.
  */
 
 import { listarIngresos, listarActividades } from '@/lib/atractivos-service'
 import { ATRACTIVOS } from '@/lib/types'
 import { ATRACTIVOS_CON_INGRESOS, type AtractivoConIngresos } from '@/lib/atractivos-config'
+import { MUSEOS, fetchVisitasMuseo } from '@/lib/museos/visitas'
+import { conReintento } from '@/lib/reintento'
 import type {
   IngresoPorAtractivo,
   ActividadEspecialResumen,
   ResumenIngresosAtractivos,
 } from './types'
 
-interface MuseoConfig {
-  id: string
-  envVar: string
-}
-
-const MUSEOS: MuseoConfig[] = [
-  { id: 'museo-virgen-valle', envVar: 'MUSEO_VIRGEN_VALLE_SCRIPT_URL' },
-  { id: 'museo-adan-quiroga', envVar: 'MUSEO_ADAN_QUIROGA_SCRIPT_URL' },
-  { id: 'museo-casa-caravati', envVar: 'MUSEO_CASA_CARAVATI_SCRIPT_URL' },
-]
-
-/**
- * El GAS de atractivos tiene respuestas lentas y errores transitorios (HTML 404,
- * cold start de ~15 s). Un reintento evita informes con 0 falsos.
- */
-async function conReintento<T>(operacion: () => Promise<T>): Promise<T> {
-  try {
-    return await operacion()
-  } catch {
-    return await operacion()
-  }
-}
-
-function enRango(fecha: unknown, desde: string, hasta: string): boolean {
-  const f = String(fecha ?? '').slice(0, 10)
-  return !!f && f >= desde && f <= hasta
-}
-
 async function fetchMuseo(
-  museo: MuseoConfig,
+  museo: (typeof MUSEOS)[number],
   fechaInicio: string,
   fechaFin: string,
 ): Promise<IngresoPorAtractivo> {
-  const nombre = ATRACTIVOS[museo.id as keyof typeof ATRACTIVOS] ?? museo.id
-  const url = process.env[museo.envVar]
-  if (!url) return { atractivo: museo.id, nombre, personas: 0, registros: 0, incompleto: true }
+  const nombre = ATRACTIVOS[museo.id] ?? museo.id
+  const { visitas, incompleto } = await fetchVisitasMuseo(museo)
+  const enPeriodo = visitas.filter(v => !!v.fecha && v.fecha >= fechaInicio && v.fecha <= fechaFin)
 
-  try {
-    const [instRes, ocasRes] = await Promise.all([
-      fetch(`${url}?action=getInstitucionales`, { cache: 'no-store' }).then(r => r.json()).catch(() => null),
-      fetch(`${url}?action=getOcasionales`, { cache: 'no-store' }).then(r => r.json()).catch(() => null),
-    ])
-
-    let personas = 0
-    let registros = 0
-    const incompleto = !instRes?.success || !ocasRes?.success
-
-    if (instRes?.success && Array.isArray(instRes.data)) {
-      for (const v of instRes.data as Record<string, unknown>[]) {
-        if (enRango(v.fecha_visita, fechaInicio, fechaFin)) {
-          personas += Number(v.cantidad_asistentes) || 0
-          registros++
-        }
-      }
-    }
-    if (ocasRes?.success && Array.isArray(ocasRes.data)) {
-      for (const v of ocasRes.data as Record<string, unknown>[]) {
-        const fecha = v.Fecha ?? v.fecha_visita
-        if (enRango(fecha, fechaInicio, fechaFin)) {
-          personas += Number(v['Total de personas']) || 0
-          registros++
-        }
-      }
-    }
-
-    return { atractivo: museo.id, nombre, personas, registros, incompleto }
-  } catch (error) {
-    console.error(`[ingresos-atractivos] Error en ${museo.id}:`, error)
-    return { atractivo: museo.id, nombre, personas: 0, registros: 0, incompleto: true }
+  return {
+    atractivo: museo.id,
+    nombre,
+    personas: enPeriodo.reduce((sum, v) => sum + v.personas, 0),
+    registros: enPeriodo.length,
+    incompleto,
   }
 }
 

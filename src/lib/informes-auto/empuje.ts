@@ -12,11 +12,7 @@
  */
 
 import type { InformeFindeCompleto, ResultadoEmpuje } from '@/lib/informes-auto/types'
-
-const MESES = [
-  'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
-  'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
-]
+import { MESES } from '@/lib/indicadores/periodos'
 
 export async function empujarAPlanillaMaestra(
   informe: InformeFindeCompleto

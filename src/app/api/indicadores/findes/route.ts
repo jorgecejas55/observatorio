@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server'
 import { fetchGoogleSheet } from '@/lib/sheets-parser'
+import type { IndicadorFinde, ResumenFindes } from '@/lib/indicadores/types'
 
 const SHEET_ID = '191cjZK9uQTPYARqAD9UYgvWjyZAJ_DDgAgip4ZkznGU'
 const SHEET_NAME = 'indicadores_findes'
 
-export interface IndicadorFinde {
-  ano: number
-  mes: string
-  evento: string
-  oh: number
-  estadia_prom: number
-  visitantes: number
-}
-
-function resumen(lista: IndicadorFinde[]) {
+function resumen(lista: IndicadorFinde[]): ResumenFindes {
   return {
     promedio_oh: lista.length > 0 ? lista.reduce((s, i) => s + i.oh, 0) / lista.length : 0,
     total_visitantes: lista.reduce((s, i) => s + i.visitantes, 0),

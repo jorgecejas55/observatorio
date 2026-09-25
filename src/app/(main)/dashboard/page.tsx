@@ -7,43 +7,16 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from 'recharts'
+import type {
+  DatosIndicadoresMensuales as DatosAPI,
+  DatosIndicadoresFindes as DatosAPIFindes,
+  IndicadorAtractivo,
+} from '@/lib/indicadores/types'
+import TablaMensual from '@/components/dashboard/TablaMensual'
+import TablaFindes from '@/components/dashboard/TablaFindes'
+import TablaAtractivos from '@/components/dashboard/TablaAtractivos'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface IndicadorMensual {
-  ano: number; mes: string
-  oh: number; oh_var_mensual: number | null; oh_var_anual: number | null
-  estadia_prom: number; estadia_var_mensual: number | null; estadia_var_anual: number | null
-}
-
-interface DatosAPI {
-  success: boolean
-  ultimo: IndicadorMensual
-  promedios2024: { oh: number; estadia: number; meses: number }
-  promedios2025: { oh: number; estadia: number; meses: number }
-  promedios2026?: { oh: number; estadia: number; meses: number }
-  historico: IndicadorMensual[]
-  total_registros: number
-}
-
-interface IndicadorFinde {
-  ano: number; mes: string; evento: string
-  oh: number; estadia_prom: number; visitantes: number
-}
-
-interface DatosAPIFindes {
-  success: boolean
-  historico: IndicadorFinde[]
-  resumen2024: { promedio_oh: number; total_visitantes: number; cantidad_findes: number }
-  resumen2025: { promedio_oh: number; total_visitantes: number; cantidad_findes: number }
-  resumen2026?: { promedio_oh: number; total_visitantes: number; cantidad_findes: number }
-}
-
-interface IndicadorAtractivo {
-  ano: number; mes: string
-  casa_puna: number; pueblo_perdido: number; casa_sfvc: number
-  casa_caravati: number; museo_virgen: number; museo_quiroga: number
-}
 
 type TabType = 'mensual' | 'findes' | 'atractivos'
 
@@ -120,16 +93,13 @@ export default function DashboardPage() {
   // Filtros — Mensual
   const [anoGraficoOH, setAnoGraficoOH] = useState('todos')
   const [anoGraficoEstadia, setAnoGraficoEstadia] = useState('todos')
-  const [anoTabla, setAnoTabla] = useState('todos')
 
   // Filtros — Findes
-  const [anoFindes, setAnoFindes] = useState('todos')
   const [anoGraficoFindesOH, setAnoGraficoFindesOH] = useState('todos')
   const [anoGraficoFindesEstadia, setAnoGraficoFindesEstadia] = useState('todos')
 
   // Filtros — Atractivos
   const [anoAtractivosChart, setAnoAtractivosChart] = useState('todos')
-  const [anoAtractivosTable, setAnoAtractivosTable] = useState('todos')
 
   // Líneas de tendencia — Mensual
   const [mostrarTendenciaOH, setMostrarTendenciaOH] = useState(false)
@@ -233,16 +203,6 @@ export default function DashboardPage() {
     }))
   }, [datos, anoGraficoEstadia])
 
-  const tablaData = useMemo(() =>
-    [...filtrarPorAno(datos?.historico ?? [], anoTabla)]
-      .sort((a, b) => {
-        if (b.ano !== a.ano) return b.ano - a.ano
-        const ordenMeses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE']
-        return ordenMeses.indexOf(b.mes) - ordenMeses.indexOf(a.mes)
-      })
-      .slice(0, 12)
-  , [datos, anoTabla])
-
   // ── Datos derivados — Findes ──────────────────────────────────────────────
 
   const findesOHData = useMemo(() => {
@@ -265,11 +225,6 @@ export default function DashboardPage() {
     }))
   }, [datosFindes, anoGraficoFindesEstadia])
 
-  const findesTablaData = useMemo(() =>
-    [...filtrarPorAno(datosFindes?.historico ?? [], anoFindes)]
-      .sort((a, b) => b.ano - a.ano)
-  , [datosFindes, anoFindes])
-
   // ── Datos derivados — Atractivos ─────────────────────────────────────────
 
   const atractivosChartData = useMemo(() =>
@@ -285,9 +240,10 @@ export default function DashboardPage() {
       }))
   , [datosAtractivos, anoAtractivosChart])
 
-  const atractivosTablaData = useMemo(() =>
-    [...filtrarPorAno(datosAtractivos?.historico ?? [], anoAtractivosTable)].reverse()
-  , [datosAtractivos, anoAtractivosTable])
+  // Casa SFVC sin registro digital desde 2026: la serie se oculta si no tiene datos en el filtro
+  const nombresAtractivosVisibles = useMemo(() =>
+    NOMBRES_ATRACTIVOS.filter(nombre => atractivosChartData.some(d => d[nombre] !== null))
+  , [atractivosChartData])
 
   // ── Loading / error states ───────────────────────────────────────────────
 
@@ -302,7 +258,7 @@ export default function DashboardPage() {
     )
   }
 
-  if (error || !datos) {
+  if (error || !datos || !datos.ultimo) {
     return (
       <div className="card p-8 text-center">
         <i className="fa-solid fa-triangle-exclamation text-red-500 text-3xl mb-4 block" />
@@ -575,45 +531,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Tabla datos mensuales */}
-          <div className="card p-5 md:p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-              <h3 className="text-lg font-semibold text-text-primary">Datos Mensuales</h3>
-              <SelectAno value={anoTabla} onChange={setAnoTabla} anos={anosDisponibles} />
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full table-auto text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-left border-y border-gray-200">
-                    <th className="px-4 py-3 font-medium text-text-secondary">Período</th>
-                    <th className="px-4 py-3 font-medium text-text-secondary">OH %</th>
-                    <th className="px-4 py-3 font-medium text-text-secondary">Var. Mensual OH</th>
-                    <th className="px-4 py-3 font-medium text-text-secondary">Estadía (días)</th>
-                    <th className="px-4 py-3 font-medium text-text-secondary">Var. Mensual Estadía</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tablaData.map((item, i) => (
-                    <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-3">{item.mes} {item.ano}</td>
-                      <td className="px-4 py-3">{item.oh.toFixed(1)}%</td>
-                      <td className={`px-4 py-3 font-semibold ${item.oh_var_mensual === null ? '' : item.oh_var_mensual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {item.oh_var_mensual !== null
-                          ? `${item.oh_var_mensual >= 0 ? '+' : ''}${item.oh_var_mensual.toFixed(1)}%`
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3">{item.estadia_prom.toFixed(1)} días</td>
-                      <td className={`px-4 py-3 font-semibold ${item.estadia_var_mensual === null ? '' : item.estadia_var_mensual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {item.estadia_var_mensual !== null
-                          ? `${item.estadia_var_mensual >= 0 ? '+' : ''}${item.estadia_var_mensual.toFixed(1)}%`
-                          : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <TablaMensual historico={datos.historico} />
         </>
       )}
 
@@ -771,40 +689,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Tabla findes */}
-            <div className="card p-5 md:p-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-                <h3 className="text-lg font-semibold text-text-primary">Histórico Fines de Semana Largos</h3>
-                <SelectAno value={anoFindes} onChange={setAnoFindes} anos={anosFindesDisponibles} />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full table-auto text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-left border-y border-gray-200">
-                      <th className="px-4 py-3 font-medium text-text-secondary">Evento</th>
-                      <th className="px-4 py-3 font-medium text-text-secondary">Año</th>
-                      <th className="px-4 py-3 font-medium text-text-secondary">OH %</th>
-                      <th className="px-4 py-3 font-medium text-text-secondary">Estadía</th>
-                      <th className="px-4 py-3 font-medium text-text-secondary">Visitantes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {findesTablaData.map((item, i) => (
-                      <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-text-primary">
-                          {item.evento}
-                          <span className="block text-xs text-text-secondary font-normal">{item.mes}</span>
-                        </td>
-                        <td className="px-4 py-3">{item.ano}</td>
-                        <td className="px-4 py-3 text-primary font-bold">{item.oh.toFixed(1)}%</td>
-                        <td className="px-4 py-3">{item.estadia_prom.toFixed(1)} días</td>
-                        <td className="px-4 py-3">{item.visitantes.toLocaleString('es-AR')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <TablaFindes historico={datosFindes.historico} />
           </>
         ) : (
           <div className="card p-8 text-center text-text-secondary">
@@ -844,12 +729,12 @@ export default function DashboardPage() {
                         </span>
                       )}
                     />
-                    {NOMBRES_ATRACTIVOS.map((nombre, i) => (
+                    {nombresAtractivosVisibles.map(nombre => (
                       <Line
                         key={nombre}
                         type="monotone"
                         dataKey={nombre}
-                        stroke={COLORES_ATRACTIVOS[i]}
+                        stroke={COLORES_ATRACTIVOS[NOMBRES_ATRACTIVOS.indexOf(nombre)]}
                         strokeWidth={selectedAtractivos.has(nombre) ? 3 : 2.5}
                         dot={{ r: 3 }}
                         activeDot={{ r: 5 }}
@@ -861,41 +746,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Tabla atractivos */}
-            <div className="card p-5 md:p-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-                <h3 className="text-lg font-semibold text-text-primary">Datos Mensuales de Atractivos</h3>
-                <SelectAno value={anoAtractivosTable} onChange={setAnoAtractivosTable} anos={anosAtractivosDisponibles} />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full table-auto text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-left border-y border-gray-200">
-                      <th className="px-3 py-3 font-medium text-text-secondary">Período</th>
-                      <th className="px-2 py-3 font-medium text-text-secondary">Casa de la Puna</th>
-                      <th className="px-2 py-3 font-medium text-text-secondary">Pueblo Perdido</th>
-                      <th className="px-2 py-3 font-medium text-text-secondary">Casa SFVC</th>
-                      <th className="px-2 py-3 font-medium text-text-secondary">Casa Caravati</th>
-                      <th className="px-2 py-3 font-medium text-text-secondary">Museo Virgen</th>
-                      <th className="px-2 py-3 font-medium text-text-secondary">Museo A.Q.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {atractivosTablaData.map((item, i) => (
-                      <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-3 py-3 font-medium">{item.mes} {item.ano}</td>
-                        <td className="px-2 py-3">{item.casa_puna.toLocaleString('es-AR')}</td>
-                        <td className="px-2 py-3">{item.pueblo_perdido.toLocaleString('es-AR')}</td>
-                        <td className="px-2 py-3">{item.casa_sfvc.toLocaleString('es-AR')}</td>
-                        <td className="px-2 py-3">{item.casa_caravati.toLocaleString('es-AR')}</td>
-                        <td className="px-2 py-3">{item.museo_virgen.toLocaleString('es-AR')}</td>
-                        <td className="px-2 py-3">{item.museo_quiroga.toLocaleString('es-AR')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <TablaAtractivos historico={datosAtractivos.historico} />
           </>
         ) : (
           <div className="card p-8 text-center text-text-secondary">

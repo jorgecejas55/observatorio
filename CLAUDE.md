@@ -33,9 +33,11 @@ observatorio-app/
 ├── next.config.ts
 ├── tailwind.config.ts
 ├── tsconfig.json
-└── .claude/
-    ├── CLAUDE.md           # Este archivo
-    ├── settings.local.json
+├── CLAUDE.md               # Este archivo
+├── .claude/
+│   └── settings.local.json
+└── claude/                 # Contexto del proyecto (SIN punto)
+    ├── docs/               # estado-actual.md, planes, decisiones
     └── rules/              # Reglas específicas por área
 ```
 
@@ -75,13 +77,15 @@ npm run lint         # Linting
 
 | Archivo | Cuándo usar |
 |---|---|
-| `.claude/docs/estado-actual.md` | Al iniciar sesión — qué está hecho y qué falta |
-| `.claude/docs/arquitectura.md` | Al trabajar en estructura, rutas, componentes |
-| `.claude/docs/decisiones.md` | Antes de proponer cambios de enfoque técnico |
-| `.claude/rules/ui-ux.md` | Al trabajar en vistas y componentes visuales |
-| `.claude/rules/gas-sheets.md` | Al trabajar en integración con Google Sheets |
+| `claude/docs/estado-actual.md` | Al iniciar sesión — qué está hecho y qué falta |
+| `claude/docs/arquitectura.md` | Al trabajar en estructura, rutas, componentes |
+| `claude/docs/decisiones.md` | Antes de proponer cambios de enfoque técnico |
+| `claude/rules/ui-ux.md` | Al trabajar en vistas y componentes visuales |
+| `claude/rules/gas-sheets.md` | Al trabajar en integración con Google Sheets |
 
-**Siempre leer `estado-actual.md` al inicio de cada sesión.**
+**Siempre leer `claude/docs/estado-actual.md` al inicio de cada sesión.**
+
+**Regla de documentación:** los planes se escriben en `claude/docs/` antes de implementar. Cada cambio actualiza `claude/docs/estado-actual.md` (fecha, puntos de atención, log de sesiones) y la memoria del proyecto.
 
 ---
 
