@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
 import { fetchGoogleSheet } from '@/lib/sheets-parser'
-import { ordenarRecientePrimero } from '@/lib/indicadores/periodos'
-import { mesesPendientes } from '@/lib/indicadores/atractivos-serie'
-import { calcularMesesEnVivo, mesActual } from '@/lib/indicadores/atractivos-en-vivo'
+import { combinarSerie, primerMesPlanilla } from '@/lib/indicadores/atractivos-serie'
+import { obtenerFuentesAtractivos, mesActual } from '@/lib/indicadores/atractivos-en-vivo'
 import type { IndicadorAtractivo } from '@/lib/indicadores/types'
 
 const SHEET_ID = '191cjZK9uQTPYARqAD9UYgvWjyZAJ_DDgAgip4ZkznGU'
 const SHEET_NAME = 'atractivos_mensual'
 
-// El cálculo en vivo consulta 5 GAS lentos (cold start de ~15 s c/u, en paralelo)
+// La lectura del sistema consulta 5 GAS lentos (cold start de ~15 s c/u, en paralelo)
 export const maxDuration = 60
 
 function numeroONulo(celda: { v?: unknown } | null | undefined): number | null {
@@ -35,11 +34,12 @@ export async function GET() {
   try {
     const planilla = await leerPlanilla()
     const hoy = mesActual()
-    const ultimo = ordenarRecientePrimero(planilla)[0] ?? null
-    const enVivo = await calcularMesesEnVivo(mesesPendientes(ultimo, hoy), hoy)
+    const desde = primerMesPlanilla(planilla)
+    const anios = desde ? Array.from({ length: hoy.ano - desde.ano + 1 }, (_, i) => desde.ano + i) : []
+    const fuentes = await obtenerFuentesAtractivos(anios)
 
     // Orden cronológico ascendente (lo esperan los gráficos)
-    return NextResponse.json({ success: true, historico: [...planilla, ...enVivo] })
+    return NextResponse.json({ success: true, historico: combinarSerie(planilla, fuentes, hoy) })
   } catch (error) {
     console.error('[indicadores/atractivos]', error)
     return NextResponse.json({ success: false, error: 'Error al procesar los datos' }, { status: 500 })

@@ -1,5 +1,6 @@
 /**
- * Lectura en vivo de los totales mensuales de atractivos para el dashboard.
+ * Lectura de los totales mensuales de atractivos desde los registros del
+ * sistema, para combinarlos con la planilla histórica (ver atractivos-serie).
  *
  * - Casa de la Puna / Pueblo Perdido: endpoint `serie` del GAS de atractivos
  *   (agrega por mes, sin tope de filas) → ingresos + personas de actividades.
@@ -15,8 +16,7 @@ import { getSerie } from '@/lib/atractivos-service'
 import type { AtractivoConIngresos } from '@/lib/atractivos-config'
 import { MUSEOS, fetchVisitasMuseo, type MuseoId } from '@/lib/museos/visitas'
 import { conReintento } from '@/lib/reintento'
-import { claveMes, sumarPorMes, filasEnVivo, type MesCalendario, type FuentesAtractivos } from './atractivos-serie'
-import type { IndicadorAtractivo } from './types'
+import { claveMes, sumarPorMes, type MesCalendario, type FuentesAtractivos } from './atractivos-serie'
 
 const CACHE_SEGUNDOS = 3600
 const ZONA_HORARIA = 'America/Argentina/Catamarca'
@@ -77,13 +77,8 @@ async function fuenteMuseo(museoId: MuseoId) {
   }
 }
 
-export async function calcularMesesEnVivo(
-  meses: MesCalendario[],
-  hoy: MesCalendario,
-): Promise<IndicadorAtractivo[]> {
-  if (meses.length === 0) return []
-  const anios = [...new Set(meses.map(m => m.ano))]
-
+/** Totales por mes de cada fuente del sistema para los años pedidos. */
+export async function obtenerFuentesAtractivos(anios: number[]): Promise<FuentesAtractivos> {
   const [casa_puna, pueblo_perdido, casa_caravati, museo_virgen, museo_quiroga] = await Promise.all([
     fuenteAtractivo('casa-la-puna', anios),
     fuenteAtractivo('pueblo-perdido', anios),
@@ -91,7 +86,5 @@ export async function calcularMesesEnVivo(
     fuenteMuseo('museo-virgen-valle'),
     fuenteMuseo('museo-adan-quiroga'),
   ])
-  const fuentes: FuentesAtractivos = { casa_puna, pueblo_perdido, casa_caravati, museo_virgen, museo_quiroga }
-
-  return filasEnVivo(meses, fuentes, hoy)
+  return { casa_puna, pueblo_perdido, casa_caravati, museo_virgen, museo_quiroga }
 }

@@ -29,8 +29,6 @@ export default function TablaAtractivos({ historico }: { historico: IndicadorAtr
   const { anio, setAnio, anios, filas } = useTablaPorAnio(historico)
   // Casa SFVC no tiene registro digital: se oculta en los años sin ningún dato
   const columnas = COLUMNAS.filter(c => filas.some(f => f[c.clave] !== null))
-  const hayEnVivo = filas.some(f => f.origen === 'vivo')
-  const primerMesEnVivo = historico.find(f => f.origen === 'vivo')
 
   return (
     <TarjetaTabla
@@ -39,9 +37,7 @@ export default function TablaAtractivos({ historico }: { historico: IndicadorAtr
       anio={anio}
       onCambiarAnio={setAnio}
       encabezados={['Período', ...columnas.map(c => c.titulo)]}
-      pie={hayEnVivo && primerMesEnVivo
-        ? `Desde ${primerMesEnVivo.mes.toLowerCase()} de ${primerMesEnVivo.ano} los totales se calculan automáticamente a partir de los registros de ingresos (incluye actividades especiales) y de visitas a museos.`
-        : undefined}
+      pie="Fuente: registros de ingresos (Casa de la Puna y Pueblo Perdido, incluye actividades especiales) y de visitas a museos. Si un mes registra menos personas que la planilla histórica, se conserva la planilla."
     >
       {filas.map(item => (
         <tr key={`${item.ano}-${item.mes}`} className="border-b border-gray-100 hover:bg-gray-50">
