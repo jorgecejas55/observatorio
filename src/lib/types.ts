@@ -301,7 +301,9 @@ export interface Informe {
   categoria: CategoriaInforme
   periodo: string
   fecha: string
-  urlPdf: string
+  urlPdf: string                   // '' en informes automáticos sin PDF
+  /** Informe web generado por el sistema (/informes/ver/<slug>), si existe */
+  urlWeb?: string
   usuario?: string
   timestamp?: string
 }

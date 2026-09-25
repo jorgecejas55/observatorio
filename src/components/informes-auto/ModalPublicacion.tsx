@@ -93,7 +93,7 @@ export default function ModalPublicacion({ informeId, publicando, onConfirmar, o
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 md:p-6 max-h-[90vh] overflow-y-auto">
         <h2 id="titulo-publicar" className="text-lg font-bold text-text-primary mb-1">Publicar informe</h2>
         <p className="text-sm text-text-secondary mb-4">
-          Al publicar, estos valores pasan al dashboard público.
+          Al publicar, estos valores pasan al dashboard público y el informe aparece en Informes Técnicos.
         </p>
 
         {!previa && !error && (

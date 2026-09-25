@@ -8,11 +8,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireAcceso, requireEscritura } from '@/lib/permisos'
 import { guardarInforme, obtenerInforme } from '@/lib/informes-auto/gas'
 import { empujarAPlanillaMaestra } from '@/lib/informes-auto/empuje'
 import { valoresParaMaestra } from '@/lib/informes-auto/publicacion'
+import { TAG_INFORMES_PUBLICOS } from '@/lib/informes-auto/publicos'
 
 // ── GET: obtener informe completo ─────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ export async function PATCH(
       )
     }
 
+    revalidateTag(TAG_INFORMES_PUBLICOS)
     revalidatePath('/informes/ocio')
     return NextResponse.json({ success: true, data: informe })
   } catch (error) {

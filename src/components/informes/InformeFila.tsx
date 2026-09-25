@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Informe, CategoriaInforme } from '@/lib/types'
 import { LABELS_CATEGORIA } from '@/lib/types'
 
@@ -59,15 +60,25 @@ export default function InformeFila({ informe }: Props) {
         )}
       </div>
 
-      <a
-        href={informe.urlPdf}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn-outline text-xs flex items-center gap-1.5 flex-shrink-0"
-      >
-        <span>Ver informe</span>
-        <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" />
-      </a>
+      <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+        {informe.urlWeb && (
+          <Link href={informe.urlWeb} className="btn-primary text-xs flex items-center justify-center gap-1.5">
+            <span>Ver informe</span>
+            <i className="fa-solid fa-chart-column text-[10px]" aria-hidden="true" />
+          </Link>
+        )}
+        {informe.urlPdf && (
+          <a
+            href={informe.urlPdf}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-outline text-xs flex items-center justify-center gap-1.5"
+          >
+            <span>{informe.urlWeb ? 'PDF' : 'Ver informe'}</span>
+            <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" aria-hidden="true" />
+          </a>
+        )}
+      </div>
     </div>
   )
 }

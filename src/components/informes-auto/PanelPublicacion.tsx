@@ -53,12 +53,17 @@ export default function PanelPublicacion({ informe, onPublicado, onError }: Prop
     <div className="no-print mb-4 p-3 rounded-lg bg-gray-50 border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-center gap-2 flex-wrap text-sm text-text-secondary">
         <EstadoInformeBadge estado={estado} />
-        {estado === 'borrador' && <span>Todavía no está en el dashboard.</span>}
+        {estado === 'borrador' && <span>Todavía no está en el dashboard ni en Informes Técnicos.</span>}
         {estado !== 'borrador' && informe.publicacion && (
           <span>Publicado el {formatearFechaHora(informe.publicacion.fecha)}.</span>
         )}
         {estado === 'cambios-sin-publicar' && (
-          <span className="text-amber-800">El dashboard muestra los valores anteriores.</span>
+          <span className="text-amber-800">El dashboard y la versión pública muestran los valores anteriores.</span>
+        )}
+        {estado !== 'borrador' && (
+          <a href={`/informes/ver/${informe.slug}`} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            Ver versión pública
+          </a>
         )}
       </div>
       <button

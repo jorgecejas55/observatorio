@@ -5,13 +5,13 @@ const ESTILOS: Record<EstadoInforme, { etiqueta: string; clases: string; icono: 
     etiqueta: 'Borrador',
     clases: 'bg-gray-100 text-gray-700',
     icono: 'fa-pen',
-    ayuda: 'Todavía no está en el dashboard',
+    ayuda: 'Todavía no está en el dashboard ni en Informes Técnicos',
   },
   publicado: {
     etiqueta: 'Publicado',
     clases: 'bg-green-100 text-green-700',
     icono: 'fa-check',
-    ayuda: 'Sus valores están en el dashboard',
+    ayuda: 'Está en el dashboard y en Informes Técnicos',
   },
   'cambios-sin-publicar': {
     etiqueta: 'Cambios sin publicar',
