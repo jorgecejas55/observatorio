@@ -1,36 +1,18 @@
 /**
  * GET   /api/informes-auto/[id]  — obtener informe completo
- * PATCH /api/informes-auto/[id]  — publicar informe
+ * PATCH /api/informes-auto/[id]  — publicar informe { accion: 'publicar' }
+ *
+ * Publicar = oficial: empuja los valores a la planilla maestra (dashboard),
+ * marca el informe como publicado y refresca Informes Técnicos. Si el empuje
+ * falla, el informe NO queda publicado.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { requireAcceso, requireEscritura } from '@/lib/permisos'
-
-const GAS_URL = process.env.INFORMES_AUTO_SCRIPT_URL
-const GAS_SECRET = process.env.INFORMES_AUTO_SCRIPT_SECRET
-
-async function gasPost(body: Record<string, unknown>) {
-  if (!GAS_URL || GAS_URL === 'PENDIENTE') {
-    throw new Error('INFORMES_AUTO_SCRIPT_URL no configurada')
-  }
-  const res = await fetch(GAS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: GAS_SECRET, ...body }),
-  })
-  return res.json()
-}
-
-async function gasGet(action: string, id: string) {
-  if (!GAS_URL || GAS_URL === 'PENDIENTE') {
-    throw new Error('INFORMES_AUTO_SCRIPT_URL no configurada')
-  }
-  const url = new URL(GAS_URL)
-  url.searchParams.set('action', action)
-  url.searchParams.set('id', id)
-  const res = await fetch(url.toString())
-  return res.json()
-}
+import { guardarInforme, obtenerInforme } from '@/lib/informes-auto/gas'
+import { empujarAPlanillaMaestra } from '@/lib/informes-auto/empuje'
+import { valoresParaMaestra } from '@/lib/informes-auto/publicacion'
 
 // ── GET: obtener informe completo ─────────────────────────────────────────────
 
@@ -44,11 +26,11 @@ export async function GET(
   const { id } = await params
 
   try {
-    const json = await gasGet('obtener', id)
-    if (json.error) {
-      return NextResponse.json({ error: json.error }, { status: 404 })
+    const guardado = await obtenerInforme(id)
+    if (!guardado) {
+      return NextResponse.json({ error: 'Informe no encontrado' }, { status: 404 })
     }
-    return NextResponse.json({ success: true, data: json.data })
+    return NextResponse.json({ success: true, data: { ...guardado.meta, datos: guardado.datos } })
   } catch (error) {
     console.error('[informes-auto] obtener:', error)
     return NextResponse.json({ error: 'Error al obtener el informe' }, { status: 500 })
@@ -66,25 +48,53 @@ export async function PATCH(
 
   const { id } = await params
 
+  let body: { accion?: string }
   try {
-    const body = await req.json()
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Cuerpo JSON inválido' }, { status: 400 })
+  }
+  if (body.accion !== 'publicar') {
+    return NextResponse.json({ error: 'Acción no válida' }, { status: 400 })
+  }
 
-    if (body.accion === 'publicar') {
-      // Publicar: integra con módulo de informes
-      const json = await gasPost({
-        action: 'publicar',
-        id,
-        idInformePublico: body.idInformePublico ?? '',
-      })
-      if (json.error) {
-        return NextResponse.json({ error: json.error }, { status: 500 })
-      }
-      return NextResponse.json({ success: true })
+  try {
+    const guardado = await obtenerInforme(id)
+    if (!guardado) {
+      return NextResponse.json({ error: 'Informe no encontrado' }, { status: 404 })
+    }
+    const informe = guardado.datos
+
+    const empuje = await empujarAPlanillaMaestra(informe)
+    if (!empuje.ok) {
+      return NextResponse.json(
+        { error: `No se pudo actualizar el dashboard: ${empuje.error}. El informe no se publicó.` },
+        { status: 502 }
+      )
     }
 
-    return NextResponse.json({ error: 'Acción no válida' }, { status: 400 })
+    informe.empujeMaestra = empuje
+    informe.estado = 'publicado'
+    informe.publicacion = {
+      fecha: empuje.fecha,
+      usuario: session.user?.email ?? '',
+      valores: valoresParaMaestra(informe),
+    }
+
+    const persistencia = await guardarInforme(informe)
+    if (!persistencia.success) {
+      // El dashboard ya tiene los valores nuevos; solo falló marcar el estado.
+      console.error('[informes-auto] publicar: empuje OK pero no se guardó el estado:', persistencia.error)
+      return NextResponse.json(
+        { error: 'El dashboard se actualizó, pero no se pudo marcar el informe como publicado. Reintentá.' },
+        { status: 502 }
+      )
+    }
+
+    revalidatePath('/informes/ocio')
+    return NextResponse.json({ success: true, data: informe })
   } catch (error) {
-    console.error('[informes-auto] patch:', error)
-    return NextResponse.json({ error: 'Error al actualizar el informe' }, { status: 500 })
+    console.error('[informes-auto] publicar:', error)
+    return NextResponse.json({ error: 'Error al publicar el informe' }, { status: 500 })
   }
 }

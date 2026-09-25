@@ -2,17 +2,17 @@
  * Empuje de resultados de informes hacia la planilla histórica maestra
  * (191cjZK9..., hojas indicadores_findes / indicadores_mensual).
  *
- * El sistema es el PRODUCTOR ÚNICO de la serie: al generar/regenerar un
- * informe se hace upsert del registro correspondiente. Las columnas de
+ * El sistema es el PRODUCTOR ÚNICO de la serie: al PUBLICAR un informe se
+ * hace upsert del registro correspondiente. Las columnas de
  * variación de indicadores_mensual (D, E, G, H) son fórmulas de la propia
  * planilla y NUNCA se tocan (el GAS solo escribe C, F, I, J).
  *
- * Patrón no-bloqueante: si el empuje falla, el informe NO se revierte;
- * el resultado se persiste en datosJSON y la UI ofrece reintentar.
+ * Si el empuje falla, la publicación se aborta (el informe no queda como
+ * publicado) y la UI muestra el error para reintentar.
  */
 
 import type { InformeFindeCompleto, ResultadoEmpuje } from '@/lib/informes-auto/types'
-import { MESES } from '@/lib/indicadores/periodos'
+import { valoresParaMaestra } from './publicacion'
 
 export async function empujarAPlanillaMaestra(
   informe: InformeFindeCompleto
@@ -31,20 +31,7 @@ export async function empujarAPlanillaMaestra(
     return { ok: false, destino, fecha, error: 'INDICADORES_GAS_API_KEY no configurada' }
   }
 
-  const anio = Number(informe.fechaInicio.slice(0, 4))
-  const mesNumero = Number(informe.fechaInicio.slice(5, 7))
-  const mes = MESES[mesNumero - 1] ?? ''
-
-  const data = {
-    anio,
-    mes,
-    evento: informe.nombre,
-    oh: informe.relevamiento.ohTotal,
-    estadiaProm: informe.perfil.estadiaSinOutliers.estadiaPromedio,
-    visitantes: informe.impacto.visitantesTotales,
-    impacto: informe.impacto.impactoTotal,
-  }
-
+  const data = valoresParaMaestra(informe)
   const action = tipo === 'MENSUAL' ? 'upsertMensual' : 'upsertFinde'
 
   try {

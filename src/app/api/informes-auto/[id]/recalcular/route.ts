@@ -6,7 +6,10 @@
  * especiales) desde las fuentes en vivo (Sheets de Ocupación Hotelera, encuestas,
  * GAS de atractivos/museos).
  *
- * NO toca: id, slug, estado, idInformePublico, NI las comparativas
+ * NO toca el dashboard: si el informe estaba publicado y sus valores cambian,
+ * queda como "cambios sin publicar" hasta que se vuelva a publicar.
+ *
+ * NO toca: id, slug, idInformePublico, NI las comparativas
  * (comparativaUltimoFinde/comparativaAnioAnterior) — esas suelen resolverse
  * con una selección MANUAL al generar (la detección automática del "año
  * anterior" no siempre matchea por nombre) y no tenemos esa selección
@@ -30,36 +33,11 @@ import {
   calcularImpactoEconomico,
   calcularDiasEntreFechas,
 } from '@/lib/informes-auto/calculos'
-import { empujarAPlanillaMaestra } from '@/lib/informes-auto/empuje'
+import { guardarInforme, obtenerInforme } from '@/lib/informes-auto/gas'
+import { estadoTrasCambio } from '@/lib/informes-auto/publicacion'
 import { fetchIngresosAtractivos } from '@/lib/informes-auto/ingresos-atractivos'
 import { fetchPerfil } from '@/lib/informes-auto/perfil'
 import type { InformeFindeCompleto, InputsImpactoEconomico } from '@/lib/informes-auto/types'
-
-const GAS_URL = process.env.INFORMES_AUTO_SCRIPT_URL
-const GAS_SECRET = process.env.INFORMES_AUTO_SCRIPT_SECRET
-
-async function gasGetInforme(id: string): Promise<InformeFindeCompleto | null> {
-  if (!GAS_URL || GAS_URL === 'PENDIENTE') throw new Error('INFORMES_AUTO_SCRIPT_URL no configurada')
-  const url = new URL(GAS_URL)
-  url.searchParams.set('action', 'obtener')
-  url.searchParams.set('id', id)
-  const res = await fetch(url.toString())
-  const json = await res.json()
-  if (json.error || !json.data?.datos) return null
-  return { ...json.data.datos } as InformeFindeCompleto
-}
-
-async function gasGuardar(data: InformeFindeCompleto) {
-  if (!GAS_URL || GAS_URL === 'PENDIENTE' || !GAS_SECRET || GAS_SECRET === 'PENDIENTE') {
-    throw new Error('INFORMES_AUTO_SCRIPT_URL/SECRET no configurada')
-  }
-  const res = await fetch(GAS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: GAS_SECRET, action: 'guardar', data }),
-  })
-  return res.json()
-}
 
 export async function POST(
   req: NextRequest,
@@ -71,10 +49,11 @@ export async function POST(
   const { id } = await params
 
   try {
-    const existente = await gasGetInforme(id)
-    if (!existente) {
+    const guardado = await obtenerInforme(id)
+    if (!guardado) {
       return NextResponse.json({ error: 'Informe no encontrado' }, { status: 404 })
     }
+    const existente = guardado.datos
 
     const relevamientoId = existente.relevamiento?.id
     if (!relevamientoId) {
@@ -128,15 +107,11 @@ export async function POST(
       ingresosAtractivos,
     }
 
-    // Mantiene sincronizada la planilla histórica maestra (upsert, no duplica filas).
-    informe.empujeMaestra = await empujarAPlanillaMaestra(informe)
-    if (!informe.empujeMaestra.ok) {
-      console.warn('[recalcular] Empuje a planilla maestra falló:', informe.empujeMaestra.error)
-    }
+    informe.estado = estadoTrasCambio(guardado.meta.estado, existente.publicacion, informe)
 
-    const gasJson = await gasGuardar(informe)
-    if (gasJson.error) {
-      return NextResponse.json({ error: gasJson.error }, { status: 500 })
+    const persistencia = await guardarInforme(informe)
+    if (!persistencia.success) {
+      return NextResponse.json({ error: persistencia.error }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, data: informe })

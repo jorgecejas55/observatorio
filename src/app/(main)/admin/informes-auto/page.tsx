@@ -14,6 +14,7 @@ import type {
   RegistroMaestro,
   TipoInforme,
 } from '@/lib/informes-auto/types'
+import EstadoInformeBadge from '@/components/informes-auto/EstadoInformeBadge'
 
 // ── Estados del flujo ─────────────────────────────────────────────────────────
 
@@ -298,7 +299,7 @@ export default function InformesAutoPage() {
     }
   }, [relevamientoId, tipoInforme, nombre, fechaInicio, fechaFin, gastoDiarioTuristas, gastoDiarioExcursionistas, porcentajeExcursionistas, comparativaUltimoFindeId, comparativaAnioAnteriorId])
 
-  // ── Paso 2: confirmar — recién acá se guarda y se empuja a la serie histórica ──
+  // ── Paso 2: confirmar — recién acá se guarda (el dashboard se actualiza al publicar) ──
   const handleConfirmar = useCallback(async () => {
     if (!informePreview) return
 
@@ -997,11 +998,7 @@ export default function InformesAutoPage() {
                       {formatearFecha(inf.fechaInicio)} al {formatearFecha(inf.fechaFin)}
                     </td>
                     <td className="py-2 px-2">
-                      <span className={`badge text-[10px] ${
-                        inf.estado === 'publicado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {inf.estado}
-                      </span>
+                      <EstadoInformeBadge estado={inf.estado} />
                     </td>
                     <td className="py-2 px-2 text-text-secondary text-xs">
                       {inf.fechaGeneracion ? new Date(inf.fechaGeneracion).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }) : '—'}

@@ -151,7 +151,7 @@ export interface InformeFindeCompleto {
   fechaFin: string
   fechaGeneracion: string
   usuarioGenerador: string          // email del usuario que generó el informe
-  estado: 'borrador' | 'publicado'
+  estado: EstadoInforme
 
   // Datos del período actual
   relevamiento: RelevamientoOH
@@ -176,14 +176,42 @@ export interface InformeFindeCompleto {
   // actividades especiales durante el período (informativo)
   ingresosAtractivos: ResumenIngresosAtractivos
 
-  // Resultado del empuje a la planilla histórica maestra (191cjZK9...)
+  // Resultado del último empuje a la planilla histórica maestra (191cjZK9...)
   empujeMaestra?: ResultadoEmpuje
+
+  // Última publicación: qué valores llegaron al dashboard y cuándo
+  publicacion?: PublicacionInforme
 
   // Referencia al informe público (post-publicación)
   idInformePublico?: string
 }
 
-// ── Empuje a la planilla histórica maestra ────────────────────────────────────
+// ── Publicación y empuje a la planilla histórica maestra ──────────────────────
+
+/**
+ * borrador: nunca publicado (no está en el dashboard ni en Informes Técnicos).
+ * publicado: lo que muestra el dashboard coincide con el informe.
+ * cambios-sin-publicar: se recalculó/regeneró después de publicar y los
+ *   valores del dashboard quedaron desactualizados hasta volver a publicar.
+ */
+export type EstadoInforme = 'borrador' | 'publicado' | 'cambios-sin-publicar'
+
+/** Valores que el informe aporta a la planilla maestra (lo que ve el dashboard). */
+export interface ValoresMaestra {
+  anio: number
+  mes: string
+  evento: string
+  oh: number
+  estadiaProm: number
+  visitantes: number
+  impacto: number
+}
+
+export interface PublicacionInforme {
+  fecha: string                     // ISO
+  usuario: string
+  valores: ValoresMaestra
+}
 
 export interface ResultadoEmpuje {
   ok: boolean

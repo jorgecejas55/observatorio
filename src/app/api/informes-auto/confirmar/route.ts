@@ -2,14 +2,29 @@
  * POST /api/informes-auto/confirmar
  *
  * Recibe el informe ya revisado por el usuario (calculado previamente vía
- * /api/informes-auto/calcular) y recién ahí persiste: guarda en la planilla
- * de informes y empuja los indicadores a la serie histórica maestra.
+ * /api/informes-auto/calcular) y recién ahí lo guarda. NO toca el dashboard:
+ * los valores llegan a la planilla maestra solo al publicar.
+ *
+ * Si ya existía un informe con el mismo slug (regeneración), conserva su
+ * publicación: sigue "publicado" si los valores no cambiaron, o pasa a
+ * "cambios sin publicar".
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireEscritura } from '@/lib/permisos'
-import { empujarAPlanillaMaestra } from '@/lib/informes-auto/empuje'
+import { guardarInforme, listarInformes, obtenerInforme } from '@/lib/informes-auto/gas'
+import { estadoTrasCambio } from '@/lib/informes-auto/publicacion'
 import type { InformeFindeCompleto } from '@/lib/informes-auto/types'
+
+async function heredarPublicacion(informe: InformeFindeCompleto): Promise<void> {
+  const previo = (await listarInformes()).find(m => m.slug === informe.slug)
+  if (!previo) return
+  const guardado = await obtenerInforme(previo.id)
+  if (!guardado) return
+  informe.publicacion = guardado.datos.publicacion
+  informe.idInformePublico = guardado.meta.idInformePublico || guardado.datos.idInformePublico
+  informe.estado = estadoTrasCambio(guardado.meta.estado, guardado.datos.publicacion, informe)
+}
 
 export async function POST(req: NextRequest) {
   const session = await requireEscritura('informes-auto')
@@ -28,53 +43,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 1. Empuje a la planilla histórica maestra (no bloqueante)
-    informe.empujeMaestra = await empujarAPlanillaMaestra(informe)
-    if (!informe.empujeMaestra.ok) {
-      console.warn('[confirmar] Empuje a planilla maestra falló:', informe.empujeMaestra.error)
+    informe.estado = 'borrador'
+    await heredarPublicacion(informe)
+
+    const persistencia = await guardarInforme(informe)
+    if (!persistencia.success) {
+      console.error('[confirmar] Error al persistir en GAS:', persistencia.error)
+      return NextResponse.json({ error: `No se pudo guardar el informe: ${persistencia.error}` }, { status: 502 })
     }
 
-    // 2. Persistir en GAS (upsert por slug)
-    let persistenciaResult: { success: boolean; error?: string; id?: string; slug?: string; actualizado?: boolean } | null = null
-    const gasUrl = process.env.INFORMES_AUTO_SCRIPT_URL
-    const gasSecret = process.env.INFORMES_AUTO_SCRIPT_SECRET
-    if (gasUrl && gasUrl !== 'PENDIENTE' && gasSecret && gasSecret !== 'PENDIENTE') {
-      try {
-        const gasRes = await fetch(gasUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ secret: gasSecret, action: 'guardar', data: informe }),
-        })
-        const gasJson = await gasRes.json()
-        if (gasJson.error) {
-          console.error('[confirmar] Error al persistir en GAS:', gasJson.error)
-          persistenciaResult = { success: false, error: gasJson.error }
-        } else {
-          persistenciaResult = { success: true, ...gasJson.data }
-        }
-      } catch (e) {
-        console.error('[confirmar] No se pudo persistir en GAS:', e)
-        persistenciaResult = { success: false, error: String(e) }
-      }
-    } else {
-      persistenciaResult = { success: false, error: 'INFORMES_AUTO_SCRIPT_URL/SECRET no configurada' }
-    }
+    // En una regeneración el GAS preserva el id ORIGINAL: hay que adoptarlo,
+    // si no el front redirige a un id que no está guardado en la hoja.
+    if (persistencia.id) informe.id = persistencia.id
 
-    // Si fue upsert (regeneración de un informe existente), GAS devuelve el id
-    // ORIGINAL preservado — hay que adoptarlo, si no el front redirige a un id
-    // que no está guardado en la hoja.
-    if (persistenciaResult?.success && persistenciaResult.id) {
-      informe.id = persistenciaResult.id
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: informe,
-      meta: {
-        persistencia: persistenciaResult,
-        empuje: informe.empujeMaestra ?? null,
-      },
-    })
+    return NextResponse.json({ success: true, data: informe, meta: { persistencia } })
   } catch (error) {
     console.error('[confirmar] Error:', error)
     return NextResponse.json(

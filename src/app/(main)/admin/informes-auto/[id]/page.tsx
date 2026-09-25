@@ -9,6 +9,7 @@ import type { InformeFindeCompleto, TipoInforme } from '@/lib/informes-auto/type
 import { LABELS_CATEGORIA } from '@/lib/types'
 import { RESPUESTA_FAVORABLE, porcentajeDe, porcentajeSobreRespondentes, totalRespuestas, type RespuestaSiNo } from '@/lib/indicadores-perfil'
 import SeccionIngresosAtractivos from '@/components/informes/SeccionIngresosAtractivos'
+import PanelPublicacion from '@/components/informes-auto/PanelPublicacion'
 
 const ETIQUETAS_TIPO: Record<TipoInforme, { portada: string; header: string }> = {
   FSL: { portada: 'Fin de Semana Largo', header: 'Informe Fin de Semana Largo' },
@@ -24,9 +25,7 @@ export default function InformeAutoDetallePage() {
   const [informe, setInforme] = useState<InformeFindeCompleto | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
-  const [guardando, setGuardando] = useState(false)
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'success' | 'error' } | null>(null)
-  const [reintentandoEmpuje, setReintentandoEmpuje] = useState(false)
   const [recalculando, setRecalculando] = useState(false)
 
   useEffect(() => {
@@ -120,31 +119,6 @@ export default function InformeAutoDetallePage() {
   // ── Acciones ──
   const exportarPDF = () => window.print()
 
-  const reintentarEmpuje = async () => {
-    setReintentandoEmpuje(true)
-    try {
-      const res = await fetch(`/api/informes-auto/${id}/empuje`, { method: 'POST' })
-      const json = await res.json().catch(() => ({}))
-      if (json.success && json.data) {
-        const actualizado = { ...informe, empujeMaestra: json.data }
-        setInforme(actualizado)
-        sessionStorage.setItem(`informe_${id}`, JSON.stringify(actualizado))
-        setToast({ mensaje: 'Datos empujados a la planilla histórica', tipo: 'success' })
-      } else {
-        if (json.data) {
-          const actualizado = { ...informe, empujeMaestra: json.data }
-          setInforme(actualizado)
-          sessionStorage.setItem(`informe_${id}`, JSON.stringify(actualizado))
-        }
-        setToast({ mensaje: json.data?.error ?? json.error ?? 'El empuje volvió a fallar', tipo: 'error' })
-      }
-    } catch {
-      setToast({ mensaje: 'Error de conexión al reintentar el empuje', tipo: 'error' })
-    } finally {
-      setReintentandoEmpuje(false)
-    }
-  }
-
   const recalcularDatos = async () => {
     setRecalculando(true)
     try {
@@ -153,7 +127,12 @@ export default function InformeAutoDetallePage() {
       if (json.success && json.data) {
         setInforme(json.data)
         sessionStorage.setItem(`informe_${id}`, JSON.stringify(json.data))
-        setToast({ mensaje: 'Datos recalculados desde el sistema OH', tipo: 'success' })
+        setToast({
+          mensaje: json.data.estado === 'cambios-sin-publicar'
+            ? 'Datos recalculados. Hay cambios sin publicar: el dashboard muestra los valores anteriores'
+            : 'Datos recalculados desde el sistema OH',
+          tipo: 'success',
+        })
       } else {
         setToast({ mensaje: json.error ?? 'No se pudo recalcular', tipo: 'error' })
       }
@@ -161,23 +140,6 @@ export default function InformeAutoDetallePage() {
       setToast({ mensaje: 'Error de conexión al recalcular', tipo: 'error' })
     } finally {
       setRecalculando(false)
-    }
-  }
-
-  const publicar = async () => {
-    if (!confirm('¿Publicar este informe en el módulo de Informes Técnicos?')) return
-    setGuardando(true)
-    try {
-      await fetch(`/api/informes-auto/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'publicar' }),
-      })
-      setToast({ mensaje: 'Informe publicado', tipo: 'success' })
-    } catch {
-      setToast({ mensaje: 'Error al publicar', tipo: 'error' })
-    } finally {
-      setGuardando(false)
     }
   }
 
@@ -218,7 +180,7 @@ export default function InformeAutoDetallePage() {
           <button
             onClick={recalcularDatos}
             disabled={recalculando}
-            title="Recalcula OH por tipo, picos, perfil, impacto y comparativas desde el sistema OH. No toca el reporte de prensa ni el estado de publicación."
+            title="Recalcula OH por tipo, picos, perfil, impacto e ingresos a atractivos desde las fuentes. No cambia el dashboard hasta que se vuelva a publicar."
             className="btn-outline text-sm flex items-center gap-1.5 disabled:opacity-50"
           >
             <i className={`fa-solid ${recalculando ? 'fa-spinner fa-spin' : 'fa-rotate'}`} />
@@ -231,37 +193,18 @@ export default function InformeAutoDetallePage() {
             <i className="fa-solid fa-print" />
             Exportar PDF
           </button>
-          {informe.estado === 'borrador' && (
-            <button
-              onClick={publicar}
-              disabled={guardando}
-              className="btn-primary text-sm flex items-center gap-1.5"
-            >
-              <i className="fa-solid fa-upload" />
-              Publicar
-            </button>
-          )}
         </div>
       </div>
 
-      {/* ── Aviso: empuje a la planilla histórica falló ── */}
-      {informe.empujeMaestra && !informe.empujeMaestra.ok && (
-        <div className="no-print mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-between gap-3">
-          <p className="text-sm text-amber-700">
-            <i className="fa-solid fa-triangle-exclamation mr-1.5" />
-            Los datos de este informe no llegaron a la planilla histórica ({informe.empujeMaestra.destino}):{' '}
-            {informe.empujeMaestra.error ?? 'error desconocido'}
-          </p>
-          <button
-            onClick={reintentarEmpuje}
-            disabled={reintentandoEmpuje}
-            className="btn-outline text-xs whitespace-nowrap flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <i className={`fa-solid ${reintentandoEmpuje ? 'fa-spinner fa-spin' : 'fa-rotate-right'}`} />
-            Reintentar empuje
-          </button>
-        </div>
-      )}
+      <PanelPublicacion
+        informe={informe}
+        onPublicado={publicado => {
+          setInforme(publicado)
+          sessionStorage.setItem(`informe_${id}`, JSON.stringify(publicado))
+          setToast({ mensaje: 'Informe publicado: el dashboard ya muestra sus valores', tipo: 'success' })
+        }}
+        onError={mensaje => setToast({ mensaje, tipo: 'error' })}
+      />
 
       {/* ── TOAST ── */}
       {toast && (
