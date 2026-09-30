@@ -20,6 +20,7 @@ declare module '@auth/core/jwt' {
   interface DefaultJWT {
     rol?: Rol
     modulos?: ModuloKey[]
-    permisosRefreshedAt?: number
+    /** Timestamp (ms) a partir del cual se vuelven a consultar los permisos */
+    permisosVencenEn?: number
   }
 }
