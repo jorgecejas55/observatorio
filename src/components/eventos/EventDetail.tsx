@@ -1,6 +1,7 @@
 'use client'
 
-import { ESTADO_COLORS, type Evento } from '@/config/eventConfig'
+import { useState, useRef } from 'react'
+import { ESTADO_COLORS, type Evento, type ArchivoEvento } from '@/config/eventConfig'
 import { formatearFechaLarga as formatDate } from '@/lib/formato-fechas'
 
 function formatMoney(v: string) {
@@ -29,17 +30,77 @@ function Section({ titulo, icono, children }: { titulo: string; icono: string; c
   )
 }
 
+function parseArchivos(raw?: string): ArchivoEvento[] {
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
 interface EventDetailProps {
   evento: Evento
   onClose: () => void
   onEdit: (e: Evento) => void
+  onArchivosCambiaron?: (archivos: ArchivoEvento[]) => void
 }
 
-export default function EventDetail({ evento, onClose, onEdit }: EventDetailProps) {
+export default function EventDetail({ evento, onClose, onEdit, onArchivosCambiaron }: EventDetailProps) {
   const tot = Number(evento.totalAsistentes) || 0
   const res = Number(evento.totalResidentes) || 0
   const noRes = Number(evento.totalNoResidentes) || 0
   const pctForaneos = tot ? Math.round((noRes / tot) * 100) : 0
+
+  const [archivos, setArchivos] = useState<ArchivoEvento[]>(() => parseArchivos(evento.archivos_drive))
+  const [subiendo, setSubiendo] = useState(false)
+  const [errorArchivo, setErrorArchivo] = useState('')
+  const [eliminando, setEliminando] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleSubir(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Reset para permitir subir el mismo archivo dos veces
+    e.target.value = ''
+
+    setSubiendo(true)
+    setErrorArchivo('')
+    try {
+      const form = new FormData()
+      form.append('archivo', file)
+      const res = await fetch(`/api/eventos/${evento.id}/upload`, { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Error al subir')
+      const nuevos: ArchivoEvento[] = data.archivos ?? []
+      setArchivos(nuevos)
+      onArchivosCambiaron?.(nuevos)
+    } catch (err) {
+      setErrorArchivo(err instanceof Error ? err.message : 'Error al subir el archivo')
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  async function handleEliminar(fileId: string) {
+    setEliminando(fileId)
+    setErrorArchivo('')
+    try {
+      const res = await fetch(`/api/eventos/${evento.id}/upload?fileId=${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Error al eliminar')
+      const nuevos: ArchivoEvento[] = data.archivos ?? []
+      setArchivos(nuevos)
+      onArchivosCambiaron?.(nuevos)
+    } catch (err) {
+      setErrorArchivo(err instanceof Error ? err.message : 'Error al eliminar el archivo')
+    } finally {
+      setEliminando(null)
+    }
+  }
+
+  function iconoArchivo(nombre: string) {
+    const ext = nombre.split('.').pop()?.toLowerCase()
+    if (ext === 'pdf') return 'fa-file-pdf text-red-500'
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext ?? '')) return 'fa-file-image text-blue-500'
+    return 'fa-file text-gray-500'
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-8 overflow-y-auto">
@@ -123,6 +184,62 @@ export default function EventDetail({ evento, onClose, onEdit }: EventDetailProp
               {evento.observaciones && <Row label="Observaciones" value={evento.observaciones} />}
             </Section>
           )}
+
+          {/* Material gráfico */}
+          <Section titulo="Material gráfico" icono="fa-images">
+            {archivos.length > 0 && (
+              <ul className="space-y-2 mb-3">
+                {archivos.map(archivo => (
+                  <li key={archivo.fileId} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                    <i className={`fa-solid ${iconoArchivo(archivo.nombre)} text-lg w-5 text-center`} />
+                    <a
+                      href={archivo.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 text-sm text-primary hover:underline truncate"
+                      title={archivo.nombre}
+                    >
+                      {archivo.nombre}
+                    </a>
+                    <button
+                      onClick={() => handleEliminar(archivo.fileId)}
+                      disabled={eliminando === archivo.fileId}
+                      className="btn-ghost text-red-500 hover:bg-red-50 w-8 h-8 p-0 rounded-lg flex items-center justify-center flex-shrink-0"
+                      title="Eliminar archivo"
+                    >
+                      {eliminando === archivo.fileId
+                        ? <i className="fa-solid fa-spinner animate-spin text-xs" />
+                        : <i className="fa-solid fa-trash text-xs" />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {errorArchivo && (
+              <p className="text-xs text-red-600 mb-2">
+                <i className="fa-solid fa-triangle-exclamation mr-1" />{errorArchivo}
+              </p>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+              className="hidden"
+              onChange={handleSubir}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={subiendo}
+              className="btn-outline text-sm"
+            >
+              {subiendo
+                ? <><i className="fa-solid fa-spinner animate-spin mr-2" />Subiendo...</>
+                : <><i className="fa-solid fa-cloud-arrow-up mr-2" />Agregar archivo</>}
+            </button>
+            <p className="text-xs text-text-secondary mt-1">JPG, PNG, WEBP, GIF, PDF · Máx. 10 MB por archivo</p>
+          </Section>
 
           {evento.fechaCreacion && (
             <p className="text-xs text-text-secondary text-right">
