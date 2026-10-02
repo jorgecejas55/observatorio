@@ -107,6 +107,7 @@ export const EventoSchema = z.object({
   inversionGenerador: campo,
   recaudacion: campo,
   observaciones: campoLargo,
+  archivos_drive: z.string().optional().default(''),
 })
 
 // ─── Ingresos a Atractivos (Casa de la Puna / Pueblo Perdido) ────────────────

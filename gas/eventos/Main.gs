@@ -27,10 +27,6 @@ function doGet(e) {
       return returnJSON({ success: true, data: getSheetData(SHEETS.EVENTOS) });
     }
 
-    if (action === 'login') {
-      return returnJSON(handleLogin(params.email, params.password));
-    }
-
     if (action === 'getDashboardEventos') {
       return handleDashboardEventos(params);
     }
@@ -69,8 +65,13 @@ function doPost(e) {
       return returnJSON({ success: true, message: 'Eliminado' });
     }
 
-    if (action === 'createUser') {
-      return returnJSON({ success: true, data: createRow(SHEETS.USUARIOS, params.data) });
+    if (action === 'subirArchivo') {
+      var archivo = subirArchivoEvento(params.eventoId, params.base64, params.mimeType, params.nombre);
+      return returnJSON({ success: true, data: archivo });
+    }
+
+    if (action === 'eliminarArchivo') {
+      return returnJSON(eliminarArchivoEvento(params.fileId));
     }
 
     return returnJSON({ success: false, message: 'Acción POST no reconocida' });

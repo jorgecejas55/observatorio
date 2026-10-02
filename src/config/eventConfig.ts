@@ -82,6 +82,14 @@ export interface Evento {
   fechaCreacion: string
   modificadoPor: string
   fechaModificacion: string
+  // Material gráfico (JSON array serializado de ArchivoEvento[])
+  archivos_drive?: string
+}
+
+export interface ArchivoEvento {
+  fileId: string
+  url: string
+  nombre: string
 }
 
 export const EVENTO_VACIO: Omit<Evento, 'id' | 'creadoPor' | 'fechaCreacion' | 'modificadoPor' | 'fechaModificacion'> = {

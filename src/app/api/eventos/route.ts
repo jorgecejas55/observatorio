@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { EventoSchema } from '@/lib/schemas'
+import { requireAcceso, requireEscritura } from '@/lib/permisos'
 
 const GAS = process.env.EVENTOS_SCRIPT_URL ?? ''
 
-// Conversión camelCase → snake_case para el backend GAS
 function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
   const map: Record<string, string> = {
     tipoSede: 'tipo_sede', fechaInicio: 'fecha_inicio', fechaFin: 'fecha_fin',
@@ -24,7 +24,6 @@ function toSnake(obj: Record<string, unknown>): Record<string, unknown> {
   return result
 }
 
-// Mismo workaround que el proyecto original: Content-Type text/plain para evitar CORS preflight
 async function gasPost(body: object) {
   const res = await fetch(GAS, {
     method: 'POST',
@@ -34,25 +33,19 @@ async function gasPost(body: object) {
   return res.json()
 }
 
-// Helper: extraer email del usuario desde el body
-function extractUserEmail(data: any): string {
-  return data._userEmail || 'sistema'
-}
+export async function GET(req: Request) {
+  const session = await requireAcceso('eventos')
+  if (session instanceof NextResponse) return session
 
-// GET /api/eventos — trae todos los eventos ordenados por fecha_inicio descendente
-export async function GET() {
   try {
     const url = new URL(GAS)
     url.searchParams.set('action', 'getEventos')
     const res = await fetch(url.toString(), { next: { revalidate: 0 } })
     const response = await res.json()
 
-    // Ordenar eventos por fecha_inicio descendente (más recientes primero)
     if (response.success && Array.isArray(response.data)) {
-      response.data.sort((a: any, b: any) => {
-        const fechaA = a.fecha_inicio || ''
-        const fechaB = b.fecha_inicio || ''
-        return fechaB.localeCompare(fechaA) // Descendente
+      response.data.sort((a: Record<string, string>, b: Record<string, string>) => {
+        return (b.fecha_inicio || '').localeCompare(a.fecha_inicio || '')
       })
     }
 
@@ -63,26 +56,24 @@ export async function GET() {
   }
 }
 
-// POST /api/eventos — crea un evento con campos de auditoría
 export async function POST(req: Request) {
+  const session = await requireEscritura('eventos')
+  if (session instanceof NextResponse) return session
+
   try {
     const body = await req.json()
-    const parsed = EventoSchema.safeParse(body)
+    // Descartar _userEmail si el cliente lo manda por compatibilidad
+    const { _userEmail: _, ...bodyClean } = body
+    const parsed = EventoSchema.safeParse(bodyClean)
     if (!parsed.success) {
       return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 })
     }
 
-    // Extraer email del usuario
-    const userEmail = extractUserEmail(parsed.data)
-
-    // Eliminar campo temporal _userEmail
-    const { _userEmail, ...cleanData } = parsed.data
-
-    // Agregar campos de auditoría al crear
+    const userEmail = session.user?.email ?? 'sistema'
     const now = new Date().toISOString()
 
     const dataWithAudit = toSnake({
-      ...cleanData,
+      ...parsed.data,
       creadoPor: userEmail,
       fechaCreacion: now,
       modificadoPor: userEmail,

@@ -1,6 +1,6 @@
-import { requireSesion } from '@/lib/permisos'
+import { requireAccesoPage } from '@/lib/permisos'
 
 export default async function RegistroEventoLayout({ children }: { children: React.ReactNode }) {
-  await requireSesion()
+  await requireAccesoPage('eventos')
   return children
 }

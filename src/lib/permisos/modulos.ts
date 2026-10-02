@@ -40,6 +40,10 @@ export const MODULOS = {
     label: 'Configuración',
     rutas: ['/admin/config'],
   },
+  'eventos': {
+    label: 'Registro de Eventos',
+    rutas: ['/eventos/registro', '/api/eventos'],
+  },
 } as const
 
 export type ModuloKey = keyof typeof MODULOS

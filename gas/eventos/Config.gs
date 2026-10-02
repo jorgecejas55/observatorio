@@ -19,6 +19,9 @@ var SHEETS = {
   CONFIG: 'config'
 };
 
+// Carpeta raíz en Drive donde se crean las subcarpetas por evento
+var DRIVE_FOLDER_ID = '16j99mQ02KJ5kniyKyPx-NdYnOie5FBfi';
+
 /** Respuesta JSON estándar. */
 function returnJSON(object) {
   return ContentService
