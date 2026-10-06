@@ -28,7 +28,7 @@ function getClient() {
     }
     // El GAS en frío tarda ~9 s (medido 30/09/2026); con el default de 3,5 s
     // la consulta de permisos fallaba y el usuario perdía sus módulos.
-    _client = createGasClient(url, apiKey, { getTimeoutMs: 15000 })
+    _client = createGasClient(url, apiKey, { getTimeoutMs: 15000, postTimeoutMs: 15000 })
   }
   return _client
 }

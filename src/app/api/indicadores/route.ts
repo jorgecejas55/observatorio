@@ -17,7 +17,7 @@ function calcPromedio(lista: IndicadorMensual[]): PromedioAnual {
 
 export async function GET() {
   try {
-    const data = await fetchGoogleSheet(SHEET_ID, SHEET_NAME, 300)
+    const data = await fetchGoogleSheet(SHEET_ID, SHEET_NAME, 300, 'indicadores-mensual')
 
     // Columnas D, E, G, H (variaciones) se ignoran: se recalculan en código
     const valores = (data.table?.rows ?? []).map((row: any) => ({

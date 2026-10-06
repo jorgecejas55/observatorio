@@ -37,6 +37,7 @@ export default function PanelPublicacion({ informe, onPublicado, onError }: Prop
       })
       const json = await res.json().catch(() => ({}))
       if (!json.success) {
+        setAbierto(false)
         onError(json.error ?? 'No se pudo publicar el informe')
         return
       }

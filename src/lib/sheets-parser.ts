@@ -22,11 +22,15 @@ export function parseGoogleSheetsJSON(text: string): any {
 export async function fetchGoogleSheet(
   sheetId: string,
   sheetName: string,
-  revalidate = 300
+  revalidate = 300,
+  tag?: string
 ): Promise<any> {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`
 
-  const response = await fetch(url, { next: { revalidate } })
+  const nextOptions = tag
+    ? { revalidate, tags: [tag] }
+    : { revalidate }
+  const response = await fetch(url, { next: nextOptions, signal: AbortSignal.timeout(9000) })
 
   if (!response.ok) {
     throw new Error(`Error al obtener datos de Google Sheets: ${response.statusText}`)
