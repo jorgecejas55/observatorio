@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import {
   ComposedChart, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -87,8 +87,12 @@ export default function DashboardPage() {
   const [datosFindes, setDatosFindes] = useState<DatosAPIFindes | null>(null)
   const [datosAtractivos, setDatosAtractivos] = useState<{ historico: IndicadorAtractivo[] } | null>(null)
   const [cargando, setCargando] = useState(true)
+  const [cargandoAtractivos, setCargandoAtractivos] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorAtractivos, setErrorAtractivos] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('mensual')
+  // Evita llamar a /atractivos más de una vez por sesión
+  const atractivosFetched = useRef(false)
 
   // Filtros — Mensual
   const [anoGraficoOH, setAnoGraficoOH] = useState('todos')
@@ -128,25 +132,23 @@ export default function DashboardPage() {
     })
   }
 
+  // Carga mensual + findes al montar (rápidos: Google Sheets gviz con caché 300s)
   useEffect(() => {
     const controller = new AbortController()
 
     const cargar = async () => {
       try {
         setCargando(true)
-        const [resMensual, resFindes, resAtractivos] = await Promise.all([
+        const [resMensual, resFindes] = await Promise.all([
           fetch('/api/indicadores', { signal: controller.signal }),
           fetch('/api/indicadores/findes', { signal: controller.signal }),
-          fetch('/api/indicadores/atractivos', { signal: controller.signal }),
         ])
-        const [dataMensual, dataFindes, dataAtractivos] = await Promise.all([
+        const [dataMensual, dataFindes] = await Promise.all([
           resMensual.json(),
           resFindes.json(),
-          resAtractivos.json(),
         ])
         if (dataMensual.success) setDatos(dataMensual)
         if (dataFindes.success) setDatosFindes(dataFindes)
-        if (dataAtractivos.success) setDatosAtractivos(dataAtractivos)
         setError(null)
       } catch (err: any) {
         if (err.name !== 'AbortError') {
@@ -166,6 +168,29 @@ export default function DashboardPage() {
       clearInterval(intervalo)
     }
   }, [])
+
+  // Atractivos: carga diferida — solo cuando el usuario abre esa pestaña por primera vez
+  useEffect(() => {
+    if (activeTab !== 'atractivos' || atractivosFetched.current) return
+    atractivosFetched.current = true
+
+    const cargar = async () => {
+      try {
+        setCargandoAtractivos(true)
+        setErrorAtractivos(null)
+        const res = await fetch('/api/indicadores/atractivos')
+        const data = await res.json()
+        if (data.success) setDatosAtractivos(data)
+        else setErrorAtractivos(data.error ?? 'Error al cargar atractivos')
+      } catch {
+        setErrorAtractivos('No se pudieron cargar los datos de atractivos')
+      } finally {
+        setCargandoAtractivos(false)
+      }
+    }
+
+    cargar()
+  }, [activeTab])
 
   // ── Años disponibles ─────────────────────────────────────────────────────
 
@@ -548,6 +573,9 @@ export default function DashboardPage() {
                 </h4>
                 <div className="mt-2 flex flex-col gap-0.5">
                   <span className="text-xs text-text-secondary">
+                    Estadía: {datosFindes.resumen2024.promedio_estadia.toFixed(1)} días
+                  </span>
+                  <span className="text-xs text-text-secondary">
                     {datosFindes.resumen2024.cantidad_findes} Fines de Semana y Eventos
                   </span>
                   <span className="text-xs text-gray-400">
@@ -561,6 +589,9 @@ export default function DashboardPage() {
                   {datosFindes.resumen2025.promedio_oh.toFixed(1)}%
                 </h4>
                 <div className="mt-2 flex flex-col gap-0.5">
+                  <span className="text-xs text-text-secondary">
+                    Estadía: {datosFindes.resumen2025.promedio_estadia.toFixed(1)} días
+                  </span>
                   <span className="text-xs text-text-secondary">
                     {datosFindes.resumen2025.cantidad_findes} Fines de Semana y Eventos
                   </span>
@@ -576,6 +607,9 @@ export default function DashboardPage() {
                     {datosFindes.resumen2026.promedio_oh.toFixed(1)}%
                   </h4>
                   <div className="mt-2 flex flex-col gap-0.5">
+                    <span className="text-xs text-text-secondary">
+                      Estadía: {datosFindes.resumen2026.promedio_estadia.toFixed(1)} días
+                    </span>
                     <span className="text-xs text-text-secondary">
                       {datosFindes.resumen2026.cantidad_findes} Fines de Semana y Eventos
                     </span>
@@ -701,7 +735,24 @@ export default function DashboardPage() {
 
       {/* ── PESTAÑA: ATRACTIVOS ───────────────────────────────────────────── */}
       {activeTab === 'atractivos' && (
-        datosAtractivos ? (
+        cargandoAtractivos ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-text-secondary">
+            <i className="fa-solid fa-spinner fa-spin text-3xl text-primary" />
+            <p className="text-sm">Cargando datos de atractivos...</p>
+            <p className="text-xs text-gray-400">Puede tardar unos segundos la primera vez</p>
+          </div>
+        ) : errorAtractivos ? (
+          <div className="card p-8 text-center">
+            <i className="fa-solid fa-triangle-exclamation text-red-500 text-3xl mb-4 block" />
+            <p className="text-red-700 font-medium text-sm">{errorAtractivos}</p>
+            <button
+              onClick={() => { atractivosFetched.current = false; setActiveTab('mensual'); setTimeout(() => setActiveTab('atractivos'), 0) }}
+              className="btn-ghost text-primary mt-4 text-sm"
+            >
+              <i className="fa-solid fa-rotate-right" /> Reintentar
+            </button>
+          </div>
+        ) : datosAtractivos ? (
           <>
             {/* Gráfico líneas multi-serie */}
             <div className="card p-5 md:p-6 mb-5">
@@ -748,12 +799,7 @@ export default function DashboardPage() {
 
             <TablaAtractivos historico={datosAtractivos.historico} />
           </>
-        ) : (
-          <div className="card p-8 text-center text-text-secondary">
-            <i className="fa-solid fa-circle-exclamation text-2xl mb-3 block" />
-            No hay datos de atractivos disponibles
-          </div>
-        )
+        ) : null
       )}
     </div>
   )

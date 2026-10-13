@@ -36,6 +36,7 @@ export interface IndicadorFinde {
 
 export interface ResumenFindes {
   promedio_oh: number
+  promedio_estadia: number
   total_visitantes: number
   cantidad_findes: number
 }

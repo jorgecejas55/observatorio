@@ -155,12 +155,17 @@ function upsertFinde(data) {
   if (!data.anio || !data.evento) throw new Error('Faltan campos: anio, evento.')
 
   var slugNuevo = slug(data.evento)
+  // Si se pasa eventoAnterior, se busca también por el slug viejo (renombrado)
+  var slugAnterior = data.eventoAnterior ? slug(String(data.eventoAnterior)) : null
+
   var valores = sheet.getDataRange().getValues()
   var filaExistente = -1
 
   for (var i = 1; i < valores.length; i++) {
     var anioFila = Number(valores[i][0])
-    if (anioFila === Number(data.anio) && slug(String(valores[i][2])) === slugNuevo) {
+    var slugFila = slug(String(valores[i][2]))
+    var mismoAnio = anioFila === Number(data.anio)
+    if (mismoAnio && (slugFila === slugNuevo || (slugAnterior && slugFila === slugAnterior))) {
       filaExistente = i + 1
       break
     }
@@ -168,6 +173,7 @@ function upsertFinde(data) {
 
   if (filaExistente !== -1) {
     sheet.getRange(filaExistente, 2).setValue(data.mes)          // B — MES
+    sheet.getRange(filaExistente, 3).setValue(data.evento)       // C — EVENTO (permite renombrar)
     sheet.getRange(filaExistente, 4).setValue(data.oh)           // D — OH
     sheet.getRange(filaExistente, 5).setValue(data.estadiaProm)  // E — ESTADÍA
     sheet.getRange(filaExistente, 6).setValue(data.visitantes)   // F — VISITANTES

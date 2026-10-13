@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireAcceso, requireEscritura } from '@/lib/permisos'
 import { guardarInforme, obtenerInforme } from '@/lib/informes-auto/gas'
-import { empujarAPlanillaMaestra } from '@/lib/informes-auto/empuje'
+import { empujarAPlanillaMaestra, empujarRenombreFinde } from '@/lib/informes-auto/empuje'
 import { valoresParaMaestra } from '@/lib/informes-auto/publicacion'
 import { TAG_INFORMES_PUBLICOS } from '@/lib/informes-auto/publicos'
 
@@ -49,12 +49,59 @@ export async function PATCH(
 
   const { id } = await params
 
-  let body: { accion?: string }
+  let body: { accion?: string; nombreNuevo?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Cuerpo JSON inválido' }, { status: 400 })
   }
+
+  if (body.accion === 'renombrar') {
+    const nombreNuevo = body.nombreNuevo?.trim()
+    if (!nombreNuevo) {
+      return NextResponse.json({ error: 'El nombre no puede estar vacío' }, { status: 400 })
+    }
+
+    try {
+      const guardado = await obtenerInforme(id)
+      if (!guardado) {
+        return NextResponse.json({ error: 'Informe no encontrado' }, { status: 404 })
+      }
+      const informe = guardado.datos
+
+      if (informe.nombre === nombreNuevo) {
+        return NextResponse.json({ success: true, data: informe })
+      }
+
+      // Si está publicado y es FSL/EVENTO, actualizar también la planilla maestra
+      const tipo = informe.tipoInforme ?? 'FSL'
+      if (informe.estado === 'publicado' && tipo !== 'MENSUAL' && informe.publicacion) {
+        const empuje = await empujarRenombreFinde(informe, nombreNuevo)
+        if (!empuje.ok) {
+          return NextResponse.json(
+            { error: `No se pudo actualizar el nombre en el dashboard: ${empuje.error}` },
+            { status: 502 }
+          )
+        }
+        informe.publicacion.valores.evento = nombreNuevo
+      }
+
+      informe.nombre = nombreNuevo
+
+      const persistencia = await guardarInforme(informe)
+      if (!persistencia.success) {
+        return NextResponse.json({ error: 'No se pudo guardar el nuevo nombre' }, { status: 502 })
+      }
+
+      revalidateTag(TAG_INFORMES_PUBLICOS)
+      revalidatePath('/informes/ocio')
+      return NextResponse.json({ success: true, data: informe })
+    } catch (error) {
+      console.error('[informes-auto] renombrar:', error)
+      return NextResponse.json({ error: 'Error al renombrar el informe' }, { status: 500 })
+    }
+  }
+
   if (body.accion !== 'publicar') {
     return NextResponse.json({ error: 'Acción no válida' }, { status: 400 })
   }

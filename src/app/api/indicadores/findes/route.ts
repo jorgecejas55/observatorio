@@ -8,6 +8,7 @@ const SHEET_NAME = 'indicadores_findes'
 function resumen(lista: IndicadorFinde[]): ResumenFindes {
   return {
     promedio_oh: lista.length > 0 ? lista.reduce((s, i) => s + i.oh, 0) / lista.length : 0,
+    promedio_estadia: lista.length > 0 ? lista.reduce((s, i) => s + i.estadia_prom, 0) / lista.length : 0,
     total_visitantes: lista.reduce((s, i) => s + i.visitantes, 0),
     cantidad_findes: lista.length,
   }

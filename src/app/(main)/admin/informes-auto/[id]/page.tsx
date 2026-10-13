@@ -19,6 +19,9 @@ export default function InformeAutoDetallePage() {
   const [error, setError] = useState('')
   const [toast, setToast] = useState<{ mensaje: string; tipo: 'success' | 'error' } | null>(null)
   const [recalculando, setRecalculando] = useState(false)
+  const [modalRenombrar, setModalRenombrar] = useState(false)
+  const [nombreNuevo, setNombreNuevo] = useState('')
+  const [guardandoNombre, setGuardandoNombre] = useState(false)
 
   useEffect(() => {
     // Intentar cargar de sessionStorage (datos de la generación)
@@ -97,6 +100,38 @@ export default function InformeAutoDetallePage() {
   // ── Acciones ──
   const exportarPDF = () => window.print()
 
+  const abrirRenombrar = () => {
+    setNombreNuevo(informe?.nombre ?? '')
+    setModalRenombrar(true)
+  }
+
+  const renombrarInforme = async () => {
+    if (!nombreNuevo.trim() || !informe) return
+    setGuardandoNombre(true)
+    try {
+      const res = await fetch(`/api/informes-auto/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'renombrar', nombreNuevo: nombreNuevo.trim() }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (json.success && json.data) {
+        setInforme(json.data)
+        sessionStorage.setItem(`informe_${id}`, JSON.stringify(json.data))
+        setModalRenombrar(false)
+        setToast({ mensaje: 'Nombre actualizado', tipo: 'success' })
+      } else {
+        setToast({ mensaje: json.error ?? 'No se pudo renombrar', tipo: 'error' })
+        setModalRenombrar(false)
+      }
+    } catch {
+      setToast({ mensaje: 'Error de conexión al renombrar', tipo: 'error' })
+      setModalRenombrar(false)
+    } finally {
+      setGuardandoNombre(false)
+    }
+  }
+
   const recalcularDatos = async () => {
     setRecalculando(true)
     try {
@@ -134,6 +169,14 @@ export default function InformeAutoDetallePage() {
         </button>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={abrirRenombrar}
+            title="Cambia el nombre del informe. El enlace público y el id se conservan."
+            className="btn-outline text-sm flex items-center gap-1.5"
+          >
+            <i className="fa-solid fa-pen" />
+            Cambiar nombre
+          </button>
           <button
             onClick={recalcularDatos}
             disabled={recalculando}
@@ -176,6 +219,44 @@ export default function InformeAutoDetallePage() {
       )}
 
       <InformeAutoVista informe={informe} />
+
+      {/* ── MODAL CAMBIAR NOMBRE ── */}
+      {modalRenombrar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-base font-semibold text-text-primary mb-1">Cambiar nombre del informe</h3>
+            <p className="text-xs text-text-secondary mb-4">
+              El id y el enlace público se conservan sin cambios.
+            </p>
+            <input
+              type="text"
+              value={nombreNuevo}
+              onChange={e => setNombreNuevo(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') renombrarInforme() }}
+              className="input w-full mb-5"
+              placeholder="Nombre del informe"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setModalRenombrar(false)}
+                disabled={guardandoNombre}
+                className="btn-outline text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={renombrarInforme}
+                disabled={guardandoNombre || !nombreNuevo.trim() || nombreNuevo.trim() === informe.nombre}
+                className="btn-primary text-sm flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <i className={`fa-solid ${guardandoNombre ? 'fa-spinner fa-spin' : 'fa-check'}`} />
+                {guardandoNombre ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )
