@@ -328,16 +328,9 @@ function EventoAutocomplete({ value, onChange, error }: {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch('/api/eventos')
+    fetch('/api/eventos/nombres')
       .then(r => r.json())
-      .then(data => {
-        const lista: { denominacion?: string }[] = Array.isArray(data) ? data : (data.data ?? [])
-        // Deduplicar por nombre para evitar claves repetidas en el dropdown
-        const nombres = [...new Set(
-          lista.map(e => e.denominacion ?? '').filter(Boolean)
-        )]
-        setOpciones(nombres)
-      })
+      .then(data => setOpciones(data.nombres ?? []))
       .catch(() => {})
   }, [])
 
@@ -463,7 +456,6 @@ export default function EncuestaDemandaEventoPage() {
   function validar(): boolean {
     const e: Errores = {}
 
-    if (!form.evento.trim())   e.evento      = 'Ingresá el nombre del evento.'
     if (!form.procedencia)    e.procedencia = 'Seleccioná una opción.'
     if (!form.tipoParticipante)     e.tipoParticipante   = 'Seleccioná una opción.'
     if (esInternacional && !form.paisOrigen)          e.paisOrigen         = 'Seleccioná el país.'
@@ -622,8 +614,8 @@ export default function EncuestaDemandaEventoPage() {
             <CampoAutomatico label="Fecha" value={fechaHoy} />
             <CampoAutomatico label="Responsable de carga" value={encuestador} loading={cargandoSesion} />
           </div>
-          <Field label="Evento" required
-            hint="Escribí el nombre y seleccioná de los eventos registrados."
+          <Field label="Evento"
+            hint="Escribí el nombre y seleccioná de los eventos registrados (opcional)."
             error={errores.evento}>
             <EventoAutocomplete
               value={form.evento}

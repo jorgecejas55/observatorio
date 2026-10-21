@@ -72,6 +72,7 @@ export default function UsuariosClient() {
   const [form, setForm] = useState<FormData>(FORM_VACIO)
   const [guardando, setGuardando] = useState(false)
   const [filterActivos, setFilterActivos] = useState<'todos' | 'activos' | 'inactivos'>('todos')
+  const [busqueda, setBusqueda] = useState('')
 
   // ── Cargar usuarios ──
   const cargarUsuarios = useCallback(async () => {
@@ -182,8 +183,12 @@ export default function UsuariosClient() {
 
   // ── Filtrado ──
   const usuariosFiltrados = usuarios.filter((u) => {
-    if (filterActivos === 'activos') return u.activo
-    if (filterActivos === 'inactivos') return !u.activo
+    if (filterActivos === 'activos' && !u.activo) return false
+    if (filterActivos === 'inactivos' && u.activo) return false
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase()
+      return u.email.toLowerCase().includes(q) || (u.nombre || '').toLowerCase().includes(q)
+    }
     return true
   })
 
@@ -218,9 +223,18 @@ export default function UsuariosClient() {
         />
       )}
 
+      {/* Aviso de JWT */}
+      <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <i className="fa-solid fa-clock-rotate-left mt-0.5 flex-shrink-0 text-amber-500" />
+        <span>
+          Los cambios de permisos se aplican automáticamente en hasta 10 minutos.
+          Para aplicarlos de inmediato, pedile al usuario que cierre sesión y vuelva a entrar.
+        </span>
+      </div>
+
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+        <div className="flex gap-2 flex-wrap">
           {(['todos', 'activos', 'inactivos'] as const).map((filtro) => (
             <button
               key={filtro}
@@ -234,6 +248,25 @@ export default function UsuariosClient() {
               {filtro === 'todos' ? 'Todos' : filtro === 'activos' ? 'Activos' : 'Inactivos'}
             </button>
           ))}
+        </div>
+        <div className="relative flex-1 min-w-[180px]">
+          <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por email o nombre..."
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <i className="fa-solid fa-xmark text-xs" />
+            </button>
+          )}
         </div>
         {escribir && (
           <Button onClick={abrirNuevo}>
