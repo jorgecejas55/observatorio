@@ -42,7 +42,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: '/estadisticas/perfil-visitante', label: 'Perfil del visitante', icon: 'fa-chart-bar' },
       { href: '/estadisticas/eventos', label: 'Dashboard de eventos', icon: 'fa-calendar-check' },
-      { href: '/estadisticas/digital', label: 'Dashboard digital', icon: 'fa-chart-line' },
+      { href: '/estadisticas/digital', label: 'Canales digitales', icon: 'fa-chart-line' },
     ],
   },
   {

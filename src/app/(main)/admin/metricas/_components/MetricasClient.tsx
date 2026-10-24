@@ -198,8 +198,19 @@ export default function MetricasClient() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
-      <h1 className="text-3xl font-black text-text-primary mb-2">Métricas Digitales</h1>
-      <p className="text-text-secondary mb-8 font-medium">Carga y gestión de indicadores mensuales de canales digitales.</p>
+      <div className="flex items-start justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-black text-text-primary mb-2">Cargar métricas</h1>
+          <p className="text-text-secondary font-medium">Carga y gestión de indicadores mensuales de canales digitales.</p>
+        </div>
+        <a
+          href="/estadisticas/digital"
+          className="btn btn-secondary flex items-center gap-2 whitespace-nowrap"
+        >
+          <i className="fa-solid fa-chart-line text-sm" />
+          Ver datos
+        </a>
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-8 bg-gray-100 p-1 rounded-xl w-fit">
@@ -252,7 +263,10 @@ export default function MetricasClient() {
                     {formData.regiones.map((r: any, i: number) => (
                       <div key={i} className="flex gap-2 mb-2">
                         <input className="input text-xs flex-grow" placeholder="Región" value={r.region} onChange={(e) => handleDynamicChange('regiones', i, 'region', e.target.value)} />
-                        <input className="input text-xs w-20" type="number" placeholder="Visitas" value={r.visitas} onChange={(e) => handleDynamicChange('regiones', i, 'visitas', e.target.value)} />
+                        <div className="flex items-center gap-1">
+                          <input className="input text-xs w-16" type="number" min="0" max="100" placeholder="0" value={r.visitas} onChange={(e) => handleDynamicChange('regiones', i, 'visitas', e.target.value)} />
+                          <span className="text-sm text-gray-500 font-medium">%</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -264,8 +278,11 @@ export default function MetricasClient() {
                     </div>
                     {formData.fuentes.map((f: any, i: number) => (
                       <div key={i} className="flex gap-2 mb-2">
-                        <input className="input text-xs flex-grow" placeholder="Fuente" value={f.fuente} onChange={(e) => handleDynamicChange('fuentes', i, 'fuente', e.target.value)} />
-                        <input className="input text-xs w-20" type="number" placeholder="Visitas" value={f.visitas} onChange={(e) => handleDynamicChange('fuentes', i, 'visitas', e.target.value)} />
+                        <input className="input text-xs flex-grow" placeholder="Fuente (ej: Orgánico)" value={f.fuente} onChange={(e) => handleDynamicChange('fuentes', i, 'fuente', e.target.value)} />
+                        <div className="flex items-center gap-1">
+                          <input className="input text-xs w-16" type="number" min="0" max="100" placeholder="0" value={f.visitas} onChange={(e) => handleDynamicChange('fuentes', i, 'visitas', e.target.value)} />
+                          <span className="text-sm text-gray-500 font-medium">%</span>
+                        </div>
                       </div>
                     ))}
                   </div>

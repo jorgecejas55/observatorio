@@ -5,6 +5,7 @@ interface KPICardProps {
   variacion?: number // % positivo o negativo
   icono: string
   color?: string
+  subtitulo?: string
 }
 
 export default function KPICard({
@@ -14,6 +15,7 @@ export default function KPICard({
   variacion,
   icono,
   color = 'text-primary',
+  subtitulo,
 }: KPICardProps) {
   const variacionPositiva = variacion !== undefined && variacion >= 0
 
@@ -21,7 +23,7 @@ export default function KPICard({
     <div className="card p-6 card-hover">
       <div className="flex items-start justify-between mb-4">
         <div className={`w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center ${color}`}>
-          <i className={`fa-solid ${icono} text-xl`} />
+          <i className={`${icono.includes(' ') ? '' : 'fa-solid '}${icono} text-xl`} />
         </div>
         {variacion !== undefined && (
           <span
@@ -37,6 +39,12 @@ export default function KPICard({
         {typeof valor === 'number' ? valor.toLocaleString('es-AR') : valor}
         {unidad && <span className="text-base font-normal text-text-secondary ml-1">{unidad}</span>}
       </p>
+      {subtitulo && (
+        <p className="text-xs text-text-secondary mt-1 flex items-center gap-1">
+          <i className="fa-solid fa-calendar-day text-[10px] opacity-60" />
+          {subtitulo}
+        </p>
+      )}
     </div>
   )
 }

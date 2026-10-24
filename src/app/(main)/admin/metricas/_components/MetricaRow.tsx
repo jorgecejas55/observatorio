@@ -88,7 +88,7 @@ function DetalleCanal({ canal, registro }: { canal: CanalDigital; registro: any 
                 {regiones.map((r: any, i: number) => (
                   <tr key={i}>
                     <td className="py-2 pr-4">{r.region}</td>
-                    <td className="py-2 text-right font-medium">{Number(r.visitas || 0).toLocaleString('es-AR')}</td>
+                    <td className="py-2 text-right font-medium">{Number(r.visitas || 0)}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -105,7 +105,7 @@ function DetalleCanal({ canal, registro }: { canal: CanalDigital; registro: any 
                 {fuentes.map((f: any, i: number) => (
                   <tr key={i}>
                     <td className="py-2 pr-4">{f.fuente}</td>
-                    <td className="py-2 text-right font-medium">{Number(f.visitas || 0).toLocaleString('es-AR')}</td>
+                    <td className="py-2 text-right font-medium">{Number(f.visitas || 0)}%</td>
                   </tr>
                 ))}
               </tbody>
