@@ -50,6 +50,7 @@ export interface UsuarioAdmin {
   rol: string
   modulos: string[]
   activo: boolean
+  tienePassword: boolean
   createdAt: string
   updatedAt: string
 }
@@ -164,6 +165,7 @@ export async function getUsuariosAdmin(): Promise<UsuarioAdmin[]> {
     rol: String(u.Rol ?? u.rol ?? 'operador'),
     modulos: (Array.isArray(u.Modulos) ? u.Modulos : Array.isArray(u.modulos) ? u.modulos : []) as string[],
     activo: (u.Activo ?? u.activo) === true || String(u.Activo ?? u.activo).toUpperCase() === 'TRUE',
+    tienePassword: (u.TienePassword ?? u.tienePassword) === true || String(u.TienePassword ?? u.tienePassword ?? '').toUpperCase() === 'TRUE',
     createdAt: String(u.CreatedAt ?? u.createdAt ?? ''),
     updatedAt: String(u.UpdatedAt ?? u.updatedAt ?? ''),
   }))
@@ -203,4 +205,41 @@ export async function desactivarUsuarioAdmin(email: string, actorEmail: string) 
 /** Limpia toda la caché (útil para tests o force-reload) */
 export function clearPermisosCache() {
   cache.clear()
+}
+
+// ── Contraseñas (flujo Credentials) ─────────────────────────────────────────────
+
+/**
+ * Devuelve el bcrypt hash almacenado para un email.
+ * String vacío = sin contraseña configurada.
+ * Solo llamar desde el proveedor Credentials de auth.ts.
+ */
+export async function getPasswordHashFromGas(email: string): Promise<string> {
+  const emailNorm = normalizarEmail(email)
+  if (!emailNorm || !isObsAdminConfigured()) return ''
+
+  try {
+    const client = getClient()
+    const json = await client.get('usuarios/get-password-hash', { email: emailNorm })
+    if (!json.success || !json.data) return ''
+    return String(json.data.hash || '')
+  } catch (error) {
+    console.error('[obs-admin] Error obteniendo hash para', emailNorm, error)
+    return ''
+  }
+}
+
+/**
+ * Guarda el bcrypt hash de contraseña para un usuario.
+ * El hash ya viene procesado desde Next.js con bcryptjs.
+ */
+export async function setPasswordAdmin(email: string, passwordHash: string, actorEmail: string) {
+  const client = getClient()
+  const json = await client.post('usuarios/set-password', {
+    email: normalizarEmail(email),
+    passwordHash,
+    actorEmail,
+  })
+  if (!json.success) throw new Error(json.error || 'Error al guardar contraseña')
+  return json
 }

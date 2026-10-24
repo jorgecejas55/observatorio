@@ -18,6 +18,7 @@ interface Usuario {
   rol: string
   modulos: string[]
   activo: boolean
+  tienePassword?: boolean
 }
 
 interface FormData {
@@ -26,7 +27,9 @@ interface FormData {
   rol: Rol
   modulos: ModuloKey[]
   activo: boolean
-  oldEmail?: string // email original al editar (para cambio de email)
+  oldEmail?: string
+  password?: string
+  sinGoogle?: boolean
 }
 
 const FORM_VACIO: FormData = {
@@ -35,6 +38,7 @@ const FORM_VACIO: FormData = {
   rol: 'operador',
   modulos: [],
   activo: true,
+  sinGoogle: false,
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
@@ -55,14 +59,14 @@ function rolLabel(rol: string) {
 
 // ── Componente ──────────────────────────────────────────────────────────────────
 
-export default function UsuariosClient() {
+export default function UsuariosClient({ initialData }: { initialData?: Usuario[] | null }) {
   // ── Sesión ──
   const { data: session } = useSession()
   const escribir = puedeEscribir(session?.user as SessionUser)
 
   // ── Estado ──
-  const [usuarios, setUsuarios] = useState<Usuario[]>([])
-  const [cargando, setCargando] = useState(true)
+  const [usuarios, setUsuarios] = useState<Usuario[]>(initialData ?? [])
+  const [cargando, setCargando] = useState(!initialData)
   const [error, setError] = useState('')
   const [toast, setToast] = useState<{ tipo: 'success' | 'error'; mensaje: string } | null>(null)
 
@@ -71,6 +75,8 @@ export default function UsuariosClient() {
   const [editando, setEditando] = useState(false)
   const [form, setForm] = useState<FormData>(FORM_VACIO)
   const [guardando, setGuardando] = useState(false)
+  const [mostrarPassword, setMostrarPassword] = useState(false)
+  const [cambiarPassword, setCambiarPassword] = useState(false)
   const [filterActivos, setFilterActivos] = useState<'todos' | 'activos' | 'inactivos'>('todos')
   const [busqueda, setBusqueda] = useState('')
 
@@ -89,14 +95,25 @@ export default function UsuariosClient() {
     }
   }, [])
 
+  // Si el servidor ya prefetcheó los datos, no volvemos a cargar en el mount inicial.
+  // cargarUsuarios() se sigue llamando después de cada mutación (guardar, toggle).
   useEffect(() => {
-    cargarUsuarios()
-  }, [cargarUsuarios])
+    if (!initialData) cargarUsuarios()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function generarPassword() {
+    const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$'
+    const pwd = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+    setForm((p) => ({ ...p, password: pwd }))
+  }
 
   // ── Abrir modal ──
   function abrirNuevo() {
     setForm(FORM_VACIO)
     setEditando(false)
+    setMostrarPassword(false)
+    setCambiarPassword(false)
     setModalAbierto(true)
   }
 
@@ -108,8 +125,12 @@ export default function UsuariosClient() {
       modulos: (usr.modulos || []) as ModuloKey[],
       activo: usr.activo,
       oldEmail: usr.email,
+      password: undefined,
+      sinGoogle: false,
     })
     setEditando(true)
+    setMostrarPassword(false)
+    setCambiarPassword(false)
     setModalAbierto(true)
   }
 
@@ -193,26 +214,6 @@ export default function UsuariosClient() {
   })
 
   // ── Render ──
-  if (cargando) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <i className="fa-solid fa-spinner fa-spin text-2xl text-primary" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="card p-8 text-center text-red-600">
-        <i className="fa-solid fa-triangle-exclamation text-3xl mb-3 block" />
-        <p>{error}</p>
-        <Button variant="outline" className="mt-4" onClick={cargarUsuarios}>
-          Reintentar
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <div>
       {toast && (
@@ -291,7 +292,29 @@ export default function UsuariosClient() {
               </tr>
             </thead>
             <tbody>
-              {usuariosFiltrados.length === 0 ? (
+              {cargando ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="border-b border-gray-100">
+                    {Array.from({ length: 6 }).map((_, j) => (
+                      <td key={j} className="px-4 py-3">
+                        <div className="h-4 bg-gray-100 rounded animate-pulse" style={{ width: j === 3 ? '80%' : j === 5 ? '40%' : '60%' }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center">
+                    <p className="text-red-600 text-sm mb-3">
+                      <i className="fa-solid fa-triangle-exclamation mr-1.5" />
+                      {error}
+                    </p>
+                    <Button variant="outline" onClick={cargarUsuarios}>
+                      Reintentar
+                    </Button>
+                  </td>
+                </tr>
+              ) : usuariosFiltrados.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
                     <i className="fa-solid fa-users-slash text-2xl block mb-2" />
@@ -306,7 +329,14 @@ export default function UsuariosClient() {
                       !usr.activo ? 'opacity-50' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-medium text-gray-800">{usr.email}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">
+                      <span>{usr.email}</span>
+                      {usr.tienePassword && (
+                        <span className="ml-1.5" title="Tiene contraseña local">
+                          <i className="fa-solid fa-key text-[10px] text-amber-500" />
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{usr.nombre || '—'}</td>
                     <td className="px-4 py-3">
                       <Badge color={rolColor(usr.rol)}>{rolLabel(usr.rol)}</Badge>
@@ -516,6 +546,78 @@ export default function UsuariosClient() {
                   />
                   <span className="text-sm text-gray-700">Usuario activo</span>
                 </label>
+
+                {/* Contraseña */}
+                <div className="border-t border-gray-100 pt-4">
+                  {!editando ? (
+                    <label className="flex items-center gap-3 cursor-pointer mb-3">
+                      <input
+                        type="checkbox"
+                        checked={!!form.sinGoogle}
+                        onChange={(e) => {
+                          setForm((p) => ({ ...p, sinGoogle: e.target.checked, password: e.target.checked ? p.password : undefined }))
+                        }}
+                        className="text-primary focus:ring-primary rounded"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Sin cuenta Google — asignar contraseña
+                        <span className="text-xs text-gray-400 ml-1">(puede entrar con email + contraseña)</span>
+                      </span>
+                    </label>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setCambiarPassword((v) => !v)}
+                      className="text-sm text-primary hover:underline mb-3 flex items-center gap-1.5"
+                    >
+                      <i className={`fa-solid fa-key text-xs`} />
+                      {cambiarPassword ? 'Cancelar cambio de contraseña' : 'Cambiar contraseña'}
+                    </button>
+                  )}
+
+                  {((!editando && form.sinGoogle) || (editando && cambiarPassword)) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Contraseña {!editando && <span className="text-red-500">*</span>}
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type={mostrarPassword ? 'text' : 'password'}
+                            value={form.password || ''}
+                            onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+                            required={!editando && !!form.sinGoogle}
+                            minLength={6}
+                            className="w-full px-3 py-2 pr-9 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none font-mono"
+                            placeholder="Mínimo 6 caracteres"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setMostrarPassword((v) => !v)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            <i className={`fa-solid text-xs ${mostrarPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={generarPassword}
+                          className="px-3 py-2 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600 whitespace-nowrap"
+                          title="Generar contraseña aleatoria"
+                        >
+                          <i className="fa-solid fa-shuffle mr-1" />
+                          Generar
+                        </button>
+                      </div>
+                      {form.password && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          <i className="fa-solid fa-info-circle mr-1" />
+                          Compartí esta contraseña con el usuario antes de guardar.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Footer */}

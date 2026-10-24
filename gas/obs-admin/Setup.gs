@@ -37,7 +37,8 @@ function setupObsAdmin() {
       'Modulos',
       'Activo',
       'CreatedAt',
-      'UpdatedAt'
+      'UpdatedAt',
+      'PasswordHash'
     ];
 
     wsUsuarios.appendRow(headersUsuarios);

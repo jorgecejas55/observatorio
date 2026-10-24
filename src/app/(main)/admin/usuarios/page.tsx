@@ -1,8 +1,19 @@
 import { requireAccesoPage } from '@/lib/permisos'
+import { getUsuariosAdmin } from '@/lib/permisos/obs-admin-service'
+import { conReintento } from '@/lib/reintento'
 import UsuariosClient from './UsuariosClient'
 
 export default async function UsuariosAdmin() {
   await requireAccesoPage('usuarios')
+
+  // Prefetch server-side: evita el round trip extra cliente→API→GAS.
+  // Si falla (GAS frío o caído), el cliente intenta de nuevo con su propio fetch.
+  let initialData = null
+  try {
+    initialData = await conReintento(() => getUsuariosAdmin())
+  } catch {
+    // silencioso — UsuariosClient hará su propio fetch y mostrará el error
+  }
 
   return (
     <div>
@@ -14,7 +25,7 @@ export default async function UsuariosAdmin() {
         Administrá quién accede a cada módulo del Observatorio. Los cambios aplican en la
         próxima sesión o en menos de 10 minutos.
       </p>
-      <UsuariosClient />
+      <UsuariosClient initialData={initialData} />
     </div>
   )
 }

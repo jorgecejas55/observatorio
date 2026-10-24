@@ -35,12 +35,16 @@ function csvToModulos(csv) {
 
 /**
  * Convierte una fila de Usuarios en objeto de respuesta (Modulos como array,
- * Activo como boolean).
+ * Activo como boolean). PasswordHash se omite del resultado público;
+ * en su lugar se expone TienePassword (boolean).
  */
 function usuarioRowToObject(headers, row) {
   var obj = rowToObject(headers, row);
   obj.Modulos = csvToModulos(String(obj.Modulos || ''));
   obj.Activo = String(obj.Activo).toUpperCase() === 'TRUE';
+  var hash = String(obj.PasswordHash || '').trim();
+  obj.TienePassword = hash.length > 0;
+  delete obj.PasswordHash;
   return obj;
 }
 
@@ -186,6 +190,70 @@ function desactivarUsuario(email, actorEmail) {
       logAudit(actor, 'usuario_desactivado', 'Desactivó ' + emailNorm);
 
       return { success: true, email: emailNorm, message: 'Usuario desactivado exitosamente' };
+    }
+  }
+
+  return { success: false, error: 'Usuario no encontrado: ' + emailNorm };
+}
+
+/**
+ * Devuelve el hash de contraseña almacenado para un email.
+ * Solo para uso interno del proveedor Credentials de Next.js.
+ * Nunca exponer este endpoint sin apiKey.
+ */
+function getPasswordHash(email) {
+  var emailNorm = normalizarEmail(email);
+  if (!emailNorm) {
+    return { success: false, error: 'Email requerido' };
+  }
+
+  var sheet = getSheet(CONFIG.SHEETS.USUARIOS);
+  var data = sheet.getDataRange().getValues();
+  var emailCol = CONFIG.COLS.USUARIOS.EMAIL;
+  var hashCol = CONFIG.COLS.USUARIOS.PASSWORD_HASH;
+
+  for (var i = 1; i < data.length; i++) {
+    if (normalizarEmail(String(data[i][emailCol])) === emailNorm) {
+      var hash = String(data[i][hashCol] || '').trim();
+      var activo = String(data[i][CONFIG.COLS.USUARIOS.ACTIVO]).toUpperCase() === 'TRUE';
+      if (!activo) {
+        return { success: false, error: 'Usuario inactivo' };
+      }
+      return { success: true, data: { hash: hash } };
+    }
+  }
+
+  return { success: true, data: { hash: '' } };
+}
+
+/**
+ * Guarda (o borra) el hash de contraseña para un email.
+ * data: { email, passwordHash, actorEmail }
+ * El hash debe venir ya procesado con bcrypt desde Next.js.
+ */
+function setPassword(data) {
+  var emailNorm = normalizarEmail(data.email);
+  if (!emailNorm) {
+    return { success: false, error: 'Email requerido' };
+  }
+
+  var actorEmail = normalizarEmail(data.actorEmail) || 'sistema';
+  var hash = String(data.passwordHash || '').trim();
+
+  var sheet = getSheet(CONFIG.SHEETS.USUARIOS);
+  var rows = sheet.getDataRange().getValues();
+  var emailCol = CONFIG.COLS.USUARIOS.EMAIL;
+
+  for (var i = 1; i < rows.length; i++) {
+    if (normalizarEmail(String(rows[i][emailCol])) === emailNorm) {
+      var rowNum = i + 1; // 1-based
+      sheet.getRange(rowNum, CONFIG.COLS.USUARIOS.PASSWORD_HASH + 1).setValue(hash);
+      sheet.getRange(rowNum, CONFIG.COLS.USUARIOS.UPDATED_AT + 1).setValue(getCurrentDateTime().datetime);
+
+      var accion = hash ? 'password_seteado' : 'password_borrado';
+      logAudit(actorEmail, accion, 'Contraseña actualizada para ' + emailNorm);
+
+      return { success: true, email: emailNorm, message: 'Contraseña actualizada' };
     }
   }
 

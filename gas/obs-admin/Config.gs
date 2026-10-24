@@ -26,7 +26,7 @@ const CONFIG = {
   //
   // Hoja Usuarios:
   // ID, Email (lowercase, clave de upsert), Nombre, Rol (admin|operador),
-  // Modulos (CSV), Activo (TRUE/FALSE), CreatedAt, UpdatedAt
+  // Modulos (CSV), Activo (TRUE/FALSE), CreatedAt, UpdatedAt, PasswordHash
   //
   COLS: {
     USUARIOS: {
@@ -37,7 +37,8 @@ const CONFIG = {
       MODULOS: 4,
       ACTIVO: 5,
       CREATED_AT: 6,
-      UPDATED_AT: 7
+      UPDATED_AT: 7,
+      PASSWORD_HASH: 8
     },
 
     // Hoja Auditoria:

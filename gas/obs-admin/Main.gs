@@ -22,6 +22,7 @@ function doGet(e) {
     const routes = {
       'usuarios/list': function () { return getUsuarios(); },
       'usuarios/get': function () { return getUsuarioByEmail(params.email); },
+      'usuarios/get-password-hash': function () { return getPasswordHash(params.email); },
 
       'system/health': function () { return { success: true, status: 'OK', timestamp: new Date() }; }
     };
@@ -66,7 +67,8 @@ function doPost(e) {
     // Routing para POST
     const routes = {
       'usuarios/upsert': function () { return upsertUsuario(data); },
-      'usuarios/delete': function () { return desactivarUsuario(data.email, data.actorEmail); }
+      'usuarios/delete': function () { return desactivarUsuario(data.email, data.actorEmail); },
+      'usuarios/set-password': function () { return setPassword(data); }
     };
 
     // Ejecutar handler

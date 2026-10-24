@@ -11,14 +11,17 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { hash } from 'bcryptjs'
 import { requireAcceso, esAdmin } from '@/lib/permisos'
 import type { SessionUser } from '@/lib/permisos'
 import {
   getUsuariosAdmin,
   upsertUsuarioAdmin,
   desactivarUsuarioAdmin,
+  setPasswordAdmin,
   isObsAdminConfigured,
 } from '@/lib/permisos/obs-admin-service'
+import { conReintento } from '@/lib/reintento'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { esModuloValido, MODULO_KEYS, ROLES, type Rol } from '@/lib/permisos/modulos'
 
@@ -38,7 +41,7 @@ export async function GET() {
   }
 
   try {
-    const usuarios = await getUsuariosAdmin()
+    const usuarios = await conReintento(() => getUsuariosAdmin())
     return NextResponse.json({ success: true, data: usuarios })
   } catch (error) {
     console.error('[admin/usuarios GET]', error)
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { email, nombre, rol, modulos, activo, oldEmail } = body
+    const { email, nombre, rol, modulos, activo, oldEmail, password } = body
 
     // Validaciones
     if (!email || typeof email !== 'string') {
@@ -83,20 +86,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Rol inválido. Válidos: ${ROLES.join(', ')}` }, { status: 400 })
     }
 
+    if (password !== undefined && (typeof password !== 'string' || password.length < 6)) {
+      return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres' }, { status: 400 })
+    }
+
     // Validar módulos contra el registro canónico
     const modulosValidos = Array.isArray(modulos)
       ? modulos.filter((m: unknown) => typeof m === 'string' && esModuloValido(m))
       : []
 
+    const emailNorm = email.toLowerCase().trim()
+    const actorEmail = session.user?.email || 'sistema'
+
     const result = await upsertUsuarioAdmin({
-      email: email.toLowerCase().trim(),
+      email: emailNorm,
       nombre: nombre || '',
       rol: rol || 'operador',
       modulos: modulosValidos,
       activo: activo !== false,
-      actorEmail: session.user?.email || 'sistema',
+      actorEmail,
       oldEmail: oldEmail || undefined,
     })
+
+    // Si viene contraseña, hashearla y guardarla
+    if (password) {
+      const passwordHash = await hash(password, 12)
+      await setPasswordAdmin(emailNorm, passwordHash, actorEmail)
+    }
 
     return NextResponse.json(result)
   } catch (error) {
