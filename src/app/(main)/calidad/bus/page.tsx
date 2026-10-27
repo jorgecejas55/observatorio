@@ -6,37 +6,19 @@ import { useState, useEffect, useRef } from 'react'
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
-const CIRCUITOS = [
-  'Fábrica de Alfombras / Gruta Virgen del Valle',
-  'Bodega Michango / Esc. Provincial de Artesanías San Juan Bautista',
-  'Iglesia de Choya / Pueblo Perdido de la Quebrada',
-  'Gruta Virgen del Valle / Casa de la Puna',
-  'Pueblo Perdido de la Quebrada / Dique el Jumeal',
-  'Otro circuito',
-]
-
-// Mapeo día → circuito preseleccionado (según la programación semanal del bus)
-const MAPEO_DIA_CIRCUITO: Record<string, string> = {
-  'Martes':  'Fábrica de Alfombras / Gruta Virgen del Valle',
-  'Viernes': 'Bodega Michango / Esc. Provincial de Artesanías San Juan Bautista',
-  'Sábado':  'Gruta Virgen del Valle / Casa de la Puna',
-  'Domingo': 'Pueblo Perdido de la Quebrada / Dique el Jumeal',
-}
+// v4 (10/2026): se eliminaron las preguntas de circuito, sistema de audio y guía
+// turístico; se agregó la sección de audioguías digitales (QR)
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Form {
   dia_viaje: string
-  circuito: string
-  circuito_custom: string
   puntualidad: number
   limpieza: number
   comodidad: number
-  audio: number
-  guia_claridad: number
-  guia_conocimiento: number
-  guia_amabilidad: number
-  guia_consultas: number
+  audioguia_acceso: number
+  audioguia_audio: number
+  audioguia_contenidos: number
   expectativas: string
   duracion: string
   calificacion_general: number
@@ -46,9 +28,9 @@ interface Form {
 }
 
 const FORM_INICIAL: Form = {
-  dia_viaje: '', circuito: '', circuito_custom: '',
-  puntualidad: 0, limpieza: 0, comodidad: 0, audio: 0,
-  guia_claridad: 0, guia_conocimiento: 0, guia_amabilidad: 0, guia_consultas: 0,
+  dia_viaje: '',
+  puntualidad: 0, limpieza: 0, comodidad: 0,
+  audioguia_acceso: 0, audioguia_audio: 0, audioguia_contenidos: 0,
   expectativas: '', duracion: '', calificacion_general: 0,
   que_gusto: '', que_mejorar: '', recomendaria: '',
 }
@@ -85,13 +67,16 @@ function Estrellas({
   valor,
   onChange,
   grande = false,
+  etiquetas,
 }: {
   valor: number
   onChange: (v: number) => void
   grande?: boolean
+  etiquetas?: { min: string; max: string } // textos de los extremos de la escala
 }) {
   const [hover, setHover] = useState(0)
   return (
+    <div className="inline-block">
     <div className="flex gap-1">
       {[1, 2, 3, 4, 5].map(n => (
         <button
@@ -108,6 +93,13 @@ function Estrellas({
           {n <= (hover || valor) ? '★' : '☆'}
         </button>
       ))}
+    </div>
+    {etiquetas && (
+      <div className="flex justify-between gap-4 text-xs text-text-secondary mt-1">
+        <span>1 = {etiquetas.min}</span>
+        <span>5 = {etiquetas.max}</span>
+      </div>
+    )}
     </div>
   )
 }
@@ -145,6 +137,51 @@ function RadioOpciones({
           <span className="text-sm">{op}</span>
         </label>
       ))}
+    </div>
+  )
+}
+
+// Secciones que se muestran en la pantalla de bienvenida
+const SECCIONES_ENCUESTA = [
+  { icono: 'fa-bus-simple', titulo: 'Servicio', detalle: 'Puntualidad, limpieza y comodidad' },
+  { icono: 'fa-headphones', titulo: 'Audioguías', detalle: 'Acceso por QR, audio y contenidos' },
+  { icono: 'fa-star', titulo: 'Experiencia', detalle: 'Valoración general y sugerencias' },
+]
+
+// Pie institucional compartido por las pantallas de inicio y cierre
+function PieInstitucional() {
+  return (
+    <p className="mt-8 pt-5 border-t border-gray-100 text-xs text-text-secondary">
+      Observatorio de Turismo Municipal · Secretaría de Turismo y Desarrollo Económico
+    </p>
+  )
+}
+
+// Encabezado de las pantallas de estado (agradecimiento, ya respondió, error)
+function PantallaEstado({
+  icono,
+  tono,
+  titulo,
+  children,
+}: {
+  icono: string
+  tono: 'exito' | 'info' | 'alerta'
+  titulo: string
+  children: React.ReactNode
+}) {
+  const colores = {
+    exito: 'bg-green-50 text-green-600 ring-green-100',
+    info: 'bg-primary/10 text-primary ring-primary/5',
+    alerta: 'bg-amber-50 text-amber-600 ring-amber-100',
+  }[tono]
+  return (
+    <div className="text-center py-8">
+      <div className={`w-16 h-16 rounded-full ring-8 flex items-center justify-center mx-auto mb-5 ${colores}`}>
+        <i className={`fa-solid ${icono} text-2xl`} aria-hidden="true" />
+      </div>
+      <h3 className="text-2xl font-bold text-text-primary mb-2">{titulo}</h3>
+      {children}
+      <PieInstitucional />
     </div>
   )
 }
@@ -202,18 +239,6 @@ export default function CalidadBus() {
     setErrores(prev => ({ ...prev, [campo]: '' }))
   }
 
-  // Al cambiar el día, preseleccionar el circuito según la programación
-  function handleDiaChange(dia: string) {
-    const circuito = MAPEO_DIA_CIRCUITO[dia] ?? ''
-    setForm(prev => ({
-      ...prev,
-      dia_viaje: dia,
-      circuito: circuito,
-      circuito_custom: '',
-    }))
-    setErrores(prev => ({ ...prev, dia_viaje: '', circuito: '' }))
-  }
-
   function ir(num: number) {
     setErrores({})
     setPantalla(num)
@@ -225,21 +250,16 @@ export default function CalidadBus() {
 
     if (num === 2) {
       if (!form.dia_viaje) e.dia_viaje = 'Seleccioná el día del recorrido'
-      if (!form.circuito) e.circuito = 'Seleccioná el circuito'
-      if (form.circuito === 'Otro circuito' && !form.circuito_custom.trim())
-        e.circuito_custom = 'Especificá el circuito realizado'
     }
     if (num === 3) {
       if (!form.puntualidad) e.puntualidad = 'Calificá este aspecto'
       if (!form.limpieza) e.limpieza = 'Calificá este aspecto'
       if (!form.comodidad) e.comodidad = 'Calificá este aspecto'
-      if (!form.audio) e.audio = 'Calificá este aspecto'
     }
     if (num === 4) {
-      if (!form.guia_claridad) e.guia_claridad = 'Calificá este aspecto'
-      if (!form.guia_conocimiento) e.guia_conocimiento = 'Calificá este aspecto'
-      if (!form.guia_amabilidad) e.guia_amabilidad = 'Calificá este aspecto'
-      if (!form.guia_consultas) e.guia_consultas = 'Calificá este aspecto'
+      if (!form.audioguia_acceso) e.audioguia_acceso = 'Calificá este aspecto'
+      if (!form.audioguia_audio) e.audioguia_audio = 'Calificá este aspecto'
+      if (!form.audioguia_contenidos) e.audioguia_contenidos = 'Calificá este aspecto'
     }
     if (num === 5) {
       if (!form.expectativas) e.expectativas = 'Seleccioná una opción'
@@ -265,12 +285,8 @@ export default function CalidadBus() {
     if (!validar(6)) return
     setEnviando(true)
     try {
-      const circuitoFinal =
-        form.circuito === 'Otro circuito' ? form.circuito_custom : form.circuito
-
       const payload = {
         ...form,
-        circuito: circuitoFinal,
         fingerprint_hash: fingerprintRef.current,
       }
 
@@ -300,13 +316,10 @@ export default function CalidadBus() {
   // Pantalla 0: cargando (verificando fingerprint)
   if (pantalla === 0) {
     return (
-      <div>
-        <h2 className="section-title">Encuesta de Calidad — Bus Turístico</h2>
-        <div className="flex items-center justify-center min-h-64">
-          <div className="text-center">
-            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-text-secondary">Cargando encuesta...</p>
-          </div>
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-text-secondary">Cargando encuesta...</p>
         </div>
       </div>
     )
@@ -314,30 +327,67 @@ export default function CalidadBus() {
 
   return (
     <div>
-      <h2 className="section-title">Encuesta de Calidad — Bus Turístico</h2>
-
-      <div className="max-w-2xl">
+      <div className="max-w-2xl mx-auto">
         <div className="card p-6 md:p-8">
 
           {/* ── Pantalla 1: Bienvenida ──────────────────────────────────── */}
           {pantalla === 1 && (
-            <div className="text-center py-6">
-              <div className="text-7xl mb-4">🚌</div>
-              <h3 className="text-2xl font-bold text-text-primary mb-2">Encuesta de Calidad</h3>
-              <p className="text-text-secondary mb-1">
-                Bus Turístico · San Fernando del Valle de Catamarca
+            <div className="text-center py-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-5">
+                <i className="fa-solid fa-bus-simple text-3xl" aria-hidden="true" />
+              </div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-1">
+                Encuesta de satisfacción
               </p>
-              <p className="text-sm text-text-secondary mb-8">
-                Su opinión es muy importante para mejorar nuestro servicio.
-                <br />Esta encuesta toma solo 3 minutos.
+              <h3 className="text-2xl font-bold text-text-primary mb-1">Bus Turístico SFVC</h3>
+              <p className="text-sm text-text-secondary mb-6">
+                San Fernando del Valle de Catamarca
               </p>
+              <p className="text-text-secondary max-w-md mx-auto mb-6">
+                Tu opinión nos ayuda a mejorar el servicio. Contanos cómo fue tu recorrido.
+              </p>
+
+              {/* Datos rápidos */}
+              <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-text-secondary mb-8">
+                <span className="flex items-center gap-1.5">
+                  <i className="fa-regular fa-clock text-primary" aria-hidden="true" /> 3 minutos
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <i className="fa-solid fa-list-check text-primary" aria-hidden="true" /> 13 preguntas
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <i className="fa-solid fa-user-shield text-primary" aria-hidden="true" /> Sin datos personales
+                </span>
+              </div>
+
+              {/* Qué se evalúa */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8 text-left">
+                {SECCIONES_ENCUESTA.map(s => (
+                  <div
+                    key={s.titulo}
+                    className="flex sm:flex-col items-start gap-3 sm:gap-2 rounded-xl border border-gray-100 bg-gray-50/60 p-4"
+                  >
+                    <span className="w-9 h-9 flex-shrink-0 rounded-lg bg-white border border-gray-100 text-primary flex items-center justify-center">
+                      <i className={`fa-solid ${s.icono}`} aria-hidden="true" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-text-primary">{s.titulo}</span>
+                      <span className="block text-xs text-text-secondary mt-0.5">{s.detalle}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+
               <button
                 type="button"
                 onClick={() => ir(2)}
-                className="btn-primary text-base px-8 py-3"
+                className="btn-primary text-base px-8 py-3 inline-flex items-center gap-2"
               >
                 Comenzar encuesta
+                <i className="fa-solid fa-arrow-right" aria-hidden="true" />
               </button>
+
+              <PieInstitucional />
             </div>
           )}
 
@@ -357,45 +407,10 @@ export default function CalidadBus() {
                   nombre="dia_viaje"
                   opciones={DIAS}
                   valor={form.dia_viaje}
-                  onChange={handleDiaChange}
+                  onChange={v => set('dia_viaje', v)}
                 />
                 {errores.dia_viaje && (
                   <p className="text-red-500 text-xs mt-1">{errores.dia_viaje}</p>
-                )}
-              </div>
-
-              {/* Pregunta 2 — Circuito */}
-              <div className="mb-6">
-                <p className="label">
-                  2. Seleccioná el circuito que realizaste:{' '}
-                  <span className="text-red-500">*</span>
-                </p>
-                <RadioOpciones
-                  nombre="circuito"
-                  opciones={CIRCUITOS}
-                  valor={form.circuito}
-                  onChange={v => {
-                    set('circuito', v)
-                    if (v !== 'Otro circuito') set('circuito_custom', '')
-                  }}
-                />
-                {errores.circuito && (
-                  <p className="text-red-500 text-xs mt-1">{errores.circuito}</p>
-                )}
-
-                {form.circuito === 'Otro circuito' && (
-                  <div className="mt-3">
-                    <input
-                      type="text"
-                      placeholder="Especificá el circuito realizado"
-                      value={form.circuito_custom}
-                      onChange={e => set('circuito_custom', e.target.value)}
-                      className="input"
-                    />
-                    {errores.circuito_custom && (
-                      <p className="text-red-500 text-xs mt-1">{errores.circuito_custom}</p>
-                    )}
-                  </div>
                 )}
               </div>
 
@@ -419,10 +434,10 @@ export default function CalidadBus() {
                 Calificá los siguientes aspectos del servicio (1 = muy malo · 5 = excelente)
               </p>
 
-              {/* Pregunta 3 — Puntualidad */}
+              {/* Pregunta 2 — Puntualidad */}
               <div className="mb-6">
                 <p className="label">
-                  3. Puntualidad del servicio <span className="text-red-500">*</span>
+                  2. Puntualidad del servicio <span className="text-red-500">*</span>
                 </p>
                 <Estrellas valor={form.puntualidad} onChange={v => set('puntualidad', v)} />
                 {errores.puntualidad && (
@@ -430,10 +445,10 @@ export default function CalidadBus() {
                 )}
               </div>
 
-              {/* Pregunta 4 — Limpieza */}
+              {/* Pregunta 3 — Limpieza */}
               <div className="mb-6">
                 <p className="label">
-                  4. Estado y limpieza del bus <span className="text-red-500">*</span>
+                  3. Estado y limpieza del bus <span className="text-red-500">*</span>
                 </p>
                 <Estrellas valor={form.limpieza} onChange={v => set('limpieza', v)} />
                 {errores.limpieza && (
@@ -441,25 +456,14 @@ export default function CalidadBus() {
                 )}
               </div>
 
-              {/* Pregunta 5 — Comodidad */}
+              {/* Pregunta 4 — Comodidad */}
               <div className="mb-6">
                 <p className="label">
-                  5. Comodidad durante el viaje <span className="text-red-500">*</span>
+                  4. Comodidad durante el viaje <span className="text-red-500">*</span>
                 </p>
                 <Estrellas valor={form.comodidad} onChange={v => set('comodidad', v)} />
                 {errores.comodidad && (
                   <p className="text-red-500 text-xs mt-1">{errores.comodidad}</p>
-                )}
-              </div>
-
-              {/* Pregunta 6 — Audio */}
-              <div className="mb-6">
-                <p className="label">
-                  6. Sistema de audio (claridad del sonido) <span className="text-red-500">*</span>
-                </p>
-                <Estrellas valor={form.audio} onChange={v => set('audio', v)} />
-                {errores.audio && (
-                  <p className="text-red-500 text-xs mt-1">{errores.audio}</p>
                 )}
               </div>
 
@@ -474,65 +478,60 @@ export default function CalidadBus() {
             </div>
           )}
 
-          {/* ── Pantalla 4: Evaluación del guía ────────────────────────── */}
+          {/* ── Pantalla 4: Evaluación de audioguías ───────────────────── */}
           {pantalla === 4 && (
             <div>
               <BarraProgreso porcentaje={42} />
-              <h3 className="text-lg font-bold mb-1">Evaluación del Guía Turístico</h3>
+              <h3 className="text-lg font-bold mb-1">Evaluación de Audioguías</h3>
               <p className="text-sm text-text-secondary mb-6">
-                Calificá al guía turístico del recorrido (1 = muy malo · 5 = excelente)
+                Calificá las audioguías digitales del recorrido (escala de 1 a 5)
               </p>
 
-              {/* Pregunta 7 — Claridad */}
+              {/* Pregunta 5 — Facilidad de acceso */}
               <div className="mb-6">
                 <p className="label">
-                  7. Claridad de las explicaciones <span className="text-red-500">*</span>
+                  5. ¿Qué tan fácil te resultó acceder a las audioguías digitales mediante el código QR?{' '}
+                  <span className="text-red-500">*</span>
                 </p>
-                <Estrellas valor={form.guia_claridad} onChange={v => set('guia_claridad', v)} />
-                {errores.guia_claridad && (
-                  <p className="text-red-500 text-xs mt-1">{errores.guia_claridad}</p>
+                <Estrellas
+                  valor={form.audioguia_acceso}
+                  onChange={v => set('audioguia_acceso', v)}
+                  etiquetas={{ min: 'Muy difícil', max: 'Muy fácil' }}
+                />
+                {errores.audioguia_acceso && (
+                  <p className="text-red-500 text-xs mt-1">{errores.audioguia_acceso}</p>
                 )}
               </div>
 
-              {/* Pregunta 8 — Conocimiento */}
+              {/* Pregunta 6 — Calidad y claridad del audio */}
               <div className="mb-6">
                 <p className="label">
-                  8. Conocimiento sobre los atractivos <span className="text-red-500">*</span>
+                  6. ¿Cómo calificarías la calidad y claridad del audio de las audioguías digitales?{' '}
+                  <span className="text-red-500">*</span>
                 </p>
                 <Estrellas
-                  valor={form.guia_conocimiento}
-                  onChange={v => set('guia_conocimiento', v)}
+                  valor={form.audioguia_audio}
+                  onChange={v => set('audioguia_audio', v)}
+                  etiquetas={{ min: 'Muy mala', max: 'Excelente' }}
                 />
-                {errores.guia_conocimiento && (
-                  <p className="text-red-500 text-xs mt-1">{errores.guia_conocimiento}</p>
+                {errores.audioguia_audio && (
+                  <p className="text-red-500 text-xs mt-1">{errores.audioguia_audio}</p>
                 )}
               </div>
 
-              {/* Pregunta 9 — Amabilidad */}
+              {/* Pregunta 7 — Contenidos */}
               <div className="mb-6">
                 <p className="label">
-                  9. Amabilidad y trato <span className="text-red-500">*</span>
+                  7. ¿Cómo calificarías los contenidos de las audioguías en cuanto a su utilidad e interés para conocer los atractivos turísticos?{' '}
+                  <span className="text-red-500">*</span>
                 </p>
                 <Estrellas
-                  valor={form.guia_amabilidad}
-                  onChange={v => set('guia_amabilidad', v)}
+                  valor={form.audioguia_contenidos}
+                  onChange={v => set('audioguia_contenidos', v)}
+                  etiquetas={{ min: 'Nada útiles', max: 'Muy útiles' }}
                 />
-                {errores.guia_amabilidad && (
-                  <p className="text-red-500 text-xs mt-1">{errores.guia_amabilidad}</p>
-                )}
-              </div>
-
-              {/* Pregunta 10 — Consultas */}
-              <div className="mb-6">
-                <p className="label">
-                  10. Capacidad para responder consultas <span className="text-red-500">*</span>
-                </p>
-                <Estrellas
-                  valor={form.guia_consultas}
-                  onChange={v => set('guia_consultas', v)}
-                />
-                {errores.guia_consultas && (
-                  <p className="text-red-500 text-xs mt-1">{errores.guia_consultas}</p>
+                {errores.audioguia_contenidos && (
+                  <p className="text-red-500 text-xs mt-1">{errores.audioguia_contenidos}</p>
                 )}
               </div>
 
@@ -553,10 +552,10 @@ export default function CalidadBus() {
               <BarraProgreso porcentaje={56} />
               <h3 className="text-lg font-bold mb-5">Experiencia General</h3>
 
-              {/* Pregunta 11 — Expectativas */}
+              {/* Pregunta 8 — Expectativas */}
               <div className="mb-6">
                 <p className="label">
-                  11. ¿Los atractivos visitados cumplieron tus expectativas?{' '}
+                  8. ¿Los atractivos visitados cumplieron tus expectativas?{' '}
                   <span className="text-red-500">*</span>
                 </p>
                 <RadioOpciones
@@ -574,10 +573,10 @@ export default function CalidadBus() {
                 )}
               </div>
 
-              {/* Pregunta 12 — Duración */}
+              {/* Pregunta 9 — Duración */}
               <div className="mb-6">
                 <p className="label">
-                  12. ¿La duración del recorrido fue adecuada?{' '}
+                  9. ¿La duración del recorrido fue adecuada?{' '}
                   <span className="text-red-500">*</span>
                 </p>
                 <RadioOpciones
@@ -591,10 +590,10 @@ export default function CalidadBus() {
                 )}
               </div>
 
-              {/* Pregunta 13 — Calificación general */}
+              {/* Pregunta 10 — Calificación general */}
               <div className="mb-6">
                 <p className="label">
-                  13. Calificación general del servicio{' '}
+                  10. Calificación general del servicio{' '}
                   <span className="text-red-500">*</span>
                 </p>
                 <Estrellas
@@ -627,9 +626,9 @@ export default function CalidadBus() {
                 Ayudanos a mejorar con tu opinión (campos opcionales)
               </p>
 
-              {/* Pregunta 14 — ¿Qué le gustó? */}
+              {/* Pregunta 11 — ¿Qué le gustó? */}
               <div className="mb-6">
-                <p className="label">14. ¿Qué fue lo que más te gustó?</p>
+                <p className="label">11. ¿Qué fue lo que más te gustó?</p>
                 <textarea
                   value={form.que_gusto}
                   onChange={e => set('que_gusto', e.target.value)}
@@ -643,9 +642,9 @@ export default function CalidadBus() {
                 </p>
               </div>
 
-              {/* Pregunta 15 — ¿Qué mejoraría? */}
+              {/* Pregunta 12 — ¿Qué mejoraría? */}
               <div className="mb-6">
-                <p className="label">15. ¿Qué mejorarías del servicio?</p>
+                <p className="label">12. ¿Qué mejorarías del servicio?</p>
                 <textarea
                   value={form.que_mejorar}
                   onChange={e => set('que_mejorar', e.target.value)}
@@ -659,10 +658,10 @@ export default function CalidadBus() {
                 </p>
               </div>
 
-              {/* Pregunta 16 — ¿Recomendaría? */}
+              {/* Pregunta 13 — ¿Recomendaría? */}
               <div className="mb-6">
                 <p className="label">
-                  16. ¿Recomendarías este servicio?{' '}
+                  13. ¿Recomendarías este servicio?{' '}
                   <span className="text-red-500">*</span>
                 </p>
                 <RadioOpciones
@@ -700,60 +699,54 @@ export default function CalidadBus() {
 
           {/* ── Pantalla 7: Agradecimiento ──────────────────────────────── */}
           {pantalla === 7 && (
-            <div className="text-center py-10">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-green-500 text-3xl">✓</span>
-              </div>
-              <h3 className="text-2xl font-bold text-text-primary mb-2">
-                ¡Muchas gracias por su opinión!
-              </h3>
-              <p className="text-text-secondary mb-1">Tu respuesta fue registrada exitosamente.</p>
-              <p className="text-sm text-text-secondary">
-                Trabajamos constantemente para mejorar la experiencia del Bus Turístico.
+            <PantallaEstado icono="fa-check" tono="exito" titulo="¡Muchas gracias por tu opinión!">
+              <p className="text-text-secondary mb-1">Tu respuesta fue registrada correctamente.</p>
+              <p className="text-sm text-text-secondary max-w-md mx-auto">
+                Con tus aportes trabajamos para mejorar la experiencia del Bus Turístico.
+                Ya podés cerrar esta ventana.
               </p>
-              <div className="text-6xl mt-8">🚌</div>
-            </div>
+            </PantallaEstado>
           )}
 
           {/* ── Pantalla 8: Ya respondió ────────────────────────────────── */}
           {pantalla === 8 && (
-            <div className="text-center py-10">
-              <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">ℹ️</span>
-              </div>
-              <h3 className="text-xl font-bold text-text-primary mb-2">Encuesta ya completada</h3>
+            <PantallaEstado icono="fa-clipboard-check" tono="info" titulo="Encuesta ya completada">
               <p className="text-text-secondary mb-1">
-                Ya completaste esta encuesta recientemente.
+                Ya respondiste esta encuesta desde este dispositivo en las últimas 48 horas.
               </p>
               <p className="text-sm text-text-secondary">¡Gracias por tu participación!</p>
-              <div className="text-6xl mt-8">🚌</div>
-            </div>
+            </PantallaEstado>
           )}
 
           {/* ── Pantalla 9: Error ───────────────────────────────────────── */}
           {pantalla === 9 && (
-            <div className="text-center py-10">
-              <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">⚠️</span>
-              </div>
-              <h3 className="text-xl font-bold text-text-primary mb-2">Error al enviar</h3>
-              <p className="text-text-secondary mb-6">
-                {errorEnvio || 'Ha ocurrido un error al procesar tu encuesta. Intentá de nuevo.'}
+            <PantallaEstado icono="fa-triangle-exclamation" tono="alerta" titulo="No pudimos enviar tu encuesta">
+              <p className="text-text-secondary mb-6 max-w-md mx-auto">
+                {errorEnvio || 'Ocurrió un error al procesar tu encuesta. Intentá de nuevo.'}
               </p>
-              <div className="flex gap-3 justify-center">
+              <div className="flex flex-wrap gap-3 justify-center">
                 <button
                   type="button"
                   onClick={enviar}
                   disabled={enviando}
-                  className="btn-primary disabled:opacity-50"
+                  className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
                 >
-                  {enviando ? 'Enviando...' : 'Reintentar'}
+                  <i
+                    className={`fa-solid ${enviando ? 'fa-circle-notch fa-spin' : 'fa-rotate-right'}`}
+                    aria-hidden="true"
+                  />
+                  {enviando ? 'Enviando…' : 'Reintentar'}
                 </button>
-                <button type="button" onClick={() => ir(1)} className="btn-secondary">
+                <button
+                  type="button"
+                  onClick={() => ir(1)}
+                  className="btn-secondary inline-flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-house" aria-hidden="true" />
                   Volver al inicio
                 </button>
               </div>
-            </div>
+            </PantallaEstado>
           )}
 
         </div>

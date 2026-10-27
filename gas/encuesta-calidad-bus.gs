@@ -1,7 +1,10 @@
 /* =============================================
    GOOGLE APPS SCRIPT - ENCUESTA BUS TURÍSTICO
    Sistema con control de duplicados por fingerprint
-   VERSIÓN: 3.1 - Dual (HTML antiguo + Next.js)
+   VERSIÓN: 4.0 - Dual (HTML antiguo + Next.js)
+   v4.0 (10/2026): nueva sección "Evaluación de audioguías" (3 columnas
+   nuevas al final). Circuito, audio y guía ya no se preguntan en Next.js:
+   esas columnas quedan vacías (no en 0) para no distorsionar promedios.
 
    Acepta dos formatos de entrada:
    - JSON en e.postData.contents  → Next.js app (API Route)
@@ -134,7 +137,8 @@ function inicializarEncabezados(sheet) {
     'guia_claridad', 'guia_conocimiento', 'guia_amabilidad', 'guia_consultas',
     'expectativas', 'duracion', 'calificacion_general',
     'que_gusto', 'que_mejorar', 'recomendaria',
-    'created_at', 'updated_at'
+    'created_at', 'updated_at',
+    'audioguia_acceso', 'audioguia_audio', 'audioguia_contenidos'
   ];
 
   sheet.appendRow(encabezados);
@@ -209,16 +213,16 @@ function guardarRespuesta(sheet, data) {
       fechaRespuesta,                               // 4. fecha_respuesta
       data.dia_viaje || '',                         // 5. dia_viaje
       data.dia_viaje_custom || null,                // 6. dia_viaje_custom (no aplica en el form Next.js)
-      data.circuito || '',                          // 7. circuito (ya resuelto en la página)
+      data.circuito || '',                          // 7. circuito (discontinuada v4)
       data.circuito_custom || null,                 // 8. circuito_custom
       parseFloat(data.puntualidad) || 0,            // 9. puntualidad
       parseFloat(data.limpieza) || 0,               // 10. limpieza
       parseFloat(data.comodidad) || 0,              // 11. comodidad
-      parseFloat(data.audio) || 0,                  // 12. audio
-      parseFloat(data.guia_claridad) || 0,          // 13. guia_claridad
-      parseFloat(data.guia_conocimiento) || 0,      // 14. guia_conocimiento
-      parseFloat(data.guia_amabilidad) || 0,        // 15. guia_amabilidad
-      parseFloat(data.guia_consultas) || 0,         // 16. guia_consultas
+      numeroOVacio(data.audio),                     // 12. audio (discontinuada v4)
+      numeroOVacio(data.guia_claridad),             // 13. guia_claridad (discontinuada v4)
+      numeroOVacio(data.guia_conocimiento),         // 14. guia_conocimiento (discontinuada v4)
+      numeroOVacio(data.guia_amabilidad),           // 15. guia_amabilidad (discontinuada v4)
+      numeroOVacio(data.guia_consultas),            // 16. guia_consultas (discontinuada v4)
       data.expectativas || '',                      // 17. expectativas
       data.duracion || '',                          // 18. duracion
       parseFloat(data.calificacion_general) || 0,   // 19. calificacion_general
@@ -227,6 +231,9 @@ function guardarRespuesta(sheet, data) {
       data.recomendaria || '',                      // 22. recomendaria
       createdAt,                                    // 23. created_at
       createdAt,                                    // 24. updated_at
+      numeroOVacio(data.audioguia_acceso),          // 25. audioguia_acceso (v4)
+      numeroOVacio(data.audioguia_audio),           // 26. audioguia_audio (v4)
+      numeroOVacio(data.audioguia_contenidos),      // 27. audioguia_contenidos (v4)
     ];
 
     console.log('💾 Guardando fila - ID:', id);
@@ -237,6 +244,33 @@ function guardarRespuesta(sheet, data) {
     console.error('❌ Error al guardar respuesta:', error);
     throw error;
   }
+}
+
+/**
+ * Devuelve el valor numérico o '' si no vino / no es número.
+ * Evita guardar 0 en preguntas no respondidas (distorsiona promedios).
+ */
+function numeroOVacio(valor) {
+  const n = parseFloat(valor);
+  return isNaN(n) ? '' : n;
+}
+
+/**
+ * Agrega los encabezados de audioguías (columnas Y, Z, AA) si faltan.
+ * Ejecutar UNA vez desde el editor antes de recibir respuestas v4.
+ */
+function agregarColumnasAudioguias() {
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+  const nuevas = ['audioguia_acceso', 'audioguia_audio', 'audioguia_contenidos'];
+  const actuales = sheet.getRange(1, 25, 1, 3).getValues()[0];
+  if (actuales.join('') !== '') {
+    console.log('ℹ️ Las columnas Y–AA ya tienen contenido:', actuales);
+    return;
+  }
+  const rango = sheet.getRange(1, 25, 1, 3);
+  rango.setValues([nuevas]);
+  rango.setFontWeight('bold').setBackground('#0f4c94').setFontColor('#FFFFFF');
+  console.log('✅ Columnas de audioguías agregadas');
 }
 
 /**
