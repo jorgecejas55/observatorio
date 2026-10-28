@@ -43,6 +43,7 @@ const NAV: NavGroup[] = [
       { href: '/estadisticas/perfil-visitante', label: 'Perfil del visitante', icon: 'fa-chart-bar' },
       { href: '/estadisticas/eventos', label: 'Dashboard de eventos', icon: 'fa-calendar-check' },
       { href: '/estadisticas/digital', label: 'Canales digitales', icon: 'fa-chart-line' },
+      { href: '/estadisticas/catu', label: 'Catu Bot', icon: 'fa-robot' },
     ],
   },
   {

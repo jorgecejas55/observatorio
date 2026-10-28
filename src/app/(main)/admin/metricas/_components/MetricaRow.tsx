@@ -35,14 +35,6 @@ export default function MetricaRow({ canal, registro, onDelete, onEdit }: Props)
             <td className="px-6 py-4 text-center font-medium">{registro.publicaciones?.toLocaleString('es-AR') || 0}</td>
           </>
         )}
-        {canal === 'catu' && (
-          <>
-            <td className="px-6 py-4 text-center font-medium">{registro.conversaciones?.toLocaleString('es-AR') || 0}</td>
-            <td className="px-6 py-4 text-center font-medium">{registro.mensajes?.toLocaleString('es-AR') || 0}</td>
-            <td className="px-6 py-4 text-center font-medium">{registro.tasa_resolucion || 0}%</td>
-          </>
-        )}
-
         <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onEdit(registro)}
@@ -114,22 +106,6 @@ function DetalleCanal({ canal, registro }: { canal: CanalDigital; registro: any 
         </div>
         {registro.usuario_registro && (
           <div className="md:col-span-2 pt-4 border-t">
-            <DatoDetalle label="Cargado por" valor={registro.usuario_registro} />
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (canal === 'catu') {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <DatoDetalle label="Conversaciones" valor={Number(registro.conversaciones || 0).toLocaleString('es-AR')} />
-        <DatoDetalle label="Mensajes" valor={Number(registro.mensajes || 0).toLocaleString('es-AR')} />
-        <DatoDetalle label="Puntuación" valor={`${registro.puntuacion_promedio || 0} / 10`} />
-        <DatoDetalle label="Tasa Resolución" valor={`${registro.tasa_resolucion || 0}%`} />
-        {registro.usuario_registro && (
-          <div className="col-span-2 md:col-span-4 pt-4 border-t">
             <DatoDetalle label="Cargado por" valor={registro.usuario_registro} />
           </div>
         )}

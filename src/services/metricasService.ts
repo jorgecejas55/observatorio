@@ -1,8 +1,9 @@
 /**
- * Servicio para la gestión de métricas digitales (Web, Redes Sociales, Bot)
+ * Servicio para la gestión de métricas digitales cargadas a mano (Web, Facebook, Instagram).
+ * Catu Bot tiene su propio módulo automático: src/lib/catu/
  */
 
-export type CanalDigital = 'web' | 'facebook' | 'instagram' | 'catu'
+export type CanalDigital = 'web' | 'facebook' | 'instagram'
 
 export interface MetricaBase {
   id?: string
@@ -21,13 +22,6 @@ export interface MetricaSocial extends MetricaBase {
   seguidores: number
   interacciones: number
   publicaciones: number
-}
-
-export interface MetricaCatu extends MetricaBase {
-  conversaciones: number
-  mensajes: number
-  puntuacion_promedio: number
-  tasa_resolucion: number
 }
 
 const MetricasService = {

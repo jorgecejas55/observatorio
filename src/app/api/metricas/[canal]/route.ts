@@ -3,8 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { auth } from '@/auth'
 import {
   MetricaWebSchema,
-  MetricaSocialSchema,
-  MetricaCatuSchema
+  MetricaSocialSchema
 } from '@/lib/schemas'
 
 const GAS_URL = process.env.METRICAS_DIGITALES_SCRIPT_URL
@@ -12,7 +11,6 @@ const GAS_URL = process.env.METRICAS_DIGITALES_SCRIPT_URL
 function getSchema(canal: string) {
   if (canal === 'web') return MetricaWebSchema
   if (canal === 'facebook' || canal === 'instagram') return MetricaSocialSchema
-  if (canal === 'catu') return MetricaCatuSchema
   return null
 }
 

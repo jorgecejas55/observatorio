@@ -214,12 +214,4 @@ export const MetricaSocialSchema = z.object({
   usuario_registro: z.string().optional()
 })
 
-export const MetricaCatuSchema = z.object({
-  mes_anio: MesAnioSchema,
-  conversaciones: z.number().int().nonnegative(),
-  mensajes: z.number().int().nonnegative(),
-  puntuacion_promedio: z.number().min(0).max(10),
-  tasa_resolucion: z.number().min(0).max(100),
-  usuario_registro: z.string().optional()
-})
 

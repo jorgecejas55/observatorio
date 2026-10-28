@@ -2,24 +2,23 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import {
-  AreaChart, Area, LineChart, Line, BarChart, Bar, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+  AreaChart, Area, LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import MetricasService from '@/services/metricasService'
-import type { MetricaWeb, MetricaSocial, MetricaCatu } from '@/services/metricasService'
+import type { MetricaWeb, MetricaSocial } from '@/services/metricasService'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import KPICard from '@/components/charts/KPICard'
 import { formatearMesAnio } from '@/lib/formato-fechas'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
-type Canal = 'web' | 'facebook' | 'instagram' | 'catu'
+type Canal = 'web' | 'facebook' | 'instagram'
 
 const CANALES: { key: Canal; label: string; icono: string; color: string; accent: string }[] = [
   { key: 'web',       label: 'Sitio Web',  icono: 'fa-solid fa-globe',              color: 'text-blue-600',   accent: '#3b82f6' },
   { key: 'facebook',  label: 'Facebook',   icono: 'fa-brands fa-facebook',          color: 'text-indigo-600', accent: '#4f46e5' },
   { key: 'instagram', label: 'Instagram',  icono: 'fa-brands fa-instagram',         color: 'text-pink-600',   accent: '#db2777' },
-  { key: 'catu',      label: 'Catu Bot',   icono: 'fa-solid fa-robot',              color: 'text-orange-600', accent: '#ea580c' },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -346,149 +345,6 @@ function VistaSocial({ datos, accent }: { datos: MetricaSocial[]; accent: string
   )
 }
 
-// ── Vista Catu ────────────────────────────────────────────────────────────────
-
-function VistaCatu({ datos }: { datos: MetricaCatu[] }) {
-  const ultimo = datos[datos.length - 1]
-  const anterior = datos[datos.length - 2]
-
-  const kpis = useMemo(() => {
-    const convTotal = datos.reduce((s, d) => s + (d.conversaciones ?? 0), 0)
-    const puntuacion = ultimo?.puntuacion_promedio ?? 0
-    const resolucion = ultimo?.tasa_resolucion ?? 0
-    const msgPorConv = (ultimo?.conversaciones ?? 0) > 0
-      ? parseFloat((ultimo!.mensajes / ultimo!.conversaciones).toFixed(1))
-      : 0
-    return { convTotal, puntuacion, resolucion, msgPorConv }
-  }, [datos])
-
-  const labelUltimoMesCatu = ultimo ? formatearMesAnio(ultimo.mes_anio) : '—'
-  const anos = [...new Set(datos.map(d => d.mes_anio.split('/')[1]))].sort()
-  const labelPeriodoCatu = anos.length === 1 ? `Año ${anos[0]}` : `${anos[0]}–${anos[anos.length - 1]}`
-
-  if (!datos.length) return <EmptyPeriodo />
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          titulo="Conversaciones"
-          valor={kpis.convTotal}
-          icono="fa-comments"
-          color="text-orange-500"
-          subtitulo={labelPeriodoCatu}
-        />
-        <KPICard
-          titulo="Mensajes/conversación"
-          valor={kpis.msgPorConv}
-          icono="fa-message"
-          color="text-amber-500"
-          variacion={variacionPct(
-            (ultimo?.conversaciones ?? 0) > 0 ? ultimo!.mensajes / ultimo!.conversaciones : 0,
-            (anterior?.conversaciones ?? 0) > 0 ? anterior!.mensajes / anterior!.conversaciones : 0,
-          )}
-          subtitulo={labelUltimoMesCatu}
-        />
-        <KPICard
-          titulo="Puntuación promedio"
-          valor={kpis.puntuacion.toFixed(1)}
-          unidad="/ 5"
-          icono="fa-star"
-          color={kpis.puntuacion >= 4 ? 'text-green-500' : 'text-amber-500'}
-          variacion={variacionPct(ultimo?.puntuacion_promedio ?? 0, anterior?.puntuacion_promedio ?? 0)}
-          subtitulo={labelUltimoMesCatu}
-        />
-        <KPICard
-          titulo="Tasa de resolución"
-          valor={kpis.resolucion.toFixed(1)}
-          unidad="%"
-          icono="fa-circle-check"
-          color={kpis.resolucion >= 70 ? 'text-green-500' : 'text-amber-500'}
-          variacion={variacionPct(ultimo?.tasa_resolucion ?? 0, anterior?.tasa_resolucion ?? 0)}
-          subtitulo={labelUltimoMesCatu}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <h3 className="font-semibold text-text-primary mb-5">Conversaciones por mes</h3>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={datos} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid {...GRID} />
-                <XAxis dataKey="mes_anio" {...AX} />
-                <YAxis {...AX} width={42} />
-                <Tooltip content={<Tip />} />
-                <Bar dataKey="conversaciones" name="Conversaciones"
-                  fill="#ea580c" radius={[4, 4, 0, 0]} maxBarSize={32} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="font-semibold text-text-primary mb-5">Mensajes intercambiados</h3>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={datos} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid {...GRID} />
-                <XAxis dataKey="mes_anio" {...AX} />
-                <YAxis {...AX} width={48} tickFormatter={fmtN} />
-                <Tooltip content={<Tip />} />
-                <Bar dataKey="mensajes" name="Mensajes"
-                  fill="#ea580c" fillOpacity={0.6} radius={[4, 4, 0, 0]} maxBarSize={32} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="font-semibold text-text-primary mb-1">Calidad de atención</h3>
-          <p className="text-xs text-text-secondary mb-4">Puntuación promedio mensual (escala 1–5)</p>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={datos} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid {...GRID} />
-                <XAxis dataKey="mes_anio" {...AX} />
-                <YAxis {...AX} domain={[0, 5]} width={32} />
-                <Tooltip content={<Tip />} />
-                <ReferenceLine y={4} stroke="#10b981" strokeDasharray="4 4"
-                  label={{ value: 'Meta', fontSize: 11, fill: '#10b981', position: 'right' }} />
-                <Line type="monotone" dataKey="puntuacion_promedio" name="Puntuación"
-                  stroke="#ea580c" strokeWidth={2} dot={{ r: 3, fill: '#ea580c', strokeWidth: 0 }}
-                  activeDot={{ r: 5, strokeWidth: 0 }} connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="font-semibold text-text-primary mb-1">Tasa de resolución</h3>
-          <p className="text-xs text-text-secondary mb-4">% de consultas resueltas por el bot</p>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={datos} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid {...GRID} />
-                <XAxis dataKey="mes_anio" {...AX} />
-                <YAxis {...AX} domain={[0, 100]} width={38} tickFormatter={(v) => `${v}%`} />
-                <Tooltip content={<Tip />} />
-                <ReferenceLine y={70} stroke="#10b981" strokeDasharray="4 4"
-                  label={{ value: 'Meta 70%', fontSize: 11, fill: '#10b981', position: 'right' }} />
-                <Bar dataKey="tasa_resolucion" name="Resolución (%)"
-                  radius={[4, 4, 0, 0]} maxBarSize={32}>
-                  {datos.map((d, i) => (
-                    <Cell key={i} fill={d.tasa_resolucion >= 70 ? '#10b981' : '#f59e0b'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function DigitalDashboard() {
@@ -497,8 +353,7 @@ export default function DigitalDashboard() {
     web: MetricaWeb[]
     facebook: MetricaSocial[]
     instagram: MetricaSocial[]
-    catu: MetricaCatu[]
-  }>({ web: [], facebook: [], instagram: [], catu: [] })
+  }>({ web: [], facebook: [], instagram: [] })
 
   const [canal, setCanal] = useState<Canal>('web')
   const [anoSeleccionado, setAnoSeleccionado] = useState<number | 'todos'>('todos')
@@ -506,23 +361,21 @@ export default function DigitalDashboard() {
   // Carga única al montar — todas las interacciones posteriores son frontend
   useEffect(() => {
     async function fetchAll() {
-      const [web, fb, ig, catu] = await Promise.all([
+      const [web, fb, ig] = await Promise.all([
         MetricasService.getMetricas<MetricaWeb>('web'),
         MetricasService.getMetricas<MetricaSocial>('facebook'),
         MetricasService.getMetricas<MetricaSocial>('instagram'),
-        MetricasService.getMetricas<MetricaCatu>('catu'),
       ])
       const sorted = {
         web: [...web].sort(sortFn),
         facebook: [...fb].sort(sortFn),
         instagram: [...ig].sort(sortFn),
-        catu: [...catu].sort(sortFn),
       }
       setData(sorted)
 
       // Auto-seleccionar el año más reciente disponible
       const anos = new Set<number>()
-      ;[...web, ...fb, ...ig, ...catu].forEach(d => anos.add(extractAnio(d.mes_anio)))
+      ;[...web, ...fb, ...ig].forEach(d => anos.add(extractAnio(d.mes_anio)))
       const lista = Array.from(anos).filter(a => a > 0).sort((a, b) => b - a)
       if (lista.length > 0) setAnoSeleccionado(lista[0])
 
@@ -533,7 +386,7 @@ export default function DigitalDashboard() {
 
   const anosDisponibles = useMemo(() => {
     const set = new Set<number>()
-    ;[...data.web, ...data.facebook, ...data.instagram, ...data.catu]
+    ;[...data.web, ...data.facebook, ...data.instagram]
       .forEach(d => set.add(extractAnio(d.mes_anio)))
     return Array.from(set).filter(a => a > 0).sort((a, b) => b - a)
   }, [data])
@@ -566,6 +419,23 @@ export default function DigitalDashboard() {
           Indicadores de presencia digital del Observatorio de Turismo
         </p>
       </div>
+
+      {/* Catu Bot tiene su propio tablero, con datos automáticos */}
+      <a
+        href="/estadisticas/catu"
+        className="card card-hover mb-6 p-4 flex items-center gap-3 text-sm"
+      >
+        <span className="w-9 h-9 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center flex-shrink-0">
+          <i className="fa-solid fa-robot" aria-hidden="true" />
+        </span>
+        <span className="flex-1">
+          <span className="block font-semibold text-text-primary">Catu Bot</span>
+          <span className="block text-xs text-text-secondary">
+            Conversaciones, tópicos y satisfacción, actualizados automáticamente cada hora
+          </span>
+        </span>
+        <i className="fa-solid fa-arrow-right text-text-secondary" aria-hidden="true" />
+      </a>
 
       {/* Tabs de canal + selector de año */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -632,7 +502,6 @@ export default function DigitalDashboard() {
       {canal === 'web'       && <VistaWeb datos={filtrar(data.web)} />}
       {canal === 'facebook'  && <VistaSocial datos={filtrar(data.facebook)} accent="#4f46e5" />}
       {canal === 'instagram' && <VistaSocial datos={filtrar(data.instagram)} accent="#db2777" />}
-      {canal === 'catu'      && <VistaCatu datos={filtrar(data.catu)} />}
     </div>
   )
 }

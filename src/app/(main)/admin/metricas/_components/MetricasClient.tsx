@@ -18,11 +18,7 @@ const FORM_INICIAL = {
   fuentes: [{ fuente: '', visitas: 0 }],
   seguidores: 0,
   interacciones: 0,
-  publicaciones: 0,
-  conversaciones: 0,
-  mensajes: 0,
-  puntuacion_promedio: 0,
-  tasa_resolucion: 0
+  publicaciones: 0
 }
 
 export default function MetricasClient() {
@@ -146,20 +142,12 @@ export default function MetricasClient() {
           .filter((f: any) => f.fuente.trim())
           .map((f: any) => ({ fuente: f.fuente, visitas: Number(f.visitas) || 0 }))
       }
-    } else if (activeTab === 'facebook' || activeTab === 'instagram') {
+    } else {
       payload = {
         ...payload,
         seguidores: Number(formData.seguidores) || 0,
         interacciones: Number(formData.interacciones) || 0,
         publicaciones: Number(formData.publicaciones) || 0
-      }
-    } else {
-      payload = {
-        ...payload,
-        conversaciones: Number(formData.conversaciones) || 0,
-        mensajes: Number(formData.mensajes) || 0,
-        puntuacion_promedio: Number(formData.puntuacion_promedio) || 0,
-        tasa_resolucion: Number(formData.tasa_resolucion) || 0
       }
     }
 
@@ -214,7 +202,7 @@ export default function MetricasClient() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-8 bg-gray-100 p-1 rounded-xl w-fit">
-        {(['web', 'facebook', 'instagram', 'catu'] as CanalDigital[]).map((tab) => (
+        {(['web', 'facebook', 'instagram'] as CanalDigital[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -224,10 +212,19 @@ export default function MetricasClient() {
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >
-            {tab === 'catu' ? 'Catu Bot' : tab}
+            {tab}
           </button>
         ))}
       </div>
+
+      {/* Catu Bot ya no se carga a mano: se sincroniza automáticamente desde su panel */}
+      <p className="-mt-5 mb-8 text-xs text-text-secondary flex items-center gap-1.5">
+        <i className="fa-solid fa-robot text-orange-500" aria-hidden="true" />
+        Las estadísticas de Catu Bot se actualizan solas cada hora.{' '}
+        <a href="/estadisticas/catu" className="text-primary font-medium hover:underline">
+          Ver estadísticas de Catu
+        </a>
+      </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Formulario */}
@@ -297,14 +294,6 @@ export default function MetricasClient() {
                 </>
               )}
 
-              {activeTab === 'catu' && (
-                <>
-                  <InputField label="Conversaciones" name="conversaciones" type="number" value={formData.conversaciones} onChange={handleInputChange} required />
-                  <InputField label="Mensajes Totales" name="mensajes" type="number" value={formData.mensajes} onChange={handleInputChange} required />
-                  <InputField label="Tasa Resolución (%)" name="tasa_resolucion" type="number" value={formData.tasa_resolucion} onChange={handleInputChange} required min="0" max="100" />
-                  <InputField label="Puntuación Promedio (0-10)" name="puntuacion_promedio" type="number" value={formData.puntuacion_promedio} onChange={handleInputChange} required min="0" max="10" step="0.1" />
-                </>
-              )}
             </div>
 
             <div className="flex gap-2 mt-8">
@@ -352,13 +341,6 @@ export default function MetricasClient() {
                           <th className="px-6 py-4 text-center">Seguidores</th>
                           <th className="px-6 py-4 text-center">Interac.</th>
                           <th className="px-6 py-4 text-center">Public.</th>
-                        </>
-                      )}
-                      {activeTab === 'catu' && (
-                        <>
-                          <th className="px-6 py-4 text-center">Conv.</th>
-                          <th className="px-6 py-4 text-center">Mensajes</th>
-                          <th className="px-6 py-4 text-center">Tasa Res.</th>
                         </>
                       )}
                       <th className="px-6 py-4 text-right">Acciones</th>

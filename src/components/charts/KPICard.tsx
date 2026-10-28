@@ -2,7 +2,10 @@ interface KPICardProps {
   titulo: string
   valor: string | number
   unidad?: string
-  variacion?: number // % positivo o negativo
+  variacion?: number | null // % positivo o negativo (null/undefined = sin comparación)
+  variacionSufijo?: string // por defecto '%'; p. ej. ' pp' o ' pts'
+  variacionInvertida?: boolean // true si subir es malo (se pinta en rojo)
+  variacionTitulo?: string // texto del tooltip del badge
   icono: string
   color?: string
   subtitulo?: string
@@ -13,11 +16,16 @@ export default function KPICard({
   valor,
   unidad,
   variacion,
+  variacionSufijo = '%',
+  variacionInvertida = false,
+  variacionTitulo,
   icono,
   color = 'text-primary',
   subtitulo,
 }: KPICardProps) {
-  const variacionPositiva = variacion !== undefined && variacion >= 0
+  const hayVariacion = variacion !== undefined && variacion !== null
+  const variacionPositiva = hayVariacion && variacion >= 0
+  const variacionBuena = variacionInvertida ? !variacionPositiva : variacionPositiva
 
   return (
     <div className="card p-6 card-hover">
@@ -25,12 +33,19 @@ export default function KPICard({
         <div className={`w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center ${color}`}>
           <i className={`${icono.includes(' ') ? '' : 'fa-solid '}${icono} text-xl`} />
         </div>
-        {variacion !== undefined && (
+        {hayVariacion && (
           <span
-            className={`badge ${variacionPositiva ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}
+            className={`badge ${
+              variacion === 0
+                ? 'bg-gray-100 text-gray-600'
+                : variacionBuena ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+            }`}
+            title={variacionTitulo}
           >
-            <i className={`fa-solid fa-arrow-${variacionPositiva ? 'up' : 'down'} text-[10px] mr-1`} />
-            {Math.abs(variacion)}%
+            {variacion !== 0 && (
+              <i className={`fa-solid fa-arrow-${variacionPositiva ? 'up' : 'down'} text-[10px] mr-1`} />
+            )}
+            {Math.abs(variacion).toLocaleString('es-AR')}{variacionSufijo}
           </span>
         )}
       </div>
