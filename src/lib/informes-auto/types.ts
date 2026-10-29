@@ -176,6 +176,9 @@ export interface InformeFindeCompleto {
   // actividades especiales durante el período (informativo)
   ingresosAtractivos: ResumenIngresosAtractivos
 
+  // Sitio web, redes y Catu del mes (solo MENSUAL; ausente en informes viejos)
+  canalesDigitales?: CanalesDigitalesInforme
+
   // Resultado del último empuje a la planilla histórica maestra (191cjZK9...)
   empujeMaestra?: ResultadoEmpuje
 
@@ -211,6 +214,13 @@ export interface PublicacionInforme {
   fecha: string                     // ISO
   usuario: string
   valores: ValoresMaestra
+  /** Huella de todo el contenido visible publicado (ausente en publicaciones viejas). */
+  huella?: string
+  /**
+   * Copia de lo publicado: /informes/ver la sirve aunque después se recalcule.
+   * Se omite si no entra en la celda de Sheets (queda solo la huella).
+   */
+  snapshot?: InformeFindeCompleto
 }
 
 export interface ResultadoEmpuje {
@@ -346,4 +356,68 @@ export interface IndicadoresRelevamiento {
   porGrupo: EstadisticasOHPorGrupo[]
   distribucionRangos: DistribucionRangosOH
   picos: PicosOcupacion            // OH-16 (reutiliza tipo existente)
+}
+
+// ── Canales digitales (solo informes MENSUAL) ─────────────────────────────────
+// Ver lib/informes-auto/canales-digitales*.ts. null = sin datos (nunca 0).
+
+export interface PuntoMensual {
+  mes: number                       // 1-12
+  valor: number | null
+}
+
+export interface MetricaCanalMensual {
+  actual: number | null
+  mesAnterior: number | null
+  anioAnterior: number | null       // mismo mes del año anterior
+}
+
+export interface ParticipacionCanal {
+  nombre: string
+  pct: number
+}
+
+export interface WebInforme {
+  visitantes: MetricaCanalMensual
+  serie: PuntoMensual[]             // ene → mes del informe, año del informe
+  serieAnioAnterior: PuntoMensual[] // mismo tramo del año anterior
+  topRegiones: ParticipacionCanal[]
+  topFuentes: ParticipacionCanal[]
+  incompleto?: boolean
+}
+
+export interface RedSocialInforme {
+  seguidores: MetricaCanalMensual
+  nuevosSeguidores: number | null
+  publicaciones: MetricaCanalMensual
+  interacciones: MetricaCanalMensual
+  // Tasa de interacción: interacciones con el contenido del mes / seguidores × 100.
+  // No es "% de seguidores que interactuó". Nombre del campo se mantiene por los informes guardados.
+  engagement: number | null
+  interaccionesPorPublicacion: number | null
+  lectura: string | null            // lectura en lenguaje llano (reglas, sin IA)
+  serieSeguidores: PuntoMensual[]
+  seriePublicaciones: PuntoMensual[]
+  serieIntPorPub: PuntoMensual[]
+  incompleto?: boolean
+}
+
+export interface CatuInforme {
+  conversaciones: number | null
+  resolucion: number | null         // %
+  score: number | null              // 1-10 (meta ≥ 7)
+  serie: PuntoMensual[]
+  serieAnioAnterior: PuntoMensual[]
+  topTemas: string[]
+  incompleto?: boolean
+}
+
+export interface CanalesDigitalesInforme {
+  periodo: { anio: number; mes: number }  // ventana usada (trazabilidad)
+  web: WebInforme | null
+  instagram: RedSocialInforme | null
+  facebook: RedSocialInforme | null
+  catu: CatuInforme | null
+  /** p. ej. ['instagram-10/2026']: se muestra en la revisión, no en el PDF */
+  faltantes: string[]
 }

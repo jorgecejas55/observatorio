@@ -1,17 +1,20 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { redirect, useParams } from 'next/navigation'
+import { redirect, useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { tieneAcceso } from '@/lib/permisos'
 import type { InformeFindeCompleto } from '@/lib/informes-auto/types'
 import { normalizarInforme } from '@/lib/informes-auto/normalizar'
 import PanelPublicacion from '@/components/informes-auto/PanelPublicacion'
 import InformeAutoVista from '@/components/informes-auto/vista/InformeAutoVista'
+import { nombreArchivoInforme } from '@/components/informes-auto/vista/etiquetas'
+import { useNombreArchivoImpresion } from '@/hooks/useNombreArchivoImpresion'
 
 export default function InformeAutoDetallePage() {
   const { data: session, status } = useSession()
   const params = useParams()
+  const router = useRouter()
   const id = params.id as string
 
   const [informe, setInforme] = useState<InformeFindeCompleto | null>(null)
@@ -23,18 +26,21 @@ export default function InformeAutoDetallePage() {
   const [nombreNuevo, setNombreNuevo] = useState('')
   const [guardandoNombre, setGuardandoNombre] = useState(false)
 
+  useNombreArchivoImpresion(informe ? nombreArchivoInforme(informe) : null)
+
   useEffect(() => {
-    // Intentar cargar de sessionStorage (datos de la generación)
+    // sessionStorage es solo un placeholder instantáneo: siempre se pide al GAS,
+    // porque el informe pudo publicarse o recalcularse desde otra pestaña.
     const cached = sessionStorage.getItem(`informe_${id}`)
     if (cached) {
       try {
         setInforme(normalizarInforme(JSON.parse(cached)))
         setCargando(false)
-        return
-      } catch {}
+      } catch {
+        sessionStorage.removeItem(`informe_${id}`)
+      }
     }
 
-    // Fallback: cargar de GAS via API
     fetch(`/api/informes-auto/${id}`)
       .then(async res => {
         if (!res.ok) {
@@ -88,10 +94,10 @@ export default function InformeAutoDetallePage() {
         <h2 className="text-lg font-bold text-text-primary mb-2">Informe no encontrado</h2>
         <p className="text-sm text-text-secondary">{error}</p>
         <button
-          onClick={() => redirect('/admin/informes-auto')}
+          onClick={() => router.push('/admin/informes-auto')}
           className="btn-primary mt-6"
         >
-          ← Volver al agente
+          ← Volver al listado
         </button>
       </div>
     )
@@ -140,11 +146,13 @@ export default function InformeAutoDetallePage() {
       if (json.success && json.data) {
         setInforme(json.data)
         sessionStorage.setItem(`informe_${id}`, JSON.stringify(json.data))
+        const avisos: string[] = json.avisos ?? []
+        const resumen = json.data.estado === 'cambios-sin-publicar'
+          ? 'Datos recalculados. Hay cambios sin publicar: la versión pública muestra la anterior'
+          : 'Datos recalculados desde las fuentes'
         setToast({
-          mensaje: json.data.estado === 'cambios-sin-publicar'
-            ? 'Datos recalculados. Hay cambios sin publicar: el dashboard muestra los valores anteriores'
-            : 'Datos recalculados desde el sistema OH',
-          tipo: 'success',
+          mensaje: [resumen, ...avisos].join(' · '),
+          tipo: avisos.length > 0 ? 'error' : 'success',
         })
       } else {
         setToast({ mensaje: json.error ?? 'No se pudo recalcular', tipo: 'error' })
@@ -159,20 +167,21 @@ export default function InformeAutoDetallePage() {
   return (
     <div className="max-w-5xl mx-auto print:max-w-none">
       {/* ── Barra de acciones (no-print) ── */}
-      <div className="no-print flex items-center justify-between mb-4">
+      <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <button
-          onClick={() => redirect('/admin/informes-auto')}
-          className="btn-outline text-sm flex items-center gap-1.5"
+          onClick={() => router.push('/admin/informes-auto')}
+          className="btn-outline text-sm flex items-center justify-center gap-1.5 whitespace-nowrap"
         >
           <i className="fa-solid fa-arrow-left" />
-          Volver al agente
+          Volver al listado
         </button>
 
-        <div className="flex items-center gap-2">
+        {/* En móvil los botones ocupan el ancho y bajan de línea si no entran */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={abrirRenombrar}
             title="Cambia el nombre del informe. El enlace público y el id se conservan."
-            className="btn-outline text-sm flex items-center gap-1.5"
+            className="btn-outline text-sm flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap"
           >
             <i className="fa-solid fa-pen" />
             Cambiar nombre
@@ -181,14 +190,14 @@ export default function InformeAutoDetallePage() {
             onClick={recalcularDatos}
             disabled={recalculando}
             title="Recalcula OH por tipo, picos, perfil, impacto e ingresos a atractivos desde las fuentes. No cambia el dashboard hasta que se vuelva a publicar."
-            className="btn-outline text-sm flex items-center gap-1.5 disabled:opacity-50"
+            className="btn-outline text-sm flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-50"
           >
             <i className={`fa-solid ${recalculando ? 'fa-spinner fa-spin' : 'fa-rotate'}`} />
             {recalculando ? 'Recalculando...' : 'Recalcular datos'}
           </button>
           <button
             onClick={exportarPDF}
-            className="btn-outline text-sm flex items-center gap-1.5"
+            className="btn-outline text-sm flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap"
           >
             <i className="fa-solid fa-print" />
             Exportar PDF

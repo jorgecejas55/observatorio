@@ -50,10 +50,88 @@ export function mismosValores(a: ValoresMaestra, b: ValoresMaestra): boolean {
   return (Object.keys(a) as (keyof ValoresMaestra)[]).every(k => a[k] === b[k])
 }
 
+// ── Huella del contenido publicado ────────────────────────────────────────────
+
+/** Metadatos que no se ven en el informe: no cuentan como "cambio sin publicar". */
+const CAMPOS_NO_VISIBLES = [
+  'id', 'estado', 'publicacion', 'empujeMaestra', 'idInformePublico', 'fechaGeneracion', 'usuarioGenerador',
+] as const
+
+/** Límite de la celda de Sheets (50.000) con margen para el resto del JSON. */
+const MAX_CARACTERES_CELDA = 45_000
+
+/** JSON con claves ordenadas: el mismo contenido da el mismo texto aunque cambie el orden. */
+function serializarEstable(valor: unknown): string {
+  if (Array.isArray(valor)) return `[${valor.map(serializarEstable).join(',')}]`
+  if (valor && typeof valor === 'object') {
+    const claves = Object.keys(valor).filter(k => (valor as Record<string, unknown>)[k] !== undefined).sort()
+    return `{${claves.map(k => `${JSON.stringify(k)}:${serializarEstable((valor as Record<string, unknown>)[k])}`).join(',')}}`
+  }
+  return JSON.stringify(valor) ?? 'null'
+}
+
+/** Hash de 53 bits (cyrb53): detecta cambios, sin dependencias ni node:crypto. */
+function hash53(texto: string): string {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto.charCodeAt(i)
+    h1 = Math.imul(h1 ^ c, 2654435761)
+    h2 = Math.imul(h2 ^ c, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16)
+}
+
+export function huellaPublicable(informe: InformeFindeCompleto): string {
+  const visible: Record<string, unknown> = { ...informe }
+  for (const campo of CAMPOS_NO_VISIBLES) delete visible[campo]
+  return hash53(serializarEstable(visible))
+}
+
+/** Lo publicado tal cual se ve (sin metadatos de publicación anidados). */
+function copiaPublicable(informe: InformeFindeCompleto): InformeFindeCompleto {
+  const { publicacion: _publicacion, empujeMaestra: _empuje, ...copia } = informe
+  return copia as InformeFindeCompleto
+}
+
 /**
- * Estado de un informe después de recalcularlo o regenerarlo: un borrador
- * sigue borrador; uno publicado pasa a "cambios sin publicar" solo si los
- * valores que ve el dashboard cambiaron.
+ * Registro de publicación: valores del dashboard, huella del contenido y, si
+ * entra en la celda de Sheets, la copia que sirve la vista pública.
+ */
+export function registrarPublicacion(
+  informe: InformeFindeCompleto,
+  fecha: string,
+  usuario: string,
+): PublicacionInforme {
+  const base: PublicacionInforme = {
+    fecha,
+    usuario,
+    valores: valoresParaMaestra(informe),
+    huella: huellaPublicable(informe),
+  }
+  const conCopia: PublicacionInforme = { ...base, snapshot: copiaPublicable(informe) }
+  const tamanio = JSON.stringify({ ...informe, publicacion: conCopia }).length
+  return tamanio <= MAX_CARACTERES_CELDA ? conCopia : base
+}
+
+/**
+ * Tras renombrar: la copia pública toma el nombre nuevo (el nombre es
+ * identidad, no un cambio de contenido). Los valores del dashboard los
+ * actualiza quien empuja el renombre a la planilla maestra.
+ */
+export function renombrarCopiaPublicada(publicacion: PublicacionInforme, nombre: string): PublicacionInforme {
+  if (!publicacion.snapshot) return publicacion
+  const snapshot = { ...publicacion.snapshot, nombre }
+  return { ...publicacion, snapshot, huella: huellaPublicable(snapshot) }
+}
+
+/**
+ * Estado de un informe después de recalcularlo, regenerarlo o renombrarlo: un
+ * borrador sigue borrador; uno publicado pasa a "cambios sin publicar" si
+ * cambió cualquier cosa visible (o, en publicaciones viejas sin huella, si
+ * cambiaron los valores del dashboard).
  */
 export function estadoTrasCambio(
   estadoPrevio: EstadoInforme,
@@ -61,9 +139,10 @@ export function estadoTrasCambio(
   informeNuevo: InformeFindeCompleto,
 ): EstadoInforme {
   if (estadoPrevio === 'borrador' || !publicacion) return estadoPrevio
-  return mismosValores(publicacion.valores, valoresParaMaestra(informeNuevo))
-    ? 'publicado'
-    : 'cambios-sin-publicar'
+  const sinCambios = publicacion.huella
+    ? publicacion.huella === huellaPublicable(informeNuevo)
+    : mismosValores(publicacion.valores, valoresParaMaestra(informeNuevo))
+  return sinCambios ? 'publicado' : 'cambios-sin-publicar'
 }
 
 export interface ComparacionMaestra {

@@ -12,7 +12,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireAcceso, requireEscritura } from '@/lib/permisos'
 import { guardarInforme, obtenerInforme } from '@/lib/informes-auto/gas'
 import { empujarAPlanillaMaestra, empujarRenombreFinde } from '@/lib/informes-auto/empuje'
-import { valoresParaMaestra } from '@/lib/informes-auto/publicacion'
+import { registrarPublicacion, renombrarCopiaPublicada } from '@/lib/informes-auto/publicacion'
 import { TAG_INFORMES_PUBLICOS } from '@/lib/informes-auto/publicos'
 
 // ── GET: obtener informe completo ─────────────────────────────────────────────
@@ -85,6 +85,9 @@ export async function PATCH(
         }
         informe.publicacion.valores.evento = nombreNuevo
       }
+      if (informe.publicacion) {
+        informe.publicacion = renombrarCopiaPublicada(informe.publicacion, nombreNuevo)
+      }
 
       informe.nombre = nombreNuevo
 
@@ -123,11 +126,7 @@ export async function PATCH(
 
     informe.empujeMaestra = empuje
     informe.estado = 'publicado'
-    informe.publicacion = {
-      fecha: empuje.fecha,
-      usuario: session.user?.email ?? '',
-      valores: valoresParaMaestra(informe),
-    }
+    informe.publicacion = registrarPublicacion(informe, empuje.fecha, session.user?.email ?? '')
 
     const persistencia = await guardarInforme(informe)
     if (!persistencia.success) {

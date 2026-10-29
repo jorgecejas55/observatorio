@@ -251,7 +251,7 @@ function VistaSocial({ datos, accent }: { datos: MetricaSocial[]; accent: string
           subtitulo={`vs. ${labelMesAnterior}`}
         />
         <KPICard
-          titulo="Engagement"
+          titulo="Tasa de interacción"
           valor={kpis.engagement.toFixed(2)}
           unidad="%"
           icono="fa-heart"
@@ -308,8 +308,8 @@ function VistaSocial({ datos, accent }: { datos: MetricaSocial[]; accent: string
         </div>
 
         <div className="card p-6">
-          <h3 className="font-semibold text-text-primary mb-1">Tasa de engagement</h3>
-          <p className="text-xs text-text-secondary mb-4">Interacciones / seguidores × 100</p>
+          <h3 className="font-semibold text-text-primary mb-1">Tasa de interacción</h3>
+          <p className="text-xs text-text-secondary mb-4">Interacciones con el contenido del mes cada 100 seguidores</p>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={datosConEngagement} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -317,7 +317,7 @@ function VistaSocial({ datos, accent }: { datos: MetricaSocial[]; accent: string
                 <XAxis dataKey="mes_anio" {...AX} />
                 <YAxis {...AX} width={42} tickFormatter={(v) => `${v}%`} />
                 <Tooltip content={<Tip />} />
-                <Line type="monotone" dataKey="engagement" name="Engagement (%)"
+                <Line type="monotone" dataKey="engagement" name="Tasa de interacción (%)"
                   stroke={accent} strokeWidth={2} dot={false}
                   activeDot={{ r: 4, strokeWidth: 0 }} connectNulls />
               </LineChart>

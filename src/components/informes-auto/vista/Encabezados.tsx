@@ -75,15 +75,16 @@ export function EncabezadoPaginaImpresion({ titulo }: { titulo: string }) {
 /** Encabezado institucional en pantalla (en el PDF lo reemplazan portada + encabezados reducidos). */
 export function EncabezadoPantalla({ informe }: { informe: InformeFindeCompleto }) {
   return (
-    <div className="print:hidden flex items-center justify-between mb-8 pb-6 border-b-2 border-primary gap-4">
+    <div className="print:hidden flex flex-col md:flex-row items-center justify-between mb-8 pb-6 border-b-2 border-primary gap-4">
       {/* Logo Secretaría (proporción 6.9:1 → altura menor) */}
       <img
         src="/logos/secretaria.png"
         alt="Secretaría de Turismo y Desarrollo Económico"
-        className="h-9 w-auto print:h-10 flex-shrink-0"
+        className="h-8 md:h-9 w-auto max-w-full print:h-10 flex-shrink-0"
       />
       {/* Centro: título + fechas */}
-      <div className="text-center flex-1">
+      {/* En móvil se apila (logo · título · logos) para que el título use todo el ancho */}
+      <div className="text-center flex-1 min-w-0">
         <h1 className="text-xl font-bold text-text-primary mb-1 print:text-2xl">
           {tituloInforme(informe)}
         </h1>
@@ -95,16 +96,16 @@ export function EncabezadoPantalla({ informe }: { informe: InformeFindeCompleto 
         </p>
       </div>
       {/* Derecha: marca destino + logo observatorio */}
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex flex-wrap items-center justify-center gap-3 flex-shrink-0">
         <img
           src="/logos/marca-destino.png"
           alt="Marca del Destino"
-          className="h-12 w-auto print:h-14"
+          className="h-10 sm:h-12 w-auto print:h-14"
         />
         <img
           src="/logos/observatorio.png"
           alt="Observatorio de Turismo Municipal"
-          className="h-12 w-auto print:h-14"
+          className="h-10 sm:h-12 w-auto print:h-14"
         />
       </div>
     </div>

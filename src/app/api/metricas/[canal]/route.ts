@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
-import { auth } from '@/auth'
+import { requireEscritura, requireGestion } from '@/lib/permisos'
 import {
   MetricaWebSchema,
   MetricaSocialSchema
 } from '@/lib/schemas'
 
 const GAS_URL = process.env.METRICAS_DIGITALES_SCRIPT_URL
+
+const CANALES = ['web', 'facebook', 'instagram'] as const
 
 function getSchema(canal: string) {
   if (canal === 'web') return MetricaWebSchema
@@ -20,6 +22,9 @@ export async function GET(
 ) {
   try {
     const { canal } = await params
+    if (!CANALES.includes(canal as (typeof CANALES)[number])) {
+      return NextResponse.json({ error: 'Canal inválido' }, { status: 400 })
+    }
     if (!GAS_URL) return NextResponse.json({ success: false, data: [], error: 'URL no configurada' })
 
     const url = `${GAS_URL}?action=getMetricas&canal=${canal}`
@@ -42,8 +47,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ canal: string }> }
 ) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  const session = await requireEscritura('metricas')
+  if (session instanceof NextResponse) return session
 
   try {
     const { canal } = await params
@@ -83,26 +88,33 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ canal: string }> }
 ) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  const session = await requireGestion('metricas')
+  if (session instanceof NextResponse) return session
 
   try {
     const { canal } = await params
+    if (!getSchema(canal)) return NextResponse.json({ error: 'Canal inválido' }, { status: 400 })
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+    if (!GAS_URL) return NextResponse.json({ error: 'Servidor no configurado' }, { status: 500 })
 
-    const res = await fetch(GAS_URL!, {
+    const res = await fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'delete', canal, id })
     })
 
     const text = await res.text()
-    const resultado = JSON.parse(text)
-    revalidatePath('/admin/metricas')
-    return NextResponse.json(resultado)
+    try {
+      const resultado = JSON.parse(text)
+      revalidatePath('/admin/metricas')
+      return NextResponse.json(resultado)
+    } catch {
+      return NextResponse.json({ error: 'Error en respuesta de Google' }, { status: 500 })
+    }
   } catch (error) {
+    console.error('[API DELETE]', error)
     return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 })
   }
 }
@@ -111,8 +123,8 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ canal: string }> }
 ) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  const session = await requireGestion('metricas')
+  if (session instanceof NextResponse) return session
 
   try {
     const { canal } = await params

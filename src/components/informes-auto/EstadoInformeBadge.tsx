@@ -17,7 +17,7 @@ const ESTILOS: Record<EstadoInforme, { etiqueta: string; clases: string; icono: 
     etiqueta: 'Cambios sin publicar',
     clases: 'bg-amber-100 text-amber-800',
     icono: 'fa-rotate',
-    ayuda: 'Se recalculó después de publicar: el dashboard muestra los valores anteriores',
+    ayuda: 'Cambió después de publicar: el dashboard y la versión pública muestran lo anterior',
   },
 }
 

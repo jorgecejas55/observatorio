@@ -6,6 +6,17 @@ interface Props {
   ingresos: ResumenIngresosAtractivos
 }
 
+const ICONO_ATRACTIVO: Record<string, string> = {
+  'pueblo-perdido': 'fa-landmark',          // sitio arqueológico
+  'casa-la-puna': 'fa-mountain-sun',
+  'museo-adan-quiroga': 'fa-building-columns',
+  'museo-virgen-valle': 'fa-building-columns',
+  'museo-casa-caravati': 'fa-building-columns',
+}
+
+const participacion = (personas: number, total: number) =>
+  total > 0 ? `${Math.round((personas / total) * 100).toLocaleString('es-AR')} % del total` : ''
+
 // Informes viejos no tienen el desglose turistas/residentes: se muestra "—"
 const formatearCantidad = (cantidad?: number) =>
   cantidad === undefined ? '—' : cantidad.toLocaleString('es-AR')
@@ -36,7 +47,9 @@ export default function SeccionIngresosAtractivos({ ingresos }: Props) {
             key={a.atractivo}
             className="bg-primary/5 rounded-xl p-3 text-center print:border print:border-gray-200"
           >
+            <i className={`fa-solid ${ICONO_ATRACTIVO[a.atractivo] ?? 'fa-location-dot'} text-secondary text-sm`} aria-hidden="true" />
             <p className="text-2xl font-bold text-primary">{a.personas.toLocaleString('es-AR')}</p>
+            <p className="text-[10px] font-semibold text-text-primary">{participacion(a.personas, totalPersonas)}</p>
             <p className="text-xs text-text-secondary mt-1">{a.nombre}</p>
             <p className="text-[10px] text-text-secondary">
               {a.registros.toLocaleString('es-AR')} {a.registros === 1 ? 'registro' : 'registros'}
@@ -63,6 +76,7 @@ export default function SeccionIngresosAtractivos({ ingresos }: Props) {
             <i className="fa-solid fa-calendar-days mr-1.5 text-primary" />
             Actividades especiales ({actividadesEspeciales.length})
           </p>
+          <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200 text-left text-text-secondary">
@@ -87,6 +101,7 @@ export default function SeccionIngresosAtractivos({ ingresos }: Props) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

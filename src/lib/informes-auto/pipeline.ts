@@ -1,6 +1,6 @@
 /**
  * Cálculo de datos e indicadores de un informe (OH por tipo, picos, perfil del
- * visitante, impacto económico, comparativas, actividades vigentes).
+ * visitante, impacto económico, comparativas, ingresos a atractivos).
  *
  * Puramente de lectura/cálculo: no persiste nada. Se usa desde
  * /api/informes-auto/calcular para armar la vista previa que el usuario
@@ -25,14 +25,16 @@ import {
   getRegistroMaestroPorId,
   registroAPeriodoComparativo,
 } from '@/lib/informes-auto/comparativas'
+import { fetchCanalesDigitales } from '@/lib/informes-auto/canales-digitales'
 import { fetchIngresosAtractivos } from '@/lib/informes-auto/ingresos-atractivos'
 import { fetchPerfil } from '@/lib/informes-auto/perfil'
 import {
   COMPARATIVA_NINGUNA,
   type GenerarInformePayload,
   type InformeFindeCompleto,
-  type DatosPerfilVisitante,
   type InputsImpactoEconomico,
+  type OHPorTipo,
+  type PicosOcupacion,
   type PeriodoComparativo,
   type TipoInforme,
 } from '@/lib/informes-auto/types'
@@ -82,9 +84,39 @@ async function resolverComparativa(
 export interface ResultadoCalculo {
   informe: InformeFindeCompleto
   meta: {
-    estadia: { n: number; nExcluidas: number }
+    estadia: { n: number }
     duracionPeriodo: number
     plazasDisponibles: number
+  }
+}
+
+/** El GAS de perfil no respondió: sin estadía no se puede estimar visitantes ni impacto. */
+export class PerfilNoDisponibleError extends Error {
+  constructor() {
+    super('No se pudo leer la encuesta de perfil del visitante; reintentá en unos segundos.')
+    this.name = 'PerfilNoDisponibleError'
+  }
+}
+
+export interface DatosOcupacion {
+  ohPorTipo: OHPorTipo[]
+  picos: PicosOcupacion
+  plazasDisponibles: number
+}
+
+/** OH por tipo, picos y plazas en oferta (registrados + en trámite) de un relevamiento. */
+export async function leerOcupacion(relevamientoId: string): Promise<DatosOcupacion> {
+  const [alojamientos, cargas] = await Promise.all([
+    getAlojamientosActivos(),
+    getCargasDeRelevamiento(relevamientoId),
+  ])
+  const plazasDisponibles = alojamientos
+    .filter(a => a.estadoRegistro === 'REGISTRADO' || a.estadoRegistro === 'EN_TRAMITE')
+    .reduce((sum, a) => sum + a.capacidadPlazas, 0)
+  return {
+    ohPorTipo: calcularOHPorTipo(cargas, alojamientos),
+    picos: calcularPicosOcupacion(cargas, alojamientos),
+    plazasDisponibles,
   }
 }
 
@@ -115,9 +147,9 @@ export async function calcularInforme(
 
   const year = Number(fechaInicio.slice(0, 4))
   const mesNumero = Number(fechaInicio.slice(5, 7))
-  const [alojamientos, perfil, comparativaUltimoFinde, comparativaAnioAnterior, ingresosAtractivos] =
+  const [ocupacion, perfil, comparativaUltimoFinde, comparativaAnioAnterior, ingresosAtractivos, canalesDigitales] =
     await Promise.all([
-      getAlojamientosActivos(),
+      leerOcupacion(relevamiento.id),
       fetchPerfil(fechaInicio, fechaFin),
       resolverComparativa(comparativaManualUltimoFinde, () =>
         buscarPeriodoAnterior(tipoInforme, nombre, year, mesNumero)
@@ -126,53 +158,28 @@ export async function calcularInforme(
         buscarMismoPeriodoAnioAnterior(tipoInforme, nombre, year, mesNumero)
       ),
       fetchIngresosAtractivos(fechaInicio, fechaFin),
+      // Web/IG/FB se cargan por mes: la sección solo existe en informes MENSUAL
+      tipoInforme === 'MENSUAL' ? fetchCanalesDigitales(year, mesNumero, fechaFin) : Promise.resolve(undefined),
     ])
 
-  const cargas = await getCargasDeRelevamiento(relevamiento.id)
+  // Sin perfil la estadía sería 0 y los visitantes/impacto saldrían en cero
+  if (!perfil) throw new PerfilNoDisponibleError()
 
-  const ohPorTipo = calcularOHPorTipo(cargas, alojamientos)
-  const picos = calcularPicosOcupacion(cargas, alojamientos)
-
-  const plazasDisponibles = alojamientos
-    .filter(a => a.estadoRegistro === 'REGISTRADO' || a.estadoRegistro === 'EN_TRAMITE')
-    .reduce((sum, a) => sum + a.capacidadPlazas, 0)
   const duracionPeriodo = calcularDiasEntreFechas(fechaInicio, fechaFin)
-
-  const estadia = perfil?.estadiaSinOutliers?.estadiaPromedio ?? 0
-  const nEncuestas = perfil?.estadiaSinOutliers?.n ?? 0
-  const nExcluidas = perfil?.estadiaSinOutliers?.nExcluidas ?? 0
-
   const inputsImpacto: InputsImpactoEconomico = {
-    plazasDisponibles,
+    plazasDisponibles: ocupacion.plazasDisponibles,
     duracionPeriodo,
     ohPorcentaje: relevamiento.ohTotal,
-    estadiaPromedio: estadia,
+    estadiaPromedio: perfil.estadiaSinOutliers.estadiaPromedio,
     gastoDiarioTuristas,
     gastoDiarioExcursionistas,
     porcentajeExcursionistas,
   }
   const impacto = calcularImpactoEconomico(inputsImpacto)
 
-  const id = generarId()
-  const slug = generarSlug(tipoInforme, nombre, fechaInicio)
-  const perfilDefault: DatosPerfilVisitante = {
-    totalEncuestas: 0,
-    estadiaSinOutliers: { estadiaPromedio: 0, n: 0, nExcluidas: 0 },
-    procedencia: { NACIONAL: 0, PROVINCIAL: 0, INTERNACIONAL: 0 },
-    provinciasFrecuentes: [],
-    motivosVisita: [],
-    gruposViaje: [],
-    mediosTransporte: [],
-    tiposAlojamiento: [],
-    primeraVez: {},
-    otrosDestinos: {},
-    recomendaria: {},
-    volveria: {},
-  }
-
   const informe: InformeFindeCompleto = {
-    id,
-    slug,
+    id: generarId(),
+    slug: generarSlug(tipoInforme, nombre, fechaInicio),
     nombre,
     tipoInforme,
     fechaInicio,
@@ -181,9 +188,9 @@ export async function calcularInforme(
     usuarioGenerador: usuarioEmail || 'sistema',
     estado: 'borrador',
     relevamiento,
-    ohPorTipo,
-    picos,
-    perfil: perfil ?? perfilDefault,
+    ohPorTipo: ocupacion.ohPorTipo,
+    picos: ocupacion.picos,
+    perfil,
     impacto,
     gastoDiarioTuristas,
     gastoDiarioExcursionistas,
@@ -192,14 +199,15 @@ export async function calcularInforme(
     comparativaUltimoFinde,
     comparativaAnioAnterior,
     ingresosAtractivos,
+    ...(canalesDigitales && { canalesDigitales }),
   }
 
   return {
     informe,
     meta: {
-      estadia: { n: nEncuestas, nExcluidas },
+      estadia: { n: perfil.estadiaSinOutliers.n },
       duracionPeriodo,
-      plazasDisponibles,
+      plazasDisponibles: ocupacion.plazasDisponibles,
     },
   }
 }

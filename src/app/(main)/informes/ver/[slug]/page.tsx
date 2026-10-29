@@ -9,7 +9,7 @@ import { notFound } from 'next/navigation'
 import { getInformeAutoPublicado } from '@/lib/informes-auto/publicos'
 import InformeAutoVista from '@/components/informes-auto/vista/InformeAutoVista'
 import BotonDescargarPdf from '@/components/informes-auto/BotonDescargarPdf'
-import { tituloInforme } from '@/components/informes-auto/vista/etiquetas'
+import { nombreArchivoInforme, tituloInforme } from '@/components/informes-auto/vista/etiquetas'
 
 type Props = { params: Promise<{ slug: string }> }
 
@@ -24,12 +24,12 @@ export default async function InformePublicoPage({ params }: Props) {
 
   return (
     <div className="max-w-5xl mx-auto print:max-w-none">
-      <div className="no-print flex items-center justify-between gap-3 mb-4">
-        <Link href="/informes/ocio" className="btn-outline text-sm flex items-center gap-1.5">
+      <div className="no-print flex flex-wrap items-center justify-between gap-2 mb-4">
+        <Link href="/informes/ocio" className="btn-outline text-sm flex items-center gap-1.5 whitespace-nowrap">
           <i className="fa-solid fa-arrow-left" aria-hidden="true" />
           Informes de turismo de ocio
         </Link>
-        <BotonDescargarPdf />
+        <BotonDescargarPdf nombreArchivo={nombreArchivoInforme(informe)} />
       </div>
       <InformeAutoVista informe={informe} />
     </div>

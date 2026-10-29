@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireEscritura } from '@/lib/permisos'
-import { calcularInforme } from '@/lib/informes-auto/pipeline'
+import { calcularInforme, PerfilNoDisponibleError } from '@/lib/informes-auto/pipeline'
 import type { GenerarInformePayload } from '@/lib/informes-auto/types'
 
 export async function POST(req: NextRequest) {
@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: informe, meta })
   } catch (error) {
     console.error('[calcular] Error:', error)
+    if (error instanceof PerfilNoDisponibleError) {
+      return NextResponse.json({ error: error.message }, { status: 503 })
+    }
     const notFound = error instanceof Error && error.message.includes('No se encontró el relevamiento')
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Error interno al calcular el informe', notFound },

@@ -10,6 +10,14 @@ export function etiquetasDe(informe: InformeFindeCompleto) {
   return ETIQUETAS_TIPO[informe.tipoInforme ?? 'FSL']
 }
 
+/** Nombre del PDF descargado: "Informe Mensual - Agosto 2026" (sin caracteres inválidos en archivos). */
+export function nombreArchivoInforme(informe: InformeFindeCompleto): string {
+  return `${etiquetasDe(informe).header} - ${informe.nombre}`
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** Título de los encabezados: "Informe Mensual — Agosto 2026". */
 export function tituloInforme(informe: InformeFindeCompleto): string {
   return `${etiquetasDe(informe).header} — ${informe.nombre}`

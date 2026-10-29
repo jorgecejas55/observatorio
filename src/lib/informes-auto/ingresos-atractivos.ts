@@ -86,10 +86,10 @@ export async function fetchIngresosAtractivos(
   fechaInicio: string,
   fechaFin: string,
 ): Promise<ResumenIngresosAtractivos> {
-  const resultadosConGas = await Promise.all(
-    ATRACTIVOS_CON_INGRESOS.map(a => fetchAtractivoConGas(a, fechaInicio, fechaFin))
-  )
-  const museos = await Promise.all(MUSEOS.map(m => fetchMuseo(m, fechaInicio, fechaFin)))
+  const [resultadosConGas, museos] = await Promise.all([
+    Promise.all(ATRACTIVOS_CON_INGRESOS.map(a => fetchAtractivoConGas(a, fechaInicio, fechaFin))),
+    Promise.all(MUSEOS.map(m => fetchMuseo(m, fechaInicio, fechaFin))),
+  ])
 
   const porAtractivo = [...resultadosConGas.map(r => r.ingreso), ...museos]
   const actividadesEspeciales = resultadosConGas
