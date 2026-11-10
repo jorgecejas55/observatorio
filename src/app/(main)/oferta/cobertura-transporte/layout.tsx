@@ -1,0 +1,8 @@
+import { metadataDePagina } from '@/lib/seo/paginas-publicas'
+
+// La página es client component: la metadata para buscadores se declara acá
+export const metadata = metadataDePagina('/oferta/cobertura-transporte')
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return children
+}

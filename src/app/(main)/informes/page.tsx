@@ -1,4 +1,7 @@
 import Link from 'next/link'
+import { metadataDePagina } from '@/lib/seo/paginas-publicas'
+
+export const metadata = metadataDePagina('/informes')
 
 export default function InformesLandingPage() {
   return (

@@ -3,6 +3,9 @@ import { getInformes } from '@/lib/informes'
 import { getInformesAutoPublicados, tipoDesdeSlug } from '@/lib/informes-auto/publicos'
 import { unificarInformesOcio, type InformeAutoPublico } from '@/lib/informes-ocio-unificar'
 import InformesOcioTabs from '@/components/informes/InformesOcioTabs'
+import { metadataDePagina } from '@/lib/seo/paginas-publicas'
+
+export const metadata = metadataDePagina('/informes/ocio')
 
 /** Informes automáticos publicados; si el GAS falla, la página sigue con los PDF manuales. */
 async function getAutosPublicados(): Promise<InformeAutoPublico[]> {

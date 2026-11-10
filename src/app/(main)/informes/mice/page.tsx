@@ -1,6 +1,9 @@
 import type { Informe } from '@/lib/types'
 import { getInformes } from '@/lib/informes'
 import InformeFila from '@/components/informes/InformeFila'
+import { metadataDePagina } from '@/lib/seo/paginas-publicas'
+
+export const metadata = metadataDePagina('/informes/mice')
 
 export default async function MicePage() {
   const todos = await getInformes()

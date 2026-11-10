@@ -1,4 +1,7 @@
 import Link from 'next/link'
+import { METADATA_SIN_INDEXAR } from '@/lib/seo/sin-indexar'
+
+export const metadata = METADATA_SIN_INDEXAR
 
 export default function SinAccesoPage() {
   return (

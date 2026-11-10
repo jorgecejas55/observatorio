@@ -10,12 +10,25 @@ import { getInformeAutoPublicado } from '@/lib/informes-auto/publicos'
 import InformeAutoVista from '@/components/informes-auto/vista/InformeAutoVista'
 import BotonDescargarPdf from '@/components/informes-auto/BotonDescargarPdf'
 import { nombreArchivoInforme, tituloInforme } from '@/components/informes-auto/vista/etiquetas'
+import { formatearFecha } from '@/lib/formato-fechas'
+import { OPEN_GRAPH_BASE } from '@/lib/seo/paginas-publicas'
 
 type Props = { params: Promise<{ slug: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const informe = await getInformeAutoPublicado((await params).slug)
-  return { title: informe ? `${tituloInforme(informe)} | Observatorio de Turismo` : 'Informe no disponible' }
+  const { slug } = await params
+  const informe = await getInformeAutoPublicado(slug)
+  if (!informe) return { title: 'Informe no disponible', robots: { index: false } }
+
+  const titulo = tituloInforme(informe)
+  const descripcion = `${titulo}, período del ${formatearFecha(informe.fechaInicio)} al ${formatearFecha(informe.fechaFin)}. Informe técnico del Observatorio Municipal de Turismo de San Fernando del Valle de Catamarca.`
+  const ruta = `/informes/ver/${slug}`
+  return {
+    title: titulo,
+    description: descripcion,
+    alternates: { canonical: ruta },
+    openGraph: { ...OPEN_GRAPH_BASE, type: 'article', title: titulo, description: descripcion, url: ruta },
+  }
 }
 
 export default async function InformePublicoPage({ params }: Props) {
