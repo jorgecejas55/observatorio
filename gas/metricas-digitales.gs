@@ -24,7 +24,22 @@ var SHEETS = {
   CATU: 'metricas_catu'
 };
 
-var CACHE_DURATION = 300;
+// 6 h (máximo de CacheService). Los datos cambian una vez por mes y toda escritura
+// (create/update/delete) invalida la caché del canal, así que no hay riesgo de dato viejo.
+// Con 5 min casi cada visita reabría la planilla (6-30 s en frío).
+var CACHE_DURATION = 21600;
+
+// CacheService rechaza valores de más de 100 KB: si el canal web crece hasta ahí,
+// la caché deja de guardar y cada lectura vuelve a la planilla. Se avisa en el log.
+var CACHE_MAX_BYTES = 100000;
+
+// Una sola apertura de la planilla por ejecución (web lee 3 hojas en cada request)
+var _spreadsheet = null;
+
+function getSpreadsheet() {
+  if (!_spreadsheet) _spreadsheet = SpreadsheetApp.openById(SHEET_ID);
+  return _spreadsheet;
+}
 
 // =================================================================================
 // SEGURIDAD & MIDDLEWARE
@@ -58,8 +73,12 @@ function getCachedData(key) {
 
 function setCachedData(key, data) {
   try {
-    var cache = CacheService.getScriptCache();
-    cache.put(key, JSON.stringify(data), CACHE_DURATION);
+    var json = JSON.stringify(data);
+    if (json.length > CACHE_MAX_BYTES) {
+      Logger.log('setCachedData: ' + key + ' ocupa ' + json.length + ' bytes, supera el límite de CacheService; no se cachea');
+      return;
+    }
+    CacheService.getScriptCache().put(key, json, CACHE_DURATION);
   } catch (e) {
     Logger.log('setCachedData error: ' + e.toString());
   }
@@ -291,7 +310,7 @@ function deleteMetrica(canal, id) {
 // =================================================================================
 
 function getSheetData(sheetName) {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ss = getSpreadsheet();
   var ws = ss.getSheetByName(sheetName);
 
   if (!ws) {
@@ -313,7 +332,7 @@ function getSheetData(sheetName) {
 }
 
 function saveRow(sheetName, dataObj) {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ss = getSpreadsheet();
   var ws = ss.getSheetByName(sheetName);
 
   if (!ws) {
@@ -339,7 +358,7 @@ function saveRow(sheetName, dataObj) {
 }
 
 function updateRow(sheetName, id, dataObj) {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ss = getSpreadsheet();
   var ws = ss.getSheetByName(sheetName);
 
   if (!ws) throw new Error('Hoja no encontrada: ' + sheetName);
@@ -366,7 +385,7 @@ function updateRow(sheetName, id, dataObj) {
 }
 
 function deleteRow(sheetName, id) {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ss = getSpreadsheet();
   var ws = ss.getSheetByName(sheetName);
 
   if (!ws) throw new Error('Hoja no encontrada: ' + sheetName);
@@ -387,7 +406,7 @@ function deleteRow(sheetName, id) {
 }
 
 function clearRelational(sheetName, fkColName, fkValue) {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ss = getSpreadsheet();
   var ws = ss.getSheetByName(sheetName);
 
   if (!ws) throw new Error('Hoja no encontrada: ' + sheetName);
@@ -414,7 +433,7 @@ function returnJSON(obj) {
 // =================================================================================
 
 function setup() {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ss = getSpreadsheet();
 
   var config = [
     { name: SHEETS.WEB,          color: '#4285f4', headers: ['id', 'mes_anio', 'visitantes', 'timestamp', 'usuario_registro'] },

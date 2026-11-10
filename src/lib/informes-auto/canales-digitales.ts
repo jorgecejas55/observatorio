@@ -1,8 +1,8 @@
 /**
  * Lectura de fuentes de la sección "Canales digitales" del informe MENSUAL.
  *
- * Web / Instagram / Facebook: GAS de métricas digitales (lectura directa, no
- * vía /api/metricas que es para el cliente). Catu: tablero cacheado de
+ * Web / Instagram / Facebook: GAS de métricas digitales (lectura directa sin
+ * caché, compartida con /api/metricas en lib/metricas/lectura). Catu: tablero cacheado de
  * lib/catu. Los cálculos viven en canales-digitales-calculo.ts (puros).
  * Si una fuente falla, ese canal sale con `incompleto: true` (sin ceros falsos).
  */
@@ -11,6 +11,7 @@ import { fetchCatuDashboard } from '@/lib/catu/service'
 import { calcularKpis, filtrarSerie, topicosDelPeriodo, type Periodo } from '@/lib/catu/periodo'
 import type { CatuDiario } from '@/lib/catu/types'
 import { conReintento } from '@/lib/reintento'
+import { leerMetricasGas, type CanalMetricas } from '@/lib/metricas/lectura'
 import {
   calcularRedSocial,
   calcularWeb,
@@ -20,28 +21,10 @@ import {
 } from './canales-digitales-calculo'
 import type { CanalesDigitalesInforme, CatuInforme, PuntoMensual } from './types'
 
-type CanalMetricas = 'web' | 'instagram' | 'facebook'
-
-async function leerMetricas<T>(canal: CanalMetricas): Promise<T[]> {
-  const url = process.env.METRICAS_DIGITALES_SCRIPT_URL
-  if (!url) throw new Error('METRICAS_DIGITALES_SCRIPT_URL no configurada')
-  const destino = new URL(url)
-  destino.searchParams.set('action', 'getMetricas')
-  destino.searchParams.set('canal', canal)
-
-  const res = await fetch(destino.toString(), { cache: 'no-store' })
-  const texto = await res.text()
-  if (texto.trimStart().startsWith('<')) throw new Error(`GAS de métricas devolvió HTML (${canal})`)
-  if (!res.ok) throw new Error(`GAS de métricas respondió ${res.status} (${canal})`)
-  const json = JSON.parse(texto)
-  if (!json.success) throw new Error(json.error ?? `GAS de métricas sin éxito (${canal})`)
-  return (json.data ?? []) as T[]
-}
-
 /** Lee un canal con un reintento; si falla, calcula sobre [] y lo marca incompleto. */
-async function canalSeguro<R, T extends { incompleto?: boolean }>(canal: CanalMetricas, calcular: (registros: R[]) => T): Promise<T> {
+async function canalSeguro<R extends { mes_anio: unknown }, T extends { incompleto?: boolean }>(canal: CanalMetricas, calcular: (registros: R[]) => T): Promise<T> {
   try {
-    return calcular(await conReintento(() => leerMetricas<R>(canal)))
+    return calcular(await conReintento(() => leerMetricasGas<R>(canal)))
   } catch (error) {
     console.error(`[canales-digitales] ${canal}:`, error)
     return { ...calcular([]), incompleto: true }

@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireEscritura, requireGestion } from '@/lib/permisos'
 import {
   MetricaWebSchema,
   MetricaSocialSchema
 } from '@/lib/schemas'
+import { esCanalMetricas, getMetricasCacheadas, TAG_METRICAS } from '@/lib/metricas/lectura'
 
 const GAS_URL = process.env.METRICAS_DIGITALES_SCRIPT_URL
-
-const CANALES = ['web', 'facebook', 'instagram'] as const
 
 function getSchema(canal: string) {
   if (canal === 'web') return MetricaWebSchema
@@ -20,27 +19,26 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ canal: string }> }
 ) {
-  try {
-    const { canal } = await params
-    if (!CANALES.includes(canal as (typeof CANALES)[number])) {
-      return NextResponse.json({ error: 'Canal inválido' }, { status: 400 })
-    }
-    if (!GAS_URL) return NextResponse.json({ success: false, data: [], error: 'URL no configurada' })
-
-    const url = `${GAS_URL}?action=getMetricas&canal=${canal}`
-    const res = await fetch(url, { method: 'GET', cache: 'no-store' })
-
-    if (!res.ok) throw new Error(`Status ${res.status}`)
-    const text = await res.text()
-    try {
-      return NextResponse.json(JSON.parse(text))
-    } catch {
-      return NextResponse.json({ success: false, data: [] })
-    }
-  } catch (error) {
-    console.error('[API GET]', error)
-    return NextResponse.json({ error: 'Error de conexión con Google' }, { status: 500 })
+  const { canal } = await params
+  if (!esCanalMetricas(canal)) {
+    return NextResponse.json({ success: false, error: 'Canal inválido' }, { status: 400 })
   }
+  try {
+    const data = await getMetricasCacheadas(canal)
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error(`[API GET /api/metricas/${canal}]`, error)
+    return NextResponse.json(
+      { success: false, data: [], error: 'No se pudieron leer las métricas desde Google' },
+      { status: 502 },
+    )
+  }
+}
+
+/** Tras una escritura: el dashboard público y el admin ven el dato nuevo al instante. */
+function invalidarMetricas() {
+  revalidateTag(TAG_METRICAS)
+  revalidatePath('/admin/metricas')
 }
 
 export async function POST(
@@ -73,7 +71,7 @@ export async function POST(
     const text = await res.text()
     try {
       const resultado = JSON.parse(text)
-      revalidatePath('/admin/metricas')
+      invalidarMetricas()
       return NextResponse.json(resultado)
     } catch {
       return NextResponse.json({ error: 'Error en respuesta de Google' }, { status: 500 })
@@ -108,7 +106,7 @@ export async function DELETE(
     const text = await res.text()
     try {
       const resultado = JSON.parse(text)
-      revalidatePath('/admin/metricas')
+      invalidarMetricas()
       return NextResponse.json(resultado)
     } catch {
       return NextResponse.json({ error: 'Error en respuesta de Google' }, { status: 500 })
@@ -153,7 +151,7 @@ export async function PUT(
     const text = await res.text()
     try {
       const resultado = JSON.parse(text)
-      revalidatePath('/admin/metricas')
+      invalidarMetricas()
       return NextResponse.json(resultado)
     } catch {
       return NextResponse.json({ error: 'Error en respuesta de Google' }, { status: 500 })

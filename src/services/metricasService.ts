@@ -24,6 +24,19 @@ export interface MetricaSocial extends MetricaBase {
   publicaciones: number
 }
 
+/**
+ * Lectura para el dashboard público: a diferencia de getMetricas, lanza el error
+ * (la vista muestra "Reintentar" en lugar de una sección vacía como si no hubiera datos).
+ */
+export async function obtenerMetricasCanal<T>(canal: CanalDigital, signal?: AbortSignal): Promise<T[]> {
+  const res = await fetch(`/api/metricas/${canal}`, { signal })
+  const resultado = await res.json()
+  if (!res.ok || !resultado.success) {
+    throw new Error(resultado.error ?? `No se pudieron cargar las métricas de ${canal}`)
+  }
+  return resultado.data as T[]
+}
+
 const MetricasService = {
   /**
    * Obtener métricas de un canal específico

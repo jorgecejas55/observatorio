@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import MetricasService from '@/services/metricasService'
 import type { MetricaWeb, MetricaSocial } from '@/services/metricasService'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { useMetricasDigitales, type EstadoCanal } from './_hooks/useMetricasDigitales'
+import { ErrorCanal, EsqueletoCanal } from './_components/EstadoCarga'
 import KPICard from '@/components/charts/KPICard'
 import { formatearMesAnio } from '@/lib/formato-fechas'
 
@@ -27,6 +27,11 @@ function sortFn(a: { mes_anio: string }, b: { mes_anio: string }) {
   const [ma, ya] = a.mes_anio.split('/').map(Number)
   const [mb, yb] = b.mes_anio.split('/').map(Number)
   return ya !== yb ? ya - yb : ma - mb
+}
+
+/** Datos del canal ordenados cronológicamente; [] mientras carga o si falló. */
+function ordenar<T extends { mes_anio: string }>(estado: EstadoCanal<T>): T[] {
+  return estado.estado === 'ok' ? [...estado.datos].sort(sortFn) : []
 }
 
 function extractAnio(mes_anio: string): number {
@@ -348,48 +353,26 @@ function VistaSocial({ datos, accent }: { datos: MetricaSocial[]; accent: string
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export default function DigitalDashboard() {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<{
-    web: MetricaWeb[]
-    facebook: MetricaSocial[]
-    instagram: MetricaSocial[]
-  }>({ web: [], facebook: [], instagram: [] })
-
   const [canal, setCanal] = useState<Canal>('web')
-  const [anoSeleccionado, setAnoSeleccionado] = useState<number | 'todos'>('todos')
+  const [anoElegido, setAnoElegido] = useState<number | 'todos' | null>(null)
+  const { estados, reintentar } = useMetricasDigitales(canal)
 
-  // Carga única al montar — todas las interacciones posteriores son frontend
-  useEffect(() => {
-    async function fetchAll() {
-      const [web, fb, ig] = await Promise.all([
-        MetricasService.getMetricas<MetricaWeb>('web'),
-        MetricasService.getMetricas<MetricaSocial>('facebook'),
-        MetricasService.getMetricas<MetricaSocial>('instagram'),
-      ])
-      const sorted = {
-        web: [...web].sort(sortFn),
-        facebook: [...fb].sort(sortFn),
-        instagram: [...ig].sort(sortFn),
-      }
-      setData(sorted)
+  const datosOrdenados = useMemo(() => ({
+    web: ordenar(estados.web),
+    facebook: ordenar(estados.facebook),
+    instagram: ordenar(estados.instagram),
+  }), [estados])
 
-      // Auto-seleccionar el año más reciente disponible
-      const anos = new Set<number>()
-      ;[...web, ...fb, ...ig].forEach(d => anos.add(extractAnio(d.mes_anio)))
-      const lista = Array.from(anos).filter(a => a > 0).sort((a, b) => b - a)
-      if (lista.length > 0) setAnoSeleccionado(lista[0])
-
-      setLoading(false)
-    }
-    fetchAll()
-  }, [])
-
+  // Años de los canales ya cargados (los que siguen cargando se suman al llegar)
   const anosDisponibles = useMemo(() => {
     const set = new Set<number>()
-    ;[...data.web, ...data.facebook, ...data.instagram]
+    ;[...datosOrdenados.web, ...datosOrdenados.facebook, ...datosOrdenados.instagram]
       .forEach(d => set.add(extractAnio(d.mes_anio)))
     return Array.from(set).filter(a => a > 0).sort((a, b) => b - a)
-  }, [data])
+  }, [datosOrdenados])
+
+  // Hasta que la persona elija, se muestra el año más reciente disponible
+  const anoSeleccionado = anoElegido ?? anosDisponibles[0] ?? 'todos'
 
   // Filtro por año — puro frontend, sin red
   const filtrar = <T extends { mes_anio: string }>(list: T[]): T[] => {
@@ -398,14 +381,7 @@ export default function DigitalDashboard() {
   }
 
   const canalActivo = CANALES.find(c => c.key === canal)!
-
-  if (loading) {
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    )
-  }
+  const estadoActivo = estados[canal]
 
   return (
     <div>
@@ -461,7 +437,7 @@ export default function DigitalDashboard() {
             {anosDisponibles.map(a => (
               <button
                 key={a}
-                onClick={() => setAnoSeleccionado(a)}
+                onClick={() => setAnoElegido(a)}
                 className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
                   anoSeleccionado === a
                     ? 'bg-primary text-white'
@@ -472,7 +448,7 @@ export default function DigitalDashboard() {
               </button>
             ))}
             <button
-              onClick={() => setAnoSeleccionado('todos')}
+              onClick={() => setAnoElegido('todos')}
               className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
                 anoSeleccionado === 'todos'
                   ? 'bg-primary text-white'
@@ -498,10 +474,18 @@ export default function DigitalDashboard() {
         </div>
       </div>
 
-      {/* Vista por canal — switching instantáneo, sin llamadas a la API */}
-      {canal === 'web'       && <VistaWeb datos={filtrar(data.web)} />}
-      {canal === 'facebook'  && <VistaSocial datos={filtrar(data.facebook)} accent="#4f46e5" />}
-      {canal === 'instagram' && <VistaSocial datos={filtrar(data.instagram)} accent="#db2777" />}
+      {/* Vista por canal: cada uno carga por separado, con su esqueleto o su reintento */}
+      {estadoActivo.estado === 'cargando' && <EsqueletoCanal />}
+      {estadoActivo.estado === 'error' && (
+        <ErrorCanal mensaje={estadoActivo.mensaje} onReintentar={() => reintentar(canal)} />
+      )}
+      {estadoActivo.estado === 'ok' && (
+        <>
+          {canal === 'web'       && <VistaWeb datos={filtrar(datosOrdenados.web)} />}
+          {canal === 'facebook'  && <VistaSocial datos={filtrar(datosOrdenados.facebook)} accent="#4f46e5" />}
+          {canal === 'instagram' && <VistaSocial datos={filtrar(datosOrdenados.instagram)} accent="#db2777" />}
+        </>
+      )}
     </div>
   )
 }
