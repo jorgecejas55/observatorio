@@ -1,6 +1,7 @@
 /**
- * Cuerpo del informe automático (pantalla + PDF: portada + 3 páginas, o 4 en
- * los MENSUAL con canales digitales).
+ * Cuerpo del informe automático (pantalla + PDF: portada + 3 páginas; los
+ * MENSUAL con canales digitales suman una de canales y otra para la nota
+ * metodológica).
  * Presentacional puro, sin hooks: lo usan la página de administración
  * (cliente) y la vista pública /informes/ver/[slug] (servidor).
  */
@@ -10,6 +11,7 @@ import type { InformeFindeCompleto } from '@/lib/informes-auto/types'
 import { EncabezadoPaginaImpresion, EncabezadoPantalla, PortadaInforme } from './Encabezados'
 import { KpisInforme, OhPorTipoAlojamiento, TablaComparativas } from './ResumenOcupacion'
 import CanalesDigitales from './CanalesDigitales'
+import EvolucionOcupacion from './EvolucionOcupacion'
 import PerfilVisitante from './PerfilVisitante'
 import { tituloInforme } from './etiquetas'
 
@@ -41,13 +43,32 @@ function NotaMetodologica({ informe }: { informe: InformeFindeCompleto }) {
           y Pueblo Perdido, incluidas sus actividades especiales) y en los registros de visitas de
           los museos municipales, filtrados por las fechas del período.
         </li>
-        {informe.canalesDigitales && (
-          // TODO(clean): nombres de fuentes a confirmar por Jorge (plan §3.5)
+        {informe.ingresosAtractivos.evolucion && (
           <li>
-            Canales digitales: sitio web según las estadísticas de visitas del sitio; Instagram y
-            Facebook según las estadísticas de Meta Business Suite, cargadas mensualmente por el
-            Observatorio; Catu según los registros de conversaciones del asistente virtual.
+            Evolución mensual de ingresos a atractivos: planilla histórica del Observatorio combinada
+            con los registros del sistema; el mes del informe corresponde a los registros del período.
           </li>
+        )}
+        {informe.evolucionOcupacion && (
+          <li>
+            Evolución mensual de ocupación hotelera y estadía promedio: serie histórica de indicadores
+            mensuales del Observatorio; el mes del informe corresponde a este relevamiento.
+          </li>
+        )}
+        {informe.canalesDigitales && (
+          <>
+            {/* TODO(clean): nombres de fuentes a confirmar por Jorge (plan §3.5) */}
+            <li>
+              Canales digitales: sitio web según las estadísticas de visitas del sitio; Instagram y
+              Facebook según las estadísticas de Meta Business Suite, cargadas mensualmente por el
+              Observatorio; Catu según los registros de conversaciones del asistente virtual.
+            </li>
+            <li>
+              Tasa de interacción: interacciones con el contenido del mes cada 100 seguidores (una misma
+              cuenta puede interactuar varias veces y se incluyen interacciones de cuentas que no siguen
+              la página). Interacciones por publicación: respuesta promedio que obtuvo cada publicación.
+            </li>
+          </>
         )}
         <li>
           Impacto económico estimado en base a estudios y relevamientos en campo realizados
@@ -65,6 +86,7 @@ export default function InformeAutoVista({ informe }: { informe: InformeFindeCom
   const titulo = tituloInforme(informe)
   // Solo MENSUAL (web/redes se cargan por mes); ausente en informes viejos
   const canales = informe.tipoInforme === 'MENSUAL' ? informe.canalesDigitales : undefined
+  const evolucion = informe.tipoInforme === 'MENSUAL' ? informe.evolucionOcupacion : undefined
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-8 mb-8 print:shadow-none print:border-0 print:rounded-none print:p-0 print:m-0 print:max-w-none print:w-full">
@@ -74,7 +96,15 @@ export default function InformeAutoVista({ informe }: { informe: InformeFindeCom
         <EncabezadoPaginaImpresion titulo={titulo} />
         <EncabezadoPantalla informe={informe} />
         <KpisInforme informe={informe} />
-        <TablaComparativas informe={informe} />
+        {evolucion ? (
+          // Dos columnas solo en impresión: en pantalla (y en el celular) van apiladas
+          <div className="grid grid-cols-1 print:grid-cols-[3fr_2fr] print:gap-6">
+            <TablaComparativas informe={informe} />
+            <EvolucionOcupacion evolucion={evolucion} />
+          </div>
+        ) : (
+          <TablaComparativas informe={informe} />
+        )}
         <OhPorTipoAlojamiento informe={informe} />
       </div>
 
@@ -93,6 +123,12 @@ export default function InformeAutoVista({ informe }: { informe: InformeFindeCom
         <div className="pagina-4">
           <EncabezadoPaginaImpresion titulo={titulo} />
           <CanalesDigitales canales={canales} />
+        </div>
+      )}
+
+      {canales && (
+        <div className="pagina-5">
+          <EncabezadoPaginaImpresion titulo={titulo} />
           <NotaMetodologica informe={informe} />
         </div>
       )}

@@ -2,8 +2,16 @@ import { formatearRango } from '@/lib/formato-fechas'
 import type { InformeFindeCompleto } from '@/lib/informes-auto/types'
 import { etiquetasDe, tituloInforme } from './etiquetas'
 
-/** Portada del PDF (solo impresión). */
-export function PortadaInforme({ informe }: { informe: InformeFindeCompleto }) {
+/**
+ * Portada de un documento del Observatorio (solo impresión). La comparten los
+ * informes automáticos y la ficha técnica de ocupación hotelera.
+ */
+export function PortadaDocumento({ etiqueta, titulo, subtitulo, rango }: {
+  etiqueta: string
+  titulo: string
+  subtitulo: string
+  rango: string
+}) {
   return (
     <div className="portada-informe">
       {/* Fila superior de logos: Secretaría | Asociación (centrada) | Observatorio,
@@ -34,17 +42,17 @@ export function PortadaInforme({ informe }: { informe: InformeFindeCompleto }) {
           className="h-20 w-auto mx-auto mb-8"
         />
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-text-secondary mb-4">
-          Informe Estadístico
+          {etiqueta}
         </p>
         <h1 className="text-4xl font-bold text-text-primary mb-3">
-          {etiquetasDe(informe).portada}
+          {titulo}
         </h1>
         <h2 className="text-3xl font-bold text-primary mb-6">
-          {informe.nombre}
+          {subtitulo}
         </h2>
         <div className="w-24 h-1 bg-primary mx-auto mb-6 rounded-full" />
         <p className="text-lg text-text-secondary">
-          {formatearRango(informe.fechaInicio, informe.fechaFin)}
+          {rango}
         </p>
       </div>
 
@@ -55,6 +63,18 @@ export function PortadaInforme({ informe }: { informe: InformeFindeCompleto }) {
         <p>San Fernando del Valle de Catamarca</p>
       </div>
     </div>
+  )
+}
+
+/** Portada del PDF del informe (solo impresión). */
+export function PortadaInforme({ informe }: { informe: InformeFindeCompleto }) {
+  return (
+    <PortadaDocumento
+      etiqueta="Informe Estadístico"
+      titulo={etiquetasDe(informe).portada}
+      subtitulo={informe.nombre}
+      rango={formatearRango(informe.fechaInicio, informe.fechaFin)}
+    />
   )
 }
 
@@ -73,7 +93,7 @@ export function EncabezadoPaginaImpresion({ titulo }: { titulo: string }) {
 }
 
 /** Encabezado institucional en pantalla (en el PDF lo reemplazan portada + encabezados reducidos). */
-export function EncabezadoPantalla({ informe }: { informe: InformeFindeCompleto }) {
+export function EncabezadoPantallaDocumento({ titulo, rango }: { titulo: string; rango: string }) {
   return (
     <div className="print:hidden flex flex-col md:flex-row items-center justify-between mb-8 pb-6 border-b-2 border-primary gap-4">
       {/* Logo Secretaría (proporción 6.9:1 → altura menor) */}
@@ -86,10 +106,10 @@ export function EncabezadoPantalla({ informe }: { informe: InformeFindeCompleto 
       {/* En móvil se apila (logo · título · logos) para que el título use todo el ancho */}
       <div className="text-center flex-1 min-w-0">
         <h1 className="text-xl font-bold text-text-primary mb-1 print:text-2xl">
-          {tituloInforme(informe)}
+          {titulo}
         </h1>
         <p className="text-text-secondary text-xs print:text-sm">
-          {formatearRango(informe.fechaInicio, informe.fechaFin)}
+          {rango}
         </p>
         <p className="text-text-secondary text-[10px] mt-0.5 print:text-xs">
           Observatorio de Turismo Municipal — San Fernando del Valle de Catamarca
@@ -109,5 +129,14 @@ export function EncabezadoPantalla({ informe }: { informe: InformeFindeCompleto 
         />
       </div>
     </div>
+  )
+}
+
+export function EncabezadoPantalla({ informe }: { informe: InformeFindeCompleto }) {
+  return (
+    <EncabezadoPantallaDocumento
+      titulo={tituloInforme(informe)}
+      rango={formatearRango(informe.fechaInicio, informe.fechaFin)}
+    />
   )
 }

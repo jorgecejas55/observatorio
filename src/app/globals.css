@@ -125,6 +125,7 @@
     .pagina-2 { break-before: page; page-break-before: always; }
     .pagina-3 { break-before: page; page-break-before: always; }
     .pagina-4 { break-before: page; page-break-before: always; }
+    .pagina-5 { break-before: page; page-break-before: always; }
     @page {
       size: A4 landscape;
       margin: 1.2cm;

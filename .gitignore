@@ -40,3 +40,6 @@ claude/
 # graphify
 graphify-out/
 
+
+# Salidas locales de Claude
+/Claude outputs/

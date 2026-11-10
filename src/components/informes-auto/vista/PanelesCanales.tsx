@@ -5,17 +5,12 @@
 
 import { formatearDecimal, formatearEntero, formatearPorcentaje } from '@/lib/formato-numeros'
 import type { CatuInforme, RedSocialInforme, WebInforme } from '@/lib/informes-auto/types'
-import { BarrasConLinea, COLOR, SoloLineas } from './MiniGraficos'
+import { BarrasComparadas, BarrasConLinea, COLOR, SoloLineas, leyendaAnios } from './MiniGraficos'
 import { CuerpoPanel, Fila, ListaTop, PanelCanal, SIN_DATOS, ValorPrincipal, mostrar } from './PanelCanal'
-import Variacion from './Variacion'
+import Variacion, { VariacionesDelMes } from './Variacion'
 
 /** Meta de satisfacción de Catu (puntaje 1-10). */
 const META_SCORE_CATU = 7
-
-const leyendaAnios = (anio: number) => [
-  { color: COLOR.primary, texto: String(anio) },
-  { color: COLOR.gris, texto: String(anio - 1), punteada: true },
-]
 
 export function PanelWeb({ web, anio }: { web: WebInforme; anio: number }) {
   const { visitantes } = web
@@ -32,10 +27,10 @@ export function PanelWeb({ web, anio }: { web: WebInforme; anio: number }) {
           </>
         }
         graficos={
-          <BarrasConLinea
+          <BarrasComparadas
             titulo="Visitantes por mes"
-            barras={web.serie}
-            linea={{ puntos: web.serieAnioAnterior, color: COLOR.gris, punteada: true }}
+            actual={web.serie}
+            anterior={web.serieAnioAnterior}
             leyenda={leyendaAnios(anio)}
           />
         }
@@ -78,13 +73,11 @@ export function PanelRedSocial({ red, icono, titulo }: { red: RedSocialInforme; 
               titulo="Publicaciones e interacciones por publicación"
               barras={red.seriePublicaciones}
               linea={{ puntos: red.serieIntPorPub, color: COLOR.secondary }}
-              escalaPropia
               leyenda={[{ color: COLOR.primary, texto: 'Publicaciones' }, { color: COLOR.secondary, texto: 'Int. por publicación' }]}
             />
             <SoloLineas
-              titulo="Seguidores"
+              titulo="Seguidores al cierre de cada mes"
               series={[{ puntos: red.serieSeguidores, color: COLOR.primary }]}
-              leyenda={[{ color: COLOR.primary, texto: 'Seguidores al cierre de cada mes' }]}
             />
           </>
         }
@@ -104,6 +97,21 @@ function IconoMeta({ score }: { score: number }) {
   )
 }
 
+function TemasCatu({ temas }: { temas: string[] }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold text-text-secondary mb-1">Temas más consultados</p>
+      {temas.length === 0 ? (
+        <p className="text-xs italic text-text-secondary">{SIN_DATOS}</p>
+      ) : (
+        <ol className="text-xs text-text-secondary space-y-0.5 list-decimal list-inside">
+          {temas.map(t => <li key={t}>{t}</li>)}
+        </ol>
+      )}
+    </div>
+  )
+}
+
 export function PanelCatu({ catu, anio }: { catu: CatuInforme; anio: number }) {
   return (
     <PanelCanal icono="fa-solid fa-robot" titulo="Catu (asistente virtual)">
@@ -111,31 +119,32 @@ export function PanelCatu({ catu, anio }: { catu: CatuInforme; anio: number }) {
         cifras={
           <>
             <ValorPrincipal valor={catu.conversaciones} etiqueta="conversaciones en el mes" />
+            <VariacionesDelMes
+              actual={catu.conversaciones}
+              serie={catu.serie}
+              serieAnioAnterior={catu.serieAnioAnterior}
+              className="mb-1"
+            />
             <Fila etiqueta="Resueltas" valor={mostrar(catu.resolucion, v => formatearPorcentaje(v))} />
             <Fila etiqueta={`Puntaje promedio (meta ≥ ${META_SCORE_CATU})`} valor={mostrar(catu.score, v => formatearDecimal(v))}>
               {catu.score !== null && <IconoMeta score={catu.score} />}
             </Fila>
           </>
         }
+        // Temas debajo del gráfico (no a lo ancho): con las variaciones, la columna de cifras
+        // creció y el panel tiene que seguir entrando con los demás canales en una hoja
         graficos={
-          <BarrasConLinea
-            titulo="Conversaciones por mes"
-            barras={catu.serie}
-            linea={{ puntos: catu.serieAnioAnterior, color: COLOR.gris, punteada: true }}
-            leyenda={leyendaAnios(anio)}
-          />
+          <>
+            <BarrasComparadas
+              titulo="Conversaciones por mes"
+              actual={catu.serie}
+              anterior={catu.serieAnioAnterior}
+              leyenda={leyendaAnios(anio)}
+            />
+            <TemasCatu temas={catu.topTemas} />
+          </>
         }
       />
-      <div>
-        <p className="text-xs font-semibold text-text-secondary mb-1">Temas más consultados</p>
-        {catu.topTemas.length === 0 ? (
-          <p className="text-xs italic text-text-secondary">{SIN_DATOS}</p>
-        ) : (
-          <ol className="text-xs text-text-secondary space-y-0.5 list-decimal list-inside">
-            {catu.topTemas.map(t => <li key={t}>{t}</li>)}
-          </ol>
-        )}
-      </div>
     </PanelCanal>
   )
 }

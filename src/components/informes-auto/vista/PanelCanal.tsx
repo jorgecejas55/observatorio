@@ -15,11 +15,11 @@ export const mostrar = (valor: number | null, formato: (v: number) => string) =>
 export function PanelCanal({ icono, titulo, children }: { icono: string; titulo: string; children: React.ReactNode }) {
   return (
     <section className="border border-gray-200 rounded-xl overflow-hidden evitar-corte">
-      <h4 className="bg-primary/5 border-b border-gray-200 px-4 py-2 print:py-1.5 text-sm font-bold text-text-primary flex items-center gap-2">
+      <h4 className="bg-primary/5 border-b border-gray-200 px-4 py-2 print:py-1 text-sm font-bold text-text-primary flex items-center gap-2">
         <i className={`${icono} text-primary`} aria-hidden="true" />
         {titulo}
       </h4>
-      <div className="p-4 print:p-3 space-y-3 print:space-y-2">{children}</div>
+      <div className="p-4 print:p-2.5 space-y-3 print:space-y-1.5">{children}</div>
     </section>
   )
 }
@@ -29,14 +29,14 @@ export function CuerpoPanel({ cifras, graficos }: { cifras: React.ReactNode; gra
   return (
     <div className="grid grid-cols-1 sm:grid-cols-[2fr_3fr] print:grid-cols-[2fr_3fr] gap-4 print:gap-3">
       <div>{cifras}</div>
-      <div className="space-y-3 print:space-y-2">{graficos}</div>
+      <div className="space-y-3 print:space-y-1.5">{graficos}</div>
     </div>
   )
 }
 
 export function ValorPrincipal({ valor, etiqueta }: { valor: number | null; etiqueta: string }) {
   return (
-    <div className="mb-2">
+    <div className="mb-2 print:mb-1">
       <p className={valor === null ? 'text-sm italic text-text-secondary' : 'text-2xl font-bold text-primary leading-tight'}>
         {mostrar(valor, formatearEntero)}
       </p>

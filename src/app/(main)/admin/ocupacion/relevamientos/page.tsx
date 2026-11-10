@@ -26,6 +26,11 @@ interface RelevamientoActivo extends Relevamiento {
   estado: 'EN_CURSO'
 }
 
+/** Por ID descendente (el último creado arriba). `numeric`: "10" va antes que "9" aunque el ID llegue como texto. */
+function ordenarPorIdDescendente(lista: Relevamiento[]): Relevamiento[] {
+  return [...lista].sort((a, b) => String(b.id).localeCompare(String(a.id), 'es', { numeric: true }))
+}
+
 export default function RelevamientosPage() {
   const { data: session } = useSession()
   const escribir = puedeEscribir(session?.user as SessionUser)
@@ -65,7 +70,7 @@ export default function RelevamientosPage() {
       if (!resRel.ok) throw new Error(`Error ${resRel.status}`)
 
       const jsonRel = await resRel.json()
-      setRelevamientos(jsonRel.data || [])
+      setRelevamientos(ordenarPorIdDescendente(jsonRel.data || []))
 
       if (resActivos.ok) {
         const jsonA = await resActivos.json()

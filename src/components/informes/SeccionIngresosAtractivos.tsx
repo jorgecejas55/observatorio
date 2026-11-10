@@ -1,6 +1,9 @@
+import { BarrasComparadas, Leyenda, leyendaAnios } from '@/components/informes-auto/vista/MiniGraficos'
+import { VariacionesDelMes } from '@/components/informes-auto/vista/Variacion'
 import { formatearFechaLarga } from '@/lib/formato-fechas'
+import { formatearEntero } from '@/lib/formato-numeros'
 import { ATRACTIVOS } from '@/lib/types'
-import type { ResumenIngresosAtractivos } from '@/lib/informes-auto/types'
+import type { EvolucionAtractivo, ResumenIngresosAtractivos } from '@/lib/informes-auto/types'
 
 interface Props {
   ingresos: ResumenIngresosAtractivos
@@ -22,11 +25,39 @@ const formatearCantidad = (cantidad?: number) =>
   cantidad === undefined ? '—' : cantidad.toLocaleString('es-AR')
 
 /**
+ * Variaciones y mini gráfico de la card (solo MENSUAL). El gráfico va sin
+ * título (el nombre ya está en la card) ni leyenda (va al pie).
+ */
+function EvolucionCard({ personas, evolucion }: { personas: number; evolucion?: EvolucionAtractivo }) {
+  if (!evolucion) return null
+  return (
+    // mt-auto: variaciones y gráfico quedan alineados entre cards aunque los nombres ocupen distintas líneas
+    <div className="mt-auto pt-2 text-left">
+      <VariacionesDelMes
+        actual={personas}
+        serie={evolucion.serie}
+        serieAnioAnterior={evolucion.serieAnioAnterior}
+        className="items-center mb-2"
+      />
+      <BarrasComparadas
+        actual={evolucion.serie}
+        anterior={evolucion.serieAnioAnterior}
+        rotuloUltimo={formatearEntero}
+      />
+      {evolucion.incompleto && (
+        <p className="no-print text-[10px] text-text-secondary mt-0.5">Serie parcial</p>
+      )}
+    </div>
+  )
+}
+
+/**
  * Ingresos a atractivos (Casa de la Puna, Pueblo Perdido, museos) y actividades
- * especiales del período, para el informe definitivo y su PDF.
+ * especiales del período, para el informe definitivo y su PDF. En los MENSUAL
+ * cada card suma la evolución ene → mes del informe.
  */
 export default function SeccionIngresosAtractivos({ ingresos }: Props) {
-  const { porAtractivo, totalPersonas, actividadesEspeciales } = ingresos
+  const { porAtractivo, totalPersonas, actividadesEspeciales, evolucion } = ingresos
   const hayIncompletos = porAtractivo.some(a => a.incompleto)
 
   if (porAtractivo.length === 0) return null
@@ -45,7 +76,7 @@ export default function SeccionIngresosAtractivos({ ingresos }: Props) {
         {porAtractivo.map(a => (
           <div
             key={a.atractivo}
-            className="bg-primary/5 rounded-xl p-3 text-center print:border print:border-gray-200"
+            className="bg-primary/5 rounded-xl p-3 text-center print:border print:border-gray-200 flex flex-col"
           >
             <i className={`fa-solid ${ICONO_ATRACTIVO[a.atractivo] ?? 'fa-location-dot'} text-secondary text-sm`} aria-hidden="true" />
             <p className="text-2xl font-bold text-primary">{a.personas.toLocaleString('es-AR')}</p>
@@ -60,9 +91,16 @@ export default function SeccionIngresosAtractivos({ ingresos }: Props) {
                 Dato parcial
               </p>
             )}
+            <EvolucionCard personas={a.personas} evolucion={evolucion?.porAtractivo.find(e => e.atractivo === a.atractivo)} />
           </div>
         ))}
       </div>
+
+      {evolucion && (
+        <div className="flex justify-end">
+          <Leyenda items={leyendaAnios(evolucion.periodo.anio)} />
+        </div>
+      )}
 
       {hayIncompletos && (
         <p className="no-print text-xs text-amber-700 mt-3">

@@ -136,6 +136,7 @@ export interface PeriodoComparativo {
   impactoTotal: number | null
   gastoDiarioTuristas: number | null
   visitantes?: number | null        // visitantes del registro maestro (si existen)
+  estadiaPromedio?: number | null   // estadía del registro maestro; undefined = informe anterior a este dato
   registroMaestroId?: string        // trazabilidad: contra qué registro se comparó
   advertencia?: string
 }
@@ -178,6 +179,9 @@ export interface InformeFindeCompleto {
 
   // Sitio web, redes y Catu del mes (solo MENSUAL; ausente en informes viejos)
   canalesDigitales?: CanalesDigitalesInforme
+
+  // OH y estadía de enero al mes del informe vs año anterior (solo MENSUAL; ausente en informes viejos)
+  evolucionOcupacion?: EvolucionOcupacion
 
   // Resultado del último empuje a la planilla histórica maestra (191cjZK9...)
   empujeMaestra?: ResultadoEmpuje
@@ -287,6 +291,23 @@ export interface ResumenIngresosAtractivos {
   porAtractivo: IngresoPorAtractivo[]
   totalPersonas: number
   actividadesEspeciales: ActividadEspecialResumen[]
+  /** Evolución mensual por atractivo (solo MENSUAL; ausente en informes viejos) */
+  evolucion?: EvolucionAtractivos
+}
+
+/** Serie de un atractivo: planilla histórica + sistema; el mes del informe = cifra de su card. */
+export interface EvolucionAtractivo {
+  atractivo: string                 // id (mismo que IngresoPorAtractivo.atractivo)
+  serie: PuntoMensual[]             // ene → M del año A
+  serieAnioAnterior: PuntoMensual[] // ene → M del año A-1
+  /** Valor de la planilla histórica para el mes M (solo para avisar diferencias en la revisión) */
+  valorPlanillaMes?: number | null
+  incompleto?: boolean              // alguna fuente del sistema no respondió
+}
+
+export interface EvolucionAtractivos {
+  periodo: { anio: number; mes: number }
+  porAtractivo: EvolucionAtractivo[]
 }
 
 // ── Tendencia del año en curso ─────────────────────────────────────────────────
@@ -420,4 +441,17 @@ export interface CanalesDigitalesInforme {
   catu: CatuInforme | null
   /** p. ej. ['instagram-10/2026']: se muestra en la revisión, no en el PDF */
   faltantes: string[]
+}
+
+// ── Evolución de ocupación hotelera y estadía (solo informes MENSUAL) ──────────
+
+export interface SerieAnual {
+  serie: PuntoMensual[]             // ene → M del año A
+  serieAnioAnterior: PuntoMensual[] // ene → M del año A-1
+}
+
+export interface EvolucionOcupacion {
+  periodo: { anio: number; mes: number }
+  oh: SerieAnual
+  estadia: SerieAnual
 }

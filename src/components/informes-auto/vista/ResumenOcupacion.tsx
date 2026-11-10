@@ -1,25 +1,16 @@
 import { formatearDecimal, formatearEntero, formatearPesos, formatearPorcentaje } from '@/lib/formato-numeros'
 import type { InformeFindeCompleto } from '@/lib/informes-auto/types'
+import BarrasHorizontalesOH from './BarrasHorizontalesOH'
+import Kpi from './Kpi'
+import TituloSeccion from './TituloSeccion'
 import Variacion from './Variacion'
 
 type Props = { informe: InformeFindeCompleto }
 
-function Kpi({ titulo, valor, icono, chico = false }: { titulo: string; valor: string; icono: string; chico?: boolean }) {
-  return (
-    <div className="bg-primary/5 rounded-xl p-4 print:p-3 text-center print:border print:border-gray-200">
-      <p className="text-xs text-text-secondary mb-1 flex items-center justify-center gap-1.5">
-        <i className={`fa-solid ${icono} text-secondary`} aria-hidden="true" />
-        {titulo}
-      </p>
-      <p className={`${chico ? 'text-base sm:text-2xl' : 'text-2xl sm:text-3xl'} font-bold text-primary whitespace-nowrap`}>{valor}</p>
-    </div>
-  )
-}
-
 export function KpisInforme({ informe }: Props) {
   const { relevamiento, perfil, impacto } = informe
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-4 print:gap-3 mb-8 print:mb-6 evitar-corte">
+    <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-4 gap-4 print:gap-3 mb-8 print:mb-4 evitar-corte">
       <Kpi titulo="Ocupación Hotelera" icono="fa-bed" valor={formatearPorcentaje(relevamiento.ohTotal)} />
       <Kpi titulo="Estadía Promedio" icono="fa-moon" valor={formatearDecimal(perfil.estadiaSinOutliers.estadiaPromedio)} />
       <Kpi titulo="Visitantes Totales" icono="fa-users" valor={formatearEntero(impacto.visitantesTotales)} />
@@ -54,13 +45,13 @@ function CeldaComparada({ valor, actual, formato, vacio = '—' }: {
 }
 
 export function TablaComparativas({ informe }: Props) {
-  const { relevamiento, impacto, comparativaUltimoFinde: ultimo, comparativaAnioAnterior: anterior } = informe
+  const { relevamiento, impacto, perfil, comparativaUltimoFinde: ultimo, comparativaAnioAnterior: anterior } = informe
+  const estadia = perfil.estadiaSinOutliers.estadiaPromedio
+  // Informes guardados antes de sumar la estadía a las comparativas: no se muestra una fila vacía
+  const conEstadia = ultimo.estadiaPromedio !== undefined || anterior.estadiaPromedio !== undefined
   return (
-    <div className="mb-8 print:mb-6 evitar-corte">
-      <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2">
-        <i className="fa-solid fa-scale-balanced text-primary text-sm" />
-        Comparativas
-      </h3>
+    <div className="mb-8 print:mb-3 evitar-corte">
+      <TituloSeccion icono="fa-scale-balanced">Comparativas</TituloSeccion>
       <div className="overflow-x-auto print:overflow-visible">
         <table className="w-full text-sm">
           <thead>
@@ -95,6 +86,14 @@ export function TablaComparativas({ informe }: Props) {
                 vacio={anterior.advertencia ? '⚠' : '—'}
               />
             </tr>
+            {conEstadia && (
+              <tr>
+                <td className="py-2 px-3 font-medium text-text-secondary">Estadía promedio</td>
+                <td className="text-center py-2 px-3 font-bold text-text-primary">{formatearDecimal(estadia)}</td>
+                <CeldaComparada valor={ultimo.estadiaPromedio} actual={estadia} formato={formatearDecimal} />
+                <CeldaComparada valor={anterior.estadiaPromedio} actual={estadia} formato={formatearDecimal} />
+              </tr>
+            )}
             <tr>
               <td className="py-2 px-3 font-medium text-text-secondary">Visitantes totales</td>
               <td className="text-center py-2 px-3 font-bold text-text-primary">
@@ -121,37 +120,14 @@ export function TablaComparativas({ informe }: Props) {
 export function OhPorTipoAlojamiento({ informe }: Props) {
   const conDatos = informe.ohPorTipo.filter(item => item.habitacionesRelevadas > 0 && item.ohPorcentaje > 0)
   if (conDatos.length === 0) return null
-  const ohGeneral = Math.min(informe.relevamiento.ohTotal, 100)
   return (
     <div className="mb-8 print:mb-0 evitar-corte">
-      <h3 className="font-bold text-text-primary mb-3 flex items-center gap-2">
-        <i className="fa-solid fa-hotel text-primary text-sm" />
-        Ocupación Hotelera por Tipo de Alojamiento
-      </h3>
-      <div className="space-y-2">
-        {conDatos.map((item) => (
-          <div key={item.tipo} className="flex items-center gap-3">
-            <span className="w-36 text-xs text-text-secondary text-right flex-shrink-0">
-              {item.tipo}
-            </span>
-            <div className="relative flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
-              <div
-                className="bg-primary h-full rounded-full transition-all"
-                style={{ width: `${Math.min(item.ohPorcentaje, 100)}%` }}
-              />
-              {/* Referencia: OH general del relevamiento */}
-              <div className="absolute inset-y-0 border-l-2 border-dashed border-text-primary/60" style={{ left: `${ohGeneral}%` }} />
-            </div>
-            <span className="w-12 text-xs font-bold text-text-primary text-right">
-              {formatearPorcentaje(item.ohPorcentaje)}
-            </span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-2 text-[10px] text-text-secondary flex items-center justify-end gap-1.5">
-        <span className="inline-block h-3 border-l-2 border-dashed border-text-primary/60" aria-hidden="true" />
-        Promedio general {formatearPorcentaje(informe.relevamiento.ohTotal)}
-      </p>
+      <TituloSeccion icono="fa-hotel">Ocupación Hotelera por Tipo de Alojamiento</TituloSeccion>
+      <BarrasHorizontalesOH
+        items={conDatos.map(item => ({ etiqueta: item.tipo, valor: item.ohPorcentaje }))}
+        referencia={informe.relevamiento.ohTotal}
+        compacto
+      />
     </div>
   )
 }

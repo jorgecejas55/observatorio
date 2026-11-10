@@ -81,6 +81,8 @@ function jaccardSimilarity(a: string, b: string): number {
 
 let cacheMaestros: { data: RegistroMaestro[]; ts: number } | null = null
 const CACHE_TTL = 5 * 60_000 // 5 minutos
+// Lectura en curso: comparativas y evolución mensual la piden en paralelo al calcular
+let lecturaEnCurso: Promise<RegistroMaestro[]> | null = null
 
 /**
  * Lee ambas hojas de la planilla maestra y devuelve la serie completa.
@@ -90,7 +92,11 @@ export async function getRegistrosMaestros(): Promise<RegistroMaestro[]> {
   if (cacheMaestros && Date.now() - cacheMaestros.ts < CACHE_TTL) {
     return cacheMaestros.data
   }
+  lecturaEnCurso ??= leerRegistrosMaestros().finally(() => { lecturaEnCurso = null })
+  return lecturaEnCurso
+}
 
+async function leerRegistrosMaestros(): Promise<RegistroMaestro[]> {
   const registros: RegistroMaestro[] = []
 
   // Hoja de findes/eventos: A AÑO | B MES | C EVENTO | D OH | E ESTADÍA | F VISITANTES | G IMPACTO
@@ -190,9 +196,23 @@ export function registroAPeriodoComparativo(r: RegistroMaestro): PeriodoComparat
     relevamiento: registroARelevamiento(r),
     impactoTotal: r.impacto,
     visitantes: r.visitantes,
+    estadiaPromedio: r.estadiaProm,
     gastoDiarioTuristas: null,
     registroMaestroId: r.id,
   }
+}
+
+/**
+ * Suma la estadía a una comparativa guardada antes de que existiera ese dato,
+ * leyéndola del mismo registro maestro: no cambia el período elegido.
+ */
+export function completarEstadiaComparativa(
+  comparativa: PeriodoComparativo,
+  registros: RegistroMaestro[],
+): PeriodoComparativo {
+  if (comparativa.estadiaPromedio !== undefined || !comparativa.registroMaestroId) return comparativa
+  const registro = registros.find(r => r.id === comparativa.registroMaestroId)
+  return registro ? { ...comparativa, estadiaPromedio: registro.estadiaProm } : comparativa
 }
 
 const SIN_COMPARATIVA: PeriodoComparativo = {

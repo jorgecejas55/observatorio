@@ -23,9 +23,13 @@ import {
   buscarPeriodoAnterior,
   buscarMismoPeriodoAnioAnterior,
   getRegistroMaestroPorId,
+  getRegistrosMaestros,
   registroAPeriodoComparativo,
 } from '@/lib/informes-auto/comparativas'
 import { fetchCanalesDigitales } from '@/lib/informes-auto/canales-digitales'
+import { fetchEvolucionAtractivos } from '@/lib/informes-auto/evolucion-atractivos'
+import { aplicarMesDelInforme } from '@/lib/informes-auto/evolucion-atractivos-calculo'
+import { armarEvolucionOcupacion } from '@/lib/informes-auto/evolucion-ocupacion'
 import { fetchIngresosAtractivos } from '@/lib/informes-auto/ingresos-atractivos'
 import { fetchPerfil } from '@/lib/informes-auto/perfil'
 import {
@@ -147,7 +151,17 @@ export async function calcularInforme(
 
   const year = Number(fechaInicio.slice(0, 4))
   const mesNumero = Number(fechaInicio.slice(5, 7))
-  const [ocupacion, perfil, comparativaUltimoFinde, comparativaAnioAnterior, ingresosAtractivos, canalesDigitales] =
+  const mensual = tipoInforme === 'MENSUAL'
+  const [
+    ocupacion,
+    perfil,
+    comparativaUltimoFinde,
+    comparativaAnioAnterior,
+    ingresos,
+    canalesDigitales,
+    evolucionAtractivos,
+    registrosMaestros,
+  ] =
     await Promise.all([
       leerOcupacion(relevamiento.id),
       fetchPerfil(fechaInicio, fechaFin),
@@ -159,7 +173,10 @@ export async function calcularInforme(
       ),
       fetchIngresosAtractivos(fechaInicio, fechaFin),
       // Web/IG/FB se cargan por mes: la sección solo existe en informes MENSUAL
-      tipoInforme === 'MENSUAL' ? fetchCanalesDigitales(year, mesNumero, fechaFin) : Promise.resolve(undefined),
+      mensual ? fetchCanalesDigitales(year, mesNumero, fechaFin) : Promise.resolve(undefined),
+      // Evoluciones ene → mes: solo MENSUAL. La maestra es la misma lectura (en caché) que usan las comparativas
+      mensual ? fetchEvolucionAtractivos(year, mesNumero) : Promise.resolve(undefined),
+      mensual ? getRegistrosMaestros() : Promise.resolve([]),
     ])
 
   // Sin perfil la estadía sería 0 y los visitantes/impacto saldrían en cero
@@ -176,6 +193,17 @@ export async function calcularInforme(
     porcentajeExcursionistas,
   }
   const impacto = calcularImpactoEconomico(inputsImpacto)
+
+  // El mes del informe toma los valores del propio informe (la maestra se actualiza al publicar)
+  const ingresosAtractivos = evolucionAtractivos
+    ? { ...ingresos, evolucion: aplicarMesDelInforme(evolucionAtractivos, ingresos.porAtractivo) }
+    : ingresos
+  const evolucionOcupacion = mensual
+    ? armarEvolucionOcupacion(registrosMaestros, year, mesNumero, {
+        oh: relevamiento.ohTotal,
+        estadia: perfil.estadiaSinOutliers.estadiaPromedio,
+      })
+    : undefined
 
   const informe: InformeFindeCompleto = {
     id: generarId(),
@@ -200,6 +228,7 @@ export async function calcularInforme(
     comparativaAnioAnterior,
     ingresosAtractivos,
     ...(canalesDigitales && { canalesDigitales }),
+    ...(evolucionOcupacion && { evolucionOcupacion }),
   }
 
   return {

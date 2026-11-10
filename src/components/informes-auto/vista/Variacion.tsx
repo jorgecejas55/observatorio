@@ -1,5 +1,6 @@
 import { formatearPorcentaje } from '@/lib/formato-numeros'
 import { variacionPct } from '@/lib/informes-auto/canales-digitales-calculo'
+import type { PuntoMensual } from '@/lib/informes-auto/types'
 
 /** Variaciones menores a este % se muestran en gris (sin cambio relevante). */
 const UMBRAL_NEUTRO = 1
@@ -20,5 +21,28 @@ export default function Variacion({ actual, anterior, etiqueta }: {
       {flecha} {formatearPorcentaje(Math.abs(v))}
       {etiqueta && <span className="font-normal text-text-secondary"> {etiqueta}</span>}
     </span>
+  )
+}
+
+/**
+ * Valor de un mes contando desde el final de la serie (0 = mes del informe).
+ * Las series van de enero al mes del informe: en enero no hay mes anterior.
+ */
+function valorDesdeElFinal(serie: PuntoMensual[], mesesAtras: number): number | null {
+  return serie[serie.length - 1 - mesesAtras]?.valor ?? null
+}
+
+/** Variación del mes del informe vs mes anterior y vs mismo mes del año anterior, desde sus series. */
+export function VariacionesDelMes({ actual, serie, serieAnioAnterior, className = '' }: {
+  actual: number | null
+  serie: PuntoMensual[]
+  serieAnioAnterior: PuntoMensual[]
+  className?: string
+}) {
+  return (
+    <div className={`flex flex-col gap-0.5 ${className}`}>
+      <Variacion actual={actual} anterior={valorDesdeElFinal(serie, 1)} etiqueta="vs mes anterior" />
+      <Variacion actual={actual} anterior={valorDesdeElFinal(serieAnioAnterior, 0)} etiqueta="vs mismo mes año anterior" />
+    </div>
   )
 }
