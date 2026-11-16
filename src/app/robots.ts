@@ -14,6 +14,7 @@ const RUTAS_PRIVADAS = [
   '/casa-catamarca',
   '/calidad',
   '/estadisticas/indicadores',
+  '/mice', // directorio temporal del QR del programa de distinciones (también lleva noindex)
 ]
 
 export default function robots(): MetadataRoute.Robots {
